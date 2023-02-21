@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
 {
 	Intro(argc, argv);
 	LoadConfig();
+	ApplyConfig();
 	OpenDevFile(); // sets apci
 
 	pthread_create(&action_thread, NULL, (void*(*)(void *))&ActionThread, &ActionQueue);

@@ -6,6 +6,7 @@
 
 #include "eNET-types.h"
 #include "logging.h"
+#include "apci.h"
 #include "config.h"
 
 
@@ -262,4 +263,14 @@ void LoadConfig(std::string which)
 	HandleError(ReadConfigFloat("DAC_OffsetCh1", Config.dacOffsetCoefficients[1], which));
 	HandleError(ReadConfigFloat("DAC_OffsetCh2", Config.dacOffsetCoefficients[2], which));
 	HandleError(ReadConfigFloat("DAC_OffsetCh3", Config.dacOffsetCoefficients[3], which));
+}
+
+
+void ApplyConfig()
+{
+	for (int cal=0;cal<8;++cal){
+		out32(ofsAdcCalScale + cal*ofsAdcCalScaleStride, Config.adcScaleCoefficients[cal]);
+		out32(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, Config.adcOffsetCoefficients[cal]);
+
+	}
 }

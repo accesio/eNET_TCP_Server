@@ -60,7 +60,7 @@ extern TConfig Config;
 
 void initConfigStruct(TConfig &config);
 void LoadConfig(std::string which = CONFIG_CURRENT);
-
+void ApplyConfig();
 // On success: set value to config string from disk and return 0
 // On error: leave value unchanged and return errno
 // Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/
