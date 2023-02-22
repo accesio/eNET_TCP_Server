@@ -261,8 +261,7 @@ int main(int argc, char *argv[])
 	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void*)AF_INET6);
 
 	sleep(2);
-	do
-	{
+	do{
 		usleep(100000);
 	} while (!done);
 
