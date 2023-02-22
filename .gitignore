@@ -4,3 +4,4 @@ check.c
 aioenetd
 test
 .bash_history
+*.o
