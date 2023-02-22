@@ -197,6 +197,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 
 #define LOGGING_DISABLE
 
+#include "apci.h"
 #include "logging.h"
 #include "TMessage.h"
 #include "adc.h"
@@ -231,8 +232,8 @@ typedef SafeQueue<TActionQueueItem*> TActionQueue;
 TActionQueue ActionQueue;
 //TActionQueue ReplyQueue; // J2H: consider one per ReceiveThread...(i.e., make one ReplyThread per ReceiveThread, each with an associated queue)
 
-static void sig_handler(int sig);
 void OpenDevFile();
+void abort_handler(int s);
 void Intro(int argc, char **argv);
 void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in &addr, fd_set &ReadFDs);
 void HandleNewControlClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in &addr, fd_set &ReadFDs);
@@ -249,14 +250,13 @@ int main(int argc, char *argv[])
 {
 	Intro(argc, argv);
 	LoadConfig();
+	if (0.0 == Config.dacScaleCoefficients[0]){
+		printf("corrupt config detected (DAC scale == %s); fixing\n", std::to_string((__u32)Config.dacScaleCoefficients[0]).c_str());
+		InitConfig(Config);}
 	ApplyConfig();
 	OpenDevFile(); // sets apci
 
 	pthread_create(&action_thread, NULL, (void*(*)(void *))&ActionThread, &ActionQueue);
-
-	// pthread_create(&controlListener_thread, NULL, ControlListenerThread, (void*)AF_INET);
-	// pthread_create(&adcListener_thread, NULL, AdcListenerThread, (void*)AF_INET);
-
 	pthread_create(&controlListener6_thread, NULL, ControlListenerThread, (void*)AF_INET6);
 	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void*)AF_INET6);
 
@@ -266,22 +266,40 @@ int main(int argc, char *argv[])
 		usleep(100000);
 	} while (!done);
 
+
+	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga
+	abort_handler(0);
+	return 0;
+}
+
+void abort_handler(int s){
+	done = true;
 	std::time_t end_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	pthread_cancel(controlListener_thread);
 	pthread_cancel(adcListener_thread);
 	pthread_cancel(action_thread);
 	close(apci);
-	Log("AIOeNET Daemon " VersionString " CLOSING, it is now: " + std::string(std::ctime(&end_time)));
-	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga
-	return 0;
+	SaveConfig();
+	Log(std::string("AIOeNET Daemon " VersionString " CLOSING, it is now: ") + std::string(std::ctime(&end_time)));
+	/* put the card back in the power-up state */
+	out32(ofsReset, bmResetEverything);
+	pthread_join(logger_thread, NULL);
+	exit(s);
 }
 
 void Intro(int argc, char **argv)
 {
 	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	Log("AIOeNET Daemon " VersionString " STARTING, it is now: " + std::string(std::ctime(&start_time)));
+	Log(std::string("AIOeNET Daemon ") +VersionString +" STARTING, it is now: " + std::string(std::ctime(&start_time)));
+	struct sigaction sigIntHandler;
+	sigIntHandler.sa_handler = abort_handler;
+	sigemptyset(&sigIntHandler.sa_mask);
+	sigIntHandler.sa_flags = 0;
 
-	signal(SIGINT, sig_handler);
+	 sigaction(SIGINT, &sigIntHandler, NULL);
+	 sigaction(SIGABRT, &sigIntHandler, NULL);
+	 sigaction(SIGTERM, &sigIntHandler, NULL);
+
 	if (argc < 2)
 	{
 		Trace("Warning: no tcp port specified.  Using default: " + std::to_string(ControlListenPort));

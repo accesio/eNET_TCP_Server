@@ -1,0 +1,31 @@
+# Set compiler and flags
+CXX := aarch64-linux-g++
+CXXFLAGS := -g -Wfatal-errors -std=gnu++2a
+LDLIBS := -lm -lpthread -latomic -O3
+
+# Define source and object file directories
+SRCDIR := .
+OBJDIR := obj
+
+# Define source and object files
+SRCS := $(wildcard $(SRCDIR)/*.cpp) $(wildcard $(SRCDIR)/DataItems/*.cpp)
+OBJS := $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SRCS))
+
+# Define targets
+all: aioenetd
+
+aioenetd: $(OBJS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(OBJDIR):
+	mkdir -p $@ && mkdir -p $@/DataItems
+
+clean:
+	rm -rf aioenetd $(OBJDIR)
+
+.PHONY: all clean
+
+

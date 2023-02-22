@@ -13,7 +13,7 @@ eNET-AIO configuration structure and support API.
 	NOTE: Future revisions may support multiple user configs
 
 	aioenetd (or other users of this config.h/.cpp) should:
-		call initConfigStruct(Config) to set "useful" defaults in the global Config struct.
+		call InitConfig(Config) to set "useful" defaults in the global Config struct.
 		call InitializeConfigFiles() to create the config directories and files if they are not found
 		call LoadConfig(CONFIG_FACTORY), which will update Config with any found .conf values
 		call LoadConfig(CONFIG_CURRENT), which will update the Config with the customer's desired values
@@ -58,8 +58,9 @@ typedef struct TConfigStruct {
 } TConfig;
 extern TConfig Config;
 
-void initConfigStruct(TConfig &config);
+void InitConfig(TConfig &config);
 void LoadConfig(std::string which = CONFIG_CURRENT);
+bool SaveConfig(std::string which = CONFIG_CURRENT);
 void ApplyConfig();
 // On success: set value to config string from disk and return 0
 // On error: leave value unchanged and return errno

@@ -23,8 +23,9 @@ TDAC_Output::TDAC_Output(TBytes bytes)
 	{
 		__u16 counts = this->Data[1] | this->Data[2] << 8;
 		this->bWrite = true;
-		this->dacCounts = counts;
-		Log("DAC "+std::to_string(this->dacChannel)+" output: 0x"+to_hex<__u16>(this->dacCounts));
+		// this->dacCounts = counts;  // uncalibrated
+		this->dacCounts = counts * Config.dacScaleCoefficients[this->dacChannel] + Config.dacOffsetCoefficients[this->dacChannel];
+		Debug("DAC "+std::to_string(this->dacChannel)+" output: 0x"+to_hex<__u16>(this->dacCounts));
 	}
 	return;
 }
@@ -75,7 +76,7 @@ TDAC_Range1::TDAC_Range1(TBytes bytes)
 		{
 			this->bWrite = true;
 			this->dacRange = rangeCode;
-			Log("DAC "+std::to_string(this->dacChannel)+" range set to "+to_hex<__u32>(this->dacRange));
+			Debug("DAC "+std::to_string(this->dacChannel)+" range set to "+to_hex<__u32>(this->dacRange));
 		}
 	}
 	return;

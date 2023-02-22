@@ -301,7 +301,7 @@ PTDataItem TDataItem::fromBytes(TBytes msg, TError &result)
 			return PTDataItem(new TDataItem());
 		}
 	}
-	Log("TDataItem::fromBytes sending to constructor: ", data);
+	Debug("TDataItem::fromBytes sending to constructor: ", data);
 	for (auto entry : DIdList)
 		if (entry.DId == head->DId){
 			auto item = entry.Construct(data);

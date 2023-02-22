@@ -10,7 +10,7 @@
 /* Logging Stuff */
 
 #define LOG_DISABLE_TRACE
-#define LOG_DISABLE_INFO
+//#define LOG_DISABLE_INFO
 #define LOG_DISABLE_DEBUG
 // #define LOG_DISABLE_ERROR
 
