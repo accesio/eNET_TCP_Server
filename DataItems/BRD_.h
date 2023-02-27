@@ -1,6 +1,28 @@
 #pragma once
 #include "TDataItem.h"
 
+template <class T>
+class TReadOnlyConfig : public TDataItem {
+	private:
+		T config;
+		__u8 offset;
+		TDataId DId;
+	public:
+		std::string  AsString(bool bAsReply)
+		{
+			if (bAsReply)
+				return DIdList[getDIdIndex(this->DId)].desc + " → " + to_hex<T>(this->config);
+				else
+				return DIdList[getDIdIndex(this->DId)].desc;
+		}
+
+		TReadOnlyConfig(TDataId DId, __u8 offset);
+		virtual TReadOnlyConfig &Go() {
+			config = in<T>(offset);
+			return *this;
+		}
+};
+
 class TBRD_FpgaID : public TDataItem {
 public:
 	TBRD_FpgaID(){ setDId(BRD_FpgaID); }
