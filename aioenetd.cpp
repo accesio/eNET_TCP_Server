@@ -281,7 +281,7 @@ void abort_handler(int s){
 	SaveConfig();
 	Log(std::string("AIOeNET Daemon " VersionString " CLOSING, it is now: ") + std::string(std::ctime(&end_time)));
 	/* put the card back in the power-up state */
-	out32(ofsReset, bmResetEverything);
+	out(ofsReset, bmResetEverything);
 	pthread_join(logger_thread, NULL);
 	exit(s);
 }
@@ -488,7 +488,7 @@ void SendControlHello(int Socket)
 		Payload.push_back(d2);
 	}
 
-	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaID>(new TBRD_FpgaID());
+	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
 	PTDataItem features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
 	PTDataItem deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
 	PTDataItem adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());

@@ -46,7 +46,7 @@ std::string TDAC_Output::AsString(bool bAsReply)
 TDAC_Output & TDAC_Output::Go()
 {
 	__u32 controlValue = 0x00700000 | (this->dacChannel<<16) | this->dacCounts;
-	out32(ofsDac, controlValue);
+	out(ofsDac, controlValue);
 	Debug("Wrote " + std::to_hex<__u32>(controlValue) + " to DAC @ +0x" + std::to_hex<__u8>(ofsDac));
 	return *this;
 }

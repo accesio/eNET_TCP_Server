@@ -4,6 +4,39 @@
 #include "../TError.h"
 
 
+class ConfigField {
+public:
+    ConfigField(void* ptr, size_t size) : ptr_(ptr), size_(size) {}
+
+    template <typeame T>
+    void set(T value) {
+        if (sizeof(T) != size_) {
+            throw std::invalid_argument("Invalid size");
+        }
+        *static_cast<T*>(ptr_) = value;
+    }
+
+    template <typename T>
+    T get() const {
+        if (sizeof(T) != size_) {
+            throw std::invalid_argument("Invalid size");
+        }
+        return *static_cast<T*>(ptr_);
+    }
+
+private:
+    void* ptr_;
+    size_t size_;
+};
+// // Use
+// ConfigField port_field(&config.port, sizeof(config.port));
+// ConfigField address_field(&config.address, sizeof(config.address));
+// int port = port_field.get<int>();
+// port_field.set<int>(8080);
+// std::string address = address_field.get<std::string>();
+// address_field.set<std::string>("127.0.0.1");
+
+
 #pragma region TDataItem DId enum
 
 
@@ -53,6 +86,12 @@ enum DataItemIds : TDataId // specific numbering, ordering, and grouping are pre
 	DAC_ConfigAndOutputAll,
 	DAC_ConfigAndOutputSome,
 	DAC_ReadbackAll,
+	DAC_Calibrate1 = 0x20C,
+	DAC_CalibrateAll,
+	DAC_Offset1,
+	DAC_OffsetAll,
+	DAC_Scale1,
+	DAC_ScaleAll,
 
 	DIO_ = 0x300, // Query Only. *1
 	DIO_Configure1,
@@ -196,10 +235,12 @@ template <typename T=std::string> void stuff(TBytes & buf, const std::string v)
 // 	}
 // }
 
+// utility template to turn class into (base-class)-pointer-to-instance-on-heap, so derived class gets called
+template <class X> std::unique_ptr<TDataItem> configConstruct(void * ptr, size_t size) { return std::unique_ptr<TDataItem>(new X(ptr, size)); }
+typedef std::unique_ptr<TDataItem> DIdConstructor(...);
 
 // utility template to turn class into (base-class)-pointer-to-instance-on-heap, so derived class gets called
-template <class X> std::unique_ptr<TDataItem> construct(TBytes FromBytes) { return std::unique_ptr<TDataItem>(new X(FromBytes)); }
-typedef std::unique_ptr<TDataItem> DIdConstructor(TBytes FromBytes);
+template <class X> std::unique_ptr<TDataItem> construct(...) { return std::unique_ptr<TDataItem>(new X(FromBytes)); }
 
 typedef struct
 {
@@ -303,7 +344,7 @@ protected:
 	int conn;
 
 protected:
-	DataItemIds Id{0};
+	DataItemIds Id{DataItemIds(0)};
 	bool bWrite = false;
 };
 #pragma endregion TDataItem declaration

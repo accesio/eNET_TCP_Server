@@ -2,8 +2,6 @@
 #include "apcilib.h"
 #include "eNET-AIO16-16F.h"
 
-extern int apci;
-
 int widthFromOffset(int offset);
 
 __u8 in8(int offset)
@@ -42,7 +40,6 @@ __u32 in(int offset)
         break;
     }
 }
-
 
 TError out8(int offset, __u8 value)
 {

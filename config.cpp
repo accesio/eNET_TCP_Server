@@ -389,8 +389,8 @@ bool SaveConfig(std::string which)
 void ApplyConfig()
 {
 	for (int cal=0;cal<8;++cal){
-		out32(ofsAdcCalScale + cal*ofsAdcCalScaleStride, Config.adcScaleCoefficients[cal]);
-		out32(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, Config.adcOffsetCoefficients[cal]);
+		out(ofsAdcCalScale + cal*ofsAdcCalScaleStride, Config.adcScaleCoefficients[cal]);
+		out(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, Config.adcOffsetCoefficients[cal]);
 
 	}
 }
