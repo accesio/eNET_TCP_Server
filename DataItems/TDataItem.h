@@ -4,38 +4,6 @@
 #include "../TError.h"
 
 
-class ConfigField {
-public:
-    ConfigField(void* ptr, size_t size) : ptr_(ptr), size_(size) {}
-
-    template <typeame T>
-    void set(T value) {
-        if (sizeof(T) != size_) {
-            throw std::invalid_argument("Invalid size");
-        }
-        *static_cast<T*>(ptr_) = value;
-    }
-
-    template <typename T>
-    T get() const {
-        if (sizeof(T) != size_) {
-            throw std::invalid_argument("Invalid size");
-        }
-        return *static_cast<T*>(ptr_);
-    }
-
-private:
-    void* ptr_;
-    size_t size_;
-};
-// // Use
-// ConfigField port_field(&config.port, sizeof(config.port));
-// ConfigField address_field(&config.address, sizeof(config.address));
-// int port = port_field.get<int>();
-// port_field.set<int>(8080);
-// std::string address = address_field.get<std::string>();
-// address_field.set<std::string>("127.0.0.1");
-
 
 #pragma region TDataItem DId enum
 
@@ -237,10 +205,12 @@ template <typename T=std::string> void stuff(TBytes & buf, const std::string v)
 
 // utility template to turn class into (base-class)-pointer-to-instance-on-heap, so derived class gets called
 template <class X> std::unique_ptr<TDataItem> configConstruct(void * ptr, size_t size) { return std::unique_ptr<TDataItem>(new X(ptr, size)); }
-typedef std::unique_ptr<TDataItem> DIdConstructor(...);
+//typedef std::unique_ptr<TDataItem> DIdConstructor(...);
+//template <class X> std::unique_ptr<TDataItem> construct(FromBytes) { return std::unique_ptr<TDataItem>(new X()); }
 
 // utility template to turn class into (base-class)-pointer-to-instance-on-heap, so derived class gets called
-template <class X> std::unique_ptr<TDataItem> construct(...) { return std::unique_ptr<TDataItem>(new X(FromBytes)); }
+typedef std::unique_ptr<TDataItem> DIdConstructor(TBytes FromBytes);
+template <class X> std::unique_ptr<TDataItem> construct(TBytes FromBytes) { return std::unique_ptr<TDataItem>(new X(FromBytes)); }
 
 typedef struct
 {
@@ -250,6 +220,9 @@ typedef struct
 	TDataItemLength maxLen;
 	DIdConstructor *Construct;
 	std::string desc;
+	__u8 a, b, c, d;
+	void *ptr;
+	size_t size;
 } TDIdListEntry;
 
 extern TDIdListEntry const DIdList[];
@@ -357,3 +330,50 @@ public:
 	TDataItemNYI(TBytes buf) : TDataItem::TDataItem{buf}{};
 };
 #pragma endregion
+
+
+
+#pragma region "class TConfigField" mezzanine declaration
+template <typename... Ts>
+class TConfigField : public TDataItem
+{
+public:
+	TConfigField(void *ptr, size_t size) : ptr_(ptr), size_(size){};
+TConfigField(TBytes bytes)
+	{
+
+	};
+	virtual TBytes calcPayload(bool bAsReply=false);
+	virtual TConfigField &Go();
+	virtual std::string AsString(bool bAsReply = false);
+
+	template <typename T>
+    void set(T value) {
+        if (sizeof(T) != size_) {
+            throw std::invalid_argument("Invalid size");
+        }
+        *static_cast<T*>(ptr_) = value;
+    }
+
+    template <typename T>
+    T get() const {
+        if (sizeof(T) != size_) {
+            throw std::invalid_argument("Invalid size");
+        }
+        return *static_cast<T*>(ptr_);
+    }
+
+private:
+    void* ptr_;
+    size_t size_;
+};
+// // Use
+// ConfigField port_field(&config.port, sizeof(config.port));
+// ConfigField address_field(&config.address, sizeof(config.address));
+// int port = port_field.get<int>();
+// port_field.set<int>(8080);
+// std::string address = address_field.get<std::string>();
+// address_field.set<std::string>("127.0.0.1");
+
+#pragma endregion
+

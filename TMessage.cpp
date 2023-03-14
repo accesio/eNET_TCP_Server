@@ -373,7 +373,7 @@ string TMessage::AsString(bool bAsReply)
 		{
 			PTDataItem item = this->DataItems[itemNumber];
 			dest << endl
-				 << "           " << setw(2) << itemNumber+1 << ": " << item->AsString(bAsReply);
+				 << "		   " << setw(2) << itemNumber+1 << ": " << item->AsString(bAsReply);
 		}
 	}
 	return dest.str();

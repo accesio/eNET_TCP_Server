@@ -131,7 +131,7 @@ void *worker_main(void *arg)
 			if ((data_discarded != 0) || status)
 			{
 				Error("first_slot: "+std::to_string(first_slot)+ "num_slots:" +
-				       std::to_string(num_slots)+ "+data_discarded:"+std::to_string(data_discarded) +"; status: " + std::to_string(status));
+					   std::to_string(num_slots)+ "+data_discarded:"+std::to_string(data_discarded) +"; status: " + std::to_string(status));
 			}
 
 			if (num_slots == 0) // Worker Thread: No data pending; Waiting for IRQ

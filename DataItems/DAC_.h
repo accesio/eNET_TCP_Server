@@ -29,3 +29,4 @@ protected:
 	__u8 dacChannel = 0;
 	__u32 dacRange = 0;
 };
+

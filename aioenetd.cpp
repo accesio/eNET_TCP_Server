@@ -20,8 +20,8 @@ from discord code-review conversation with Daria; these do not belong in this so
 	Because I have multiple receive threads it isn't nearly as necessary to "be fast": the TCP Stack will queue bytes for me.
 	Because my error-checking location (the parser, the exploder, .FromBytes()) is in a socket-specific (ie client-specific)
 	thread it is harde\
-	{              \
-		;          \
+	{			  \
+		;		  \
 	}
 	Because my worker and all receive threads share a thread-safe std::queue<> everything is serialized nicely.
 
@@ -515,7 +515,7 @@ void SendControlHello(int Socket)
 	}
 	else
 	{
-		Log("Sent 'Hello' to Control Client#:\n          " + HelloControl.AsString());
+		Log("Sent 'Hello' to Control Client#:\n		  " + HelloControl.AsString());
 	}
 }
 
@@ -553,7 +553,7 @@ bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 		Error("TMessage::fromBytes(buf) returned " + std::to_string(result) + err_msg[-result]);
 		return false;
 	}
-	Log("Received on Control connection:\n          " + parsedMessage.AsString());
+	Log("Received on Control connection:\n		  " + parsedMessage.AsString());
 	return true;
 }
 
@@ -638,10 +638,10 @@ bool RunMessage(TMessage &aMessage)
 	{
 		aMessage.setMId('X');
 		Error(e.what());
-		Log("Error Message built: \n          " + aMessage.AsString(true));
+		Log("Error Message built: \n		  " + aMessage.AsString(true));
 		return false;
 	}
-	Log("Control Reply Message built: \n          " + aMessage.AsString(true));
+	Log("Control Reply Message built: \n		  " + aMessage.AsString(true));
 	return true;
 }
 

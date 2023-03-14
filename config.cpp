@@ -10,8 +10,8 @@
 #include "config.h"
 
 union {
-    __u32 u;
-    float f;
+	__u32 u;
+	float f;
 } map_f__u32;
 
 void InitConfig(TConfig &config) {
@@ -161,7 +161,7 @@ int WriteConfigFloat(std::string key, float value, std::string which )
 	map_f__u32.f = value;
 	__u32 v = map_f__u32.u;
 	return WriteConfigU32(key, v, which);
-	// std::cout << "     wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<std::endl;
+	// std::cout << "	 wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<std::endl;
 }
 
 // Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure
