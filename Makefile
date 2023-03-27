@@ -1,8 +1,8 @@
 # Set CXX variable for AARCH64 architecture
 ifneq ($(shell uname -m),aarch64)
-    CXX = aarch64-linux-gnu-g++
+    CXX := aarch64-linux-gnu-g++
 else
-    CXX = g++
+    CXX := g++
 endif
 
 # Set CXXFLAGS and LDLIBS
@@ -20,7 +20,7 @@ OBJS := $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SRCS))
 # Build rules
 all: aioenetd
 
-aioenetd: $(OBJS) 
+aioenetd: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)

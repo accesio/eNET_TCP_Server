@@ -1,5 +1,29 @@
 #pragma once
+#include <cmath>
 #include "TDataItem.h"
+
+template <class T>
+class TReadOnlyConfig : public TDataItem {
+	private:
+		T config = 0;
+		__u8 offset;
+		DataItemIds DId;
+	public:
+		TReadOnlyConfig(DataItemIds DId, __u8 offset) : DId(DId), offset(offset) { setDId(DId); };
+
+		virtual std::string AsString(bool bAsReply){
+			if (bAsReply)
+				return DIdList[getDIdIndex(this->DId)].desc + " → " + to_hex<T>(this->config);
+			else
+				return DIdList[getDIdIndex(this->DId)].desc;
+		}
+
+		virtual TReadOnlyConfig &Go() {
+			__u32 mask = std::pow( 2, (8 * sizeof(T))) - 1;
+			config = in(offset) & mask;
+			return *this;
+		}
+};
 
 class TBRD_FpgaID : public TDataItem {
 public:
