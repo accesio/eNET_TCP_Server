@@ -14,12 +14,14 @@ extern int apci;
 
 // DId Enum, minLen,tarLen,maxLen,class-constructor,human-readable-doc
 TDIdListEntry const DIdList[] = {
+	{INVALID, 9, 9, 9, construct<TConfigField<__u8,float,float>>, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", 1, 4, 4},
 	{INVALID, 0, 0, 0, construct<TDataItem>, "Invalid DId"},
 	{BRD_, 0, 0, 255, construct<TDataItem>, "TDataItem Base (BRD_)"},
 	{BRD_Reset, 0, 0, 0, construct<TDataItem>, "BRD_Reset(void)"},
-	{BRD_DeviceID, 0, 4, 255, construct<TDataItem>, "BRD_DeviceID() → u16"},
-	{BRD_Features, 0, 4, 255, construct<TDataItem>, "BRD_Features() → u8"},
-	{BRD_FpgaID, 0, 4, 255, construct<TDataItem>, "BRD_FpgaID() → u32"},
+	//{BRD_DeviceID, 0, 4, 255, construct<TDataItem>, "BRD_DeviceID() → u16"},
+	{BRD_DeviceID, 0, 4, 255, construct<TBRD_DeviceID>, "BRD_DeviceID()"},
+	{BRD_Features, 0, 4, 255, construct<TBRD_Features>, "BRD_Features() → u8"},
+	{BRD_FpgaID, 0, 4, 255, construct<TBRD_FpgaId>, "BRD_FpgaID() → u32"},
 
 	{REG_Read1, 1, 1, 1, construct<TREG_Read1>, "REG_Read1(u8 offset) → [u8|u32]"},
 	DIdNYI(REG_ReadAll),
@@ -44,6 +46,13 @@ TDIdListEntry const DIdList[] = {
 	DIdNYI(DAC_ConfigAndOutputAll),
 	DIdNYI(DAC_ConfigAndOutputSome),
 	DIdNYI(DAC_ReadbackAll),
+	//{DAC_Calibrate1, 9,9,9, construct<TConfigField<__u8,float,float>>, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)"},
+	 DIdNYI(DAC_Calibrate1),
+	DIdNYI(DAC_CalibrateAll),
+	DIdNYI(DAC_Offset1),
+	DIdNYI(DAC_OffsetAll),
+	DIdNYI(DAC_Scale1),
+	DIdNYI(DAC_ScaleAll),
 
 	DIdNYI(DIO_),
 	DIdNYI(DIO_Configure1),
@@ -146,7 +155,7 @@ int widthFromOffset(int ofs)
 		return 8;
 	else if ((ofs <= 0xFC) && (ofs % 4 == 0))
 		return 32;
-    return 0;
+	return 0;
 }
 
 #pragma region TDataItem implementation
@@ -164,10 +173,10 @@ int widthFromOffset(int ofs)
 #pragma region TDataItem Class Methods(static)
 // NYI - validate the payload of a Data Item based on the Data Item ID
 // e.g, if the Message is equivalent to ADC_SetRangeAll(__u8 ranges[16]) then the Data
-//      should be 16 bytes, each of which is a valid Range Code
+//	  should be 16 bytes, each of which is a valid Range Code
 // e.g, if the Message is ADC_SetRange(__u16 Channel, __u8 RangeCode) then the Data
-//      should be 3 bytes, being a __u16 Channel which must be valid for this device, and
-//      a valid RangeCode byte
+//	  should be 3 bytes, being a __u16 Channel which must be valid for this device, and
+//	  a valid RangeCode byte
 // NOTE:
 //   This should be implemented OOP-style: each TDataItem ID should be a descendant-class that provides the
 //   specific validate and parse appropriate to that DataItemID
@@ -441,3 +450,48 @@ std::shared_ptr<void> TDataItem::getResultValue()
 #pragma region TDataItemNYI implementation
 // NYI (lol)
 #pragma endregion
+
+
+#pragma region "class TConfigField" mezzanine
+template <typename... Ts>
+TConfigField<Ts...>::TConfigField(TBytes bytes)
+{
+	std::tuple<Ts...> args = std::forward_as_tuple(Ts...);
+	int count = std::tuple_size<args>;
+
+
+
+	Trace("bytes = ", bytes);
+	TError result = ERR_SUCCESS;
+	GUARD(bytes.size() < sizeof(TDataItemHeader), ERR_MSG_DATAITEM_TOO_SHORT, bytes.size());
+
+	TDataItemHeader *head = (TDataItemHeader *)bytes.data();
+	GUARD(isValidDataItemID(head->DId), ERR_MSG_DATAITEM_ID_UNKNOWN, head->DId);
+
+	TDataItemLength DataSize = head->dataLength;
+	GUARD(bytes.size() != sizeof(TDataItemHeader) + DataSize, ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, DataSize);
+
+	this->Data = TBytes(bytes.begin() + sizeof(TDataItemHeader), bytes.end()); // extract the Data from the DataItem bytes
+	if (DataSize > 0)
+		TError result = validateDataItemPayload(this->Id, Data); // TODO: change to parseData that returns vector of classes-of-data-types
+	return;
+};
+
+template <typename... Ts>
+TBytes TConfigField<Ts...>::calcPayload(bool bAsReply)
+{
+
+};
+
+template <typename... Ts>
+TConfigField<Ts...> &TConfigField<Ts...>::Go()
+{
+
+};
+
+template <typename... Ts>
+std::string TConfigField<Ts...>::AsString(bool bAsReply)
+{
+
+};
+

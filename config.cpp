@@ -10,8 +10,8 @@
 #include "config.h"
 
 union {
-    __u32 u;
-    float f;
+	__u32 u;
+	float f;
 } map_f__u32;
 
 void InitConfig(TConfig &config) {
@@ -161,7 +161,7 @@ int WriteConfigFloat(std::string key, float value, std::string which )
 	map_f__u32.f = value;
 	__u32 v = map_f__u32.u;
 	return WriteConfigU32(key, v, which);
-	// std::cout << "     wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<std::endl;
+	// std::cout << "	 wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<std::endl;
 }
 
 // Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure
@@ -389,8 +389,8 @@ bool SaveConfig(std::string which)
 void ApplyConfig()
 {
 	for (int cal=0;cal<8;++cal){
-		out32(ofsAdcCalScale + cal*ofsAdcCalScaleStride, Config.adcScaleCoefficients[cal]);
-		out32(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, Config.adcOffsetCoefficients[cal]);
+		out(ofsAdcCalScale + cal*ofsAdcCalScaleStride, Config.adcScaleCoefficients[cal]);
+		out(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, Config.adcOffsetCoefficients[cal]);
 
 	}
 }

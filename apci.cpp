@@ -2,77 +2,74 @@
 #include "apcilib.h"
 #include "eNET-AIO16-16F.h"
 
-extern int apci;
-
 int widthFromOffset(int offset);
 
 __u8 in8(int offset)
 {
-    __u8 value;
-    int status = apci_read8(apci, 0, BAR_REGISTER, offset, &value);
-    return status ? -1 : value;
+	__u8 value;
+	int status = apci_read8(apci, 0, BAR_REGISTER, offset, &value);
+	return status ? -1 : value;
 }
 
 __u16 in16(int offset)
 {
-    __u16 value;
-    int status = apci_read16(apci, 0, BAR_REGISTER, offset, &value);
-    return status ? -1 : value;
+	__u16 value;
+	int status = apci_read16(apci, 0, BAR_REGISTER, offset, &value);
+	return status ? -1 : value;
 }
 
 __u32 in32(int offset)
 {
-    __u32 value;
-    int status = apci_read32(apci, 0, BAR_REGISTER, offset, &value);
-    return status ? -1 : value;
+	__u32 value;
+	int status = apci_read32(apci, 0, BAR_REGISTER, offset, &value);
+	return status ? -1 : value;
 }
 
 __u32 in(int offset)
 {
-    switch (widthFromOffset(offset))
-    {
-    case 8:
-        return in8(offset);
-    case 16:
-        return in16(offset);
-    case 32:
-        return in32(offset);
-    default:
-        return -1;
-        break;
-    }
+	switch (widthFromOffset(offset))
+	{
+	case 8:
+		return in8(offset);
+	case 16:
+		return in16(offset);
+	case 32:
+		return in32(offset);
+	default:
+		return -1;
+		break;
+	}
 }
-
 
 TError out8(int offset, __u8 value)
 {
-    return apci_write8(apci, 0, BAR_REGISTER, offset, value);
+	return apci_write8(apci, 0, BAR_REGISTER, offset, value);
 }
 
 TError out16(int offset, __u16 value)
 {
-    return apci_write16(apci, 0, BAR_REGISTER, offset, value);
+	return apci_write16(apci, 0, BAR_REGISTER, offset, value);
 }
 
 TError out32(int offset, __u32 value)
 {
-    return apci_write32(apci, 0, BAR_REGISTER, offset, value);
+	return apci_write32(apci, 0, BAR_REGISTER, offset, value);
 }
 
 TError out(int offset, __u32 value)
 {
-    switch (widthFromOffset(offset))
-    {
-    case 8:
-        return out8(offset, value);
-    case 16:
-        return out16(offset, value);
-    case 32:
-        return out32(offset, value);
-    default:
-        return -1;
-        break;
-    }
+	switch (widthFromOffset(offset))
+	{
+	case 8:
+		return out8(offset, value);
+	case 16:
+		return out16(offset, value);
+	case 32:
+		return out32(offset, value);
+	default:
+		return -1;
+		break;
+	}
 }
 
 int apciGetDevices() { return apci_get_devices(apci); }
