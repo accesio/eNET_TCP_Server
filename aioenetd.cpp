@@ -545,19 +545,15 @@ bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 {
 	TError result;
 	TBytes buf(theBuffer, theBuffer + bytesRead);
-	// Log("buf has ", buf);
-	// buf.clear();
-	// // TODO: DOES NOT WORK? // buf.assign(buffer, buffer + bytesRead); // turn buffer into TBytes
-	// for (int i = 0; i < bytesRead; i++) buf.push_back(theBuffer[i]);
 
 	parsedMessage = TMessage::FromBytes(buf, result);
-
+	Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:");
 	if (result != ERR_SUCCESS)
 	{
 		Error("TMessage::fromBytes(buf) returned " + std::to_string(-result) + ": " + err_msg[-result]);
 		return false;
 	}
-	Log("Received on Control connection:\n		  " + parsedMessage.AsString());
+	Log("Received "+std::to_string(bytesRead)+" bytes on Control connection:\n		  " + parsedMessage.AsString());
 	return true;
 }
 
@@ -572,7 +568,8 @@ void *threadReceiver(void *arg) // J2H: In progress
 	SendControlHello(controlSocket);
 
 	ssize_t bytesRead = 0;
-	int bufLen = sizeof(DataItemIds) + sizeof(TDataItemLength) + minimumMessageLength + 1;
+	//int bufLen = sizeof(DataItemIds) + sizeof(TDataItemLength) + minimumMessageLength + 1;
+	int bufLen=65536;
 	char buffer[bufLen];
 	do
 	{
@@ -603,7 +600,7 @@ void *threadReceiver(void *arg) // J2H: In progress
 				Debug("GotMessage says valid");
 				TActionQueueItem *Action = new TActionQueueItem{controlSocket, *aMessage};
 				ActionQueue.enqueue(Action);
-				Debug(Action->theMessage.AsString());
+				Debug(Action->theMessage.AsString(true));
 			}
 			catch (std::logic_error e)
 			{
@@ -680,7 +677,7 @@ void *ActionThread(TActionQueue *Q)
 		Log("---DEQUEUED---");
 		RunMessage(anAction->theMessage);
 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
-		free(anAction);
+		//free(anAction);
 	}
 }
 

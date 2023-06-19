@@ -13,14 +13,7 @@ TDataItem IDs, but that should change.
 
 */
 
-#ifdef __linux__
 #include <linux/types.h>
-#else // define our base types for compiling on Windows
-typedef uint8_t __u8;
-typedef uint16_t __u16;
-typedef uint32_t __u32;
-#endif
-
 #include <cstring>
 #include <string>
 #include <iomanip>
@@ -28,8 +21,11 @@ typedef uint32_t __u32;
 #include <vector>
 #include <thread>
 
+#include "eNET-AIO16-16F.h"
 #include "safe_queue.h"
 #include "TError.h"
+
+
 
 /* type definitions */
 typedef std::vector<__u8> TBytes;
@@ -43,6 +39,29 @@ class TDataItem;
 
 typedef std::shared_ptr<TDataItem> PTDataItem;
 typedef std::vector<PTDataItem> TPayload;
+
+template<typename To, typename From>
+To bit_cast(const From& from) {
+    static_assert(sizeof(From) == sizeof(To),
+                  "Source and destination types must have the same size for bit_cast.");
+    To to;
+    std::memcpy(&to, &from, sizeof(from));
+    return to;
+}
+
+template <typename T>
+std::vector<T> slicing(std::vector<T> const &v, int Start, int End)
+{
+	// Begin and End iterator
+	auto first = v.begin() + Start;
+	auto last = v.begin() + End + 1;
+
+	// Copy the element
+	std::vector<T> vector(first, last);
+
+	// Return the results
+	return vector;
+}
 
 // convert integer to hex, no '0x' prefixed
 template <typename T>
@@ -82,6 +101,26 @@ inline std::string to_hex(T i)
 	return stream.str();
 }
 
+#define printBytes(dest, intro, buf, crlf)                                                                           \
+	{                                                                                                                \
+		dest << intro;                                                                                               \
+		for (auto byt : buf)                                                                                         \
+			dest << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " "; \
+		if (crlf)                                                                                                    \
+			dest << '\n';                                                                                       \
+	}
+
+inline __u32 regextract(__u8 * buf, int regofs)
+{
+	switch(widthFromOffset(regofs))
+	{
+		case 8: return *(__u8 *)(buf);
+		case 16: return *(__u16 *)(buf);
+		case 32: return *(__u32 *)(buf);
+	}
+	return 0;
+}
+
 template <typename T>
 void stuff(TBytes &buf, const T v)
 {
@@ -112,15 +151,6 @@ inline void stuff<float>(TBytes &buf, const float v)
 	stuff<__u32>(buf, map_f__u32.u);
 }
 
-#pragma pack(push, 1)
-typedef struct
-{
-	__u8 offset;
-	__u8 width;
-	__u32 value;
-} REG_Write;
-
-typedef std::vector<REG_Write> REG_WriteList;
 
 typedef struct
 {
@@ -144,8 +174,10 @@ typedef struct TSendQueueItemClass
 	int portSend;
 } TSendQueueItem;
 
-#pragma pack(pop)
+
+
 extern const char *err_msg[];
+
 // throw exception if conditional is false
 inline void
 GUARD(bool allGood, TError resultcode, int intInfo,

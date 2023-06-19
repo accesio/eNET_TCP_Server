@@ -1,10 +1,5 @@
 #include <string>
-// #include <memory>
-// #include <sstream>
-// #include <iostream>
-// #include <iomanip>
 #include <stdio.h>
-// #include <linux/types.h>
 
 #include "logging.h"
 
@@ -94,7 +89,7 @@ int Debug(const std::string intro, const TBytes bytes, bool crlf, const source_l
 int Error(const std::string message, const source_location &loc)
 {
 	std::string prefix(FUNCTION_DEPTH, '-');
-	printf(logtext, RED, "ERROR", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), message.c_str());
+	printf(logtext "\n", RED, "ERROR", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), message.c_str());
 	return 0;
 }
 

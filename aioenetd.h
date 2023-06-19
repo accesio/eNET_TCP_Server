@@ -1,4 +1,8 @@
 #pragma once
+#include <vector>
+
+#include "safe_queue.h"
+#include "TMessage.h"
 
 typedef struct TActionQueueItemClass
 {
@@ -9,9 +13,7 @@ typedef struct TActionQueueItemClass
 } TActionQueueItem;
 
 typedef SafeQueue<TActionQueueItem *> TActionQueue;
-// SafeQueue<pthread_t> ReceiverThreadQueue;
 TActionQueue ActionQueue;
-// TActionQueue ReplyQueue; // J2H: consider one per ReceiveThread...(i.e., make one ReplyThread per ReceiveThread, each with an associated queue)
 
 void OpenDevFile();
 void abort_handler(int s);

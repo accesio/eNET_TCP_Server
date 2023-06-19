@@ -2,16 +2,13 @@
 #include <experimental/source_location>
 using namespace std::experimental;
 
-#include <string>
-#include <iostream>
-
 #include "eNET-types.h"
 
 // #define LOG_DISABLE_TRACE
-// #define LOG_DISABLE_INFO
+#define LOG_DISABLE_INFO
 // #define LOG_DISABLE_DEBUG
 // #define LOG_DISABLE_ERROR
-// #define LOG_DISABLE_FUNCTION_TRACE
+#define LOG_DISABLE_FUNCTION_TRACE
 
 extern int FUNCTION_DEPTH;
 
@@ -59,12 +56,12 @@ public:
     __attribute__((no_instrument_function)) FunctionLogger(const char* func_name, const source_location &loc = source_location::current()) : function_name(func_name),location(loc) {
         ++FUNCTION_DEPTH;
         std::string prefix(FUNCTION_DEPTH, '-');
-        printf("\033[36m[ TRACE ] %12s \033[32m%23s %-23s\033[0m %s %s (%5d)\n", elapsedms().c_str(), location.file_name(), "ENTER", prefix.c_str(), location.function_name(), location.line());
+        printf("\033[36m[ LogIt ] %12s \033[32m%23s %-23s\033[0m %s %s (%5d)\n", elapsedms().c_str(), location.file_name(), "ENTER", prefix.c_str(), location.function_name(), location.line());
     }
 
     __attribute__((no_instrument_function)) ~FunctionLogger() {
         std::string prefix(FUNCTION_DEPTH, '-');
-        printf("\033[36m[ TRACE ] %12s \033[32m%23s %-23s\033[0m %s %s (%5d)\n", elapsedms().c_str(), location.file_name(),"EXIT", prefix.c_str(), location.function_name(), location.line());
+        printf("\033[36m[ LogIt ] %12s \033[32m%23s %-23s\033[0m %s %s (%5d)\n", elapsedms().c_str(), location.file_name(),"EXIT", prefix.c_str(), location.function_name(), location.line());
         --FUNCTION_DEPTH;
     }
 

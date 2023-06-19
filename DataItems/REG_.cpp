@@ -79,7 +79,7 @@ TBytes TREG_Read1::calcPayload(bool bAsReply)
 	TBytes bytes;
 	// stuff<__u8>(bytes, this->offset);
 	bytes.push_back(this->offset);
-	Debug("offset = " + to_hex<__u8>(this->offset) + "bytes now holds: ", bytes);
+	Debug("offset = " + to_hex<__u8>(this->offset) + " bytes now holds: ", bytes);
 
 	if (bAsReply)
 	{
@@ -94,12 +94,12 @@ TBytes TREG_Read1::calcPayload(bool bAsReply)
 		}
 		else
 		{
-			for (int i=0;i<4;i++){
-				bytes.push_back(v & 0xFF);
-				v >>= 8;
-			}
+			// for (int i=0;i<4;i++){
+			// 	bytes.push_back(v & 0xFF);
+			// 	v >>= 8;
+			// }
 			Debug("byte reg value=" + to_hex<__u32>(*((__u32 *)value.get())), bytes);
-			// stuff<__u32>(bytes, v);
+			stuff<__u32>(bytes, v);
 		}
 	}
 
@@ -220,6 +220,7 @@ std::string TREG_Writes::AsString(bool bAsReply)
 		__u32 v = aWrite.value;
 		dest << "REG_Write1(" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(aWrite.offset) << ", " << std::hex << std::setw(aWrite.width / 8 * 2) << v << ");";
 	}
+	Debug(dest.str());
 	return dest.str();
 }
 #pragma endregion TREG_Writes
@@ -230,7 +231,7 @@ TREG_Write1::~TREG_Write1()
 	this->Writes.clear();
 }
 
-TREG_Write1::TREG_Write1(TBytes buf) : TREG_Writes(REG_Write1)
+TREG_Write1::TREG_Write1(DataItemIds ID, TBytes buf) : TREG_Writes(REG_Write1)
 {
 	GUARD(buf.size() > 0, ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
 	__u8 ofs = buf[0];
@@ -245,21 +246,22 @@ TREG_Write1::TREG_Write1(TBytes buf) : TREG_Writes(REG_Write1)
 		value = *(__u32 *)&buf[1];
 
 	this->addWrite(w, ofs, value);
+	Trace("width="+std::to_string(w)+" value="+to_hex<__u32>(value));
 }
 
 TBytes TREG_Write1::calcPayload(bool bAsReply)
 {
 	TBytes bytes;
-	if (this->Writes.size() > 0)
+	if (this->Writes.size() > 0){
 		stuff<__u8>(bytes, this->Writes[0].offset);
-	else
+		__u32 v = this->Writes[0].value;
+		for (int i = 0; i < this->Writes[0].width / 8; i++)
+		{
+			bytes.push_back(v & 0x000000FF);
+			v >>= 8;
+		}
+	}else
 		Error("ERROR: nothing in Write[] queue");
 
-	__u32 v = this->Writes[0].value;
-	for (int i = 0; i < this->Writes[0].width / 8; i++)
-	{
-		bytes.push_back(v & 0x000000FF);
-		v >>= 8;
-	}
 	return bytes;
 }

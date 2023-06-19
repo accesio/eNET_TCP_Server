@@ -60,26 +60,33 @@ bool RunMessage(TMessage &aMessage)
 // Received: 4D 48 00 00 00 10 02 05 00 00 00 00 80 3F 0E 02 05 00 00 00 00 00 00 10 02 05 00 01 00 00 80 3F 0E 02 05 00 01 00 00 00 00 10 02 05 00 02 00 00 80 3F 0E 02 05 00 02 00 00 00 00 10 02 05 00 03 00 00 80 3F 0E 02 05 00 03 00 00 00 00 B3
 int main(void) // "TEST"
 {
-
-
 	std::string devicefile = "";
 	std::string devicepath = "/dev/apci";
-	for (const auto &devfile : std::filesystem::directory_iterator(devicepath))
+    // if apci directory exists
+    if(std::filesystem::exists(devicepath) && std::filesystem::is_directory(devicepath))
 	{
-		apci = open(devfile.path().c_str(), O_RDONLY);
-		if (apci >= 0)
-		{
-			devicefile = devfile.path().c_str();
-			break;
-		}
-	}
-	Log("Opening device @ " + devicefile);
+        for (const auto &devfile : std::filesystem::directory_iterator(devicepath))
+        {
+            apci = open(devfile.path().c_str(), O_RDONLY);
+            if (apci >= 0)
+            {
+                devicefile = devfile.path().c_str();
+                break;
+            }
+        }
+    }
+    else
+    {
+        Error("APCI driver did not find a device in /dev/apci/");
+        return 1;
+    }
+    Log("Opening device @ " + devicefile);
 
     try
     {
-        cout << endl << "0 ----------------------------------------------------------------------------------------------" << endl<< endl;
-        TBytes msg = {0x4D, 0x48, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x01, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x02, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x03, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0xB3};
-
+        cout << '\n' << "0 ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
+        //TBytes msg = {0x4D, 0x48, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x01, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x02, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x10, 0x02, 0x05, 0x00, 0x03, 0x00, 0x00, 0x80, 0x3F, 0x0E, 0x02, 0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0xB3};
+        TBytes msg = {0x4D, 0x24, 0x00, 0x00, 0x00, 0x05, 0x01, 0x05, 0x00, 0x30, 0x00, 0x80, 0x30, 0x00, 0x05, 0x01, 0x05, 0x00, 0x30, 0x00, 0x80, 0x31, 0x00, 0x05, 0x01, 0x05, 0x00, 0x30, 0x00, 0x80, 0x32, 0x00, 0x05, 0x01, 0x05, 0x00, 0x30, 0x00, 0x80, 0x33, 0x00, 0xDD};
         TError result;
         TMessage *aMessage = new TMessage;
         *aMessage = TMessage::FromBytes(msg, result);
@@ -92,79 +99,85 @@ int main(void) // "TEST"
 
         if (result != ERR_SUCCESS)
         {
-            Error("TMessage::fromBytes(buf) returned " + std::to_string(result) + err_msg[-result]);
+            Error("TMessage::fromBytes(buf) returned " + std::to_string(-result) + err_msg[-result]);
             return false;
         }
         Log("Received on Control connection:\n		  " + aMessage->AsString());
-        cout << endl << "1 ----------------------------------------------------------------------------------------------" << endl<< endl;
+        cout << '\n' << "1 ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
         SendControlHello();
 
         TMessage Message = TMessage('M');
 
-        cout << endl << "2 ----------------------------------------------------------------------------------------------" << endl<< endl;
+        cout << '\n' << "2 Constructor(TBytes Message) ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
 
         TMessage Msg = TMessage(msg);
-        cout << endl << "3 ----------------------------------------------------------------------------------------------" << endl<< endl;
+        cout << '\n' << "3 Message.Go ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
         Msg.Go();
-        cout << endl << "4 ----------------------------------------------------------------------------------------------" << endl<< endl;
-        cout << Msg.AsString(true) << endl << "-----------------------------------------------" << endl;
-        cout << endl << "5 ----------------------------------------------------------------------------------------------" << endl<< endl;
-        printBytes(cout, "Msg = ", Msg.AsBytes(true), true);
-        cout << "6 ----------------------------------------------------------------------------------------------" << endl<< endl;
 
-        // TBytes REG_Read3C = {0x4D, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00, 0x3C, 0x6F };
-        // TMessage Msg2 = TMessage(REG_Read3C);
-        // cout << Msg2.AsString(true) << endl << "-----------------------------------------------" << endl;
+        cout << '\n' << "4 As Bytes ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
+        TBytes rbuf = Msg.AsBytes(true);
+        Trace("Replied with:\n    bytes: ", rbuf);
 
-        // Debug("bytes: ",Msg2.AsBytes(true));
+        cout << '\n' << "5 As String ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
+        cout << Msg.AsString(true) << '\n' << "------------------------------------------------" << '\n';
+
+        cout << "6 Constructor(DId) ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
+
+        TBytes REG_Read3C = {0x4D, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00, 0x3C, 0x6F };
+        TMessage Msg2 = TMessage(REG_Read3C);
+        cout << '\n' << "7 As String ----------------------------------------------------------------------------------------------" << '\n'<< '\n';
+        cout << Msg2.AsString(true) << '\n' << "-----------------------------------------------" << '\n';
+
+        cout << '\n' << "8 As Bytes -----------------------------------------------------------------------------------------------" << '\n'<< '\n';
+        Trace("8) bytes: ",Msg2.AsBytes(true));
 
 
-        // __u8 dacNum = 1;
-        // float scale = 1.0;
-        // float offset = 0.0;
-        // __u16 len;
-        // printf("Testing\n-----------------------------------\n");
-        // TMessageId MId_C = 'C';
-        // TMessage Message = TMessage(MId_C);
-        // PTDataItem item;
-        // TBytes bytes;
-        // bytes.push_back(0x0C);
-        // bytes.push_back(0x02);
-        // bytes.push_back(0x09);
-        // bytes.push_back(0x00);
-        // bytes.push_back(0x01); // DAC# 0
-        // stuff<float>(bytes, 1.0); // scale
-        // stuff<float>(bytes, -1.0); // offset
-        // Trace("bytes == ",bytes);
-        // TError res;
-        // item = TDataItem::fromBytes(bytes, res);
-        // item->setDId(DAC_Calibrate1);
+        printf("9 Testing\n-----------------------------------\n");
+        __u8 dacNum = 1;
+        float scale = 1.0;
+        float offset = 0.0;
+        __u16 len;
+        TMessageId MId_C = 'C';
+        TMessage Message2 = TMessage(MId_C);
+        PTDataItem item;
+        TBytes bytes;
+        bytes.push_back(0x0C);
+        bytes.push_back(0x02);
+        bytes.push_back(0x09);
+        bytes.push_back(0x00);
+        bytes.push_back(0x01); // DAC# 0
+        stuff<float>(bytes, 1.0); // scale
+        stuff<float>(bytes, -1.0); // offset
+        Trace("9) bytes == ", bytes);
+        TError res;
+        item = TDataItem::fromBytes(bytes, res);
+        item->setDId(DAC_Calibrate1);
 
-        // // std::shared_ptr<TConfigField<__u8, float, float>>
-        // //     item2(new TConfigField<__u8, float, float>(dacNum, scale, offset));
-        // // Message.addDataItem(item2);
+        // std::shared_ptr<TConfigField<__u8, float, float>>
+        //     item2(new TConfigField<__u8, float, float>(dacNum, scale, offset));
+        // Message.addDataItem(item2);
 
-        // Message.addDataItem(item);
-        // // printf("Item pointer is %p", item->Data.data());
+        Message2.addDataItem(item);
+        // printf("Item pointer is %p", item->Data.data());
 
-        // cout << Message.AsString() << endl;
-        // Debug("bytes: ", Message.AsBytes());
+        cout << Message2.AsString() << '\n';
+        Debug("bytes: ", Message2.AsBytes(true));
 
-        // printf("\nTESTING\n\n");
+        printf("\nTESTING\n\n");
 
-        // //test(Message.AsBytes(), "TMessage(TDAC_Calibrate1(0, 1.0, 0.0))", ERR_SUCCESS);
-        // Config.dacScaleCoefficients[1] = 9.1;
-        // Config.dacOffsetCoefficients[1] = -66.66;
-        // std::cout << "before " << Config.dacScaleCoefficients[1] << ", " << Config.dacOffsetCoefficients[1] << std::endl;
-        // item->Go();
-        // std::cout << "after " << Config.dacScaleCoefficients[1] << ", " << Config.dacOffsetCoefficients[1]<<std::endl;
+        //test(Message.AsBytes(), "TMessage(TDAC_Calibrate1(0, 1.0, 0.0))", ERR_SUCCESS);
+        Config.dacScaleCoefficients[1] = 9.1;
+        Config.dacOffsetCoefficients[1] = -66.66;
+        std::cout << "before " << Config.dacScaleCoefficients[1] << ", " << Config.dacOffsetCoefficients[1] << '\n';
+        item->Go();
+        std::cout << "after " << Config.dacScaleCoefficients[1] << ", " << Config.dacOffsetCoefficients[1]<<'\n';
 
 
     }
     catch (logic_error e)
     {
-        cout << endl
-             << "!! Exception caught: " << e.what() << endl;
+        cout << '\n'
+             << "!! Exception caught: " << e.what() << '\n';
     }
 
     printf("\nDone.\n");
@@ -195,9 +208,9 @@ TError test(TBytes Msg, const char *TestDescription, TError expectedResult = ERR
     }
     catch (logic_error e)
     {
-        cout << endl
-             << "Exception caught: " << e.what() << endl
-             << "if the exception is " << expectedResult << " then this is PASS" << endl;
+        cout << '\n'
+             << "Exception caught: " << e.what() << '\n'
+             << "if the exception is " << expectedResult << " then this is PASS" << '\n';
     }
     printf("----------------------\n");
     return result;
@@ -232,13 +245,13 @@ void log_function(const char* action, void* func) {
         if (status == 0) {
             std::string demangled_str(demangled_name);
             if (!is_ignored_function(demangled_str)) {
-                std::cout << action << ": " << demangled_name << std::endl;
+                std::cout << action << ": " << demangled_name << '\n';
             }
             free(demangled_name);
         } else {
             std::string mangled_str(info.dli_sname);
             if (!is_ignored_function(mangled_str)) {
-                std::cout << action << ": " << info.dli_sname << std::endl;
+                std::cout << action << ": " << info.dli_sname << '\n';
             }
         }
     }

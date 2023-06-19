@@ -18,8 +18,8 @@ protected:
 class TADC_StreamStart : public TDataItem
 {
 public:
-	TADC_StreamStart(TBytes buf);
-	TADC_StreamStart() : TDataItem(ADC_StreamStart){};
+	//TADC_StreamStart(TBytes buf);
+	//TADC_StreamStart() : TDataItem(ADC_StreamStart){};
 	virtual TBytes calcPayload(bool bAsReply=false);
 	virtual TADC_StreamStart &Go();
 	virtual std::string AsString(bool bAsReply = false);
@@ -30,8 +30,8 @@ protected:
 class TADC_StreamStop : public TDataItem
 {
 public:
-	TADC_StreamStop() : TDataItem(ADC_StreamStop){ };
-	TADC_StreamStop(TBytes buf);
+	//TADC_StreamStop() : TDataItem(ADC_StreamStop){ };
+	//TADC_StreamStop(TBytes buf);
 	virtual TBytes calcPayload(bool bAsReply=false);
 	virtual TADC_StreamStop &Go();
 	virtual std::string AsString(bool bAsReply = false);

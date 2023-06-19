@@ -3,13 +3,12 @@
 #include "iostream"
 #include "eNET-AIO16-16F.h"
 
-int widthFromOffset(int offset);
 
 __u8 in8(int offset)
 {
 	__u8 value = 0;
 	int status = apci_read8(apci, 0, BAR_REGISTER, offset, &value);
-	std::cout << "in8("+to_hex<__u8>(offset)+"); Width= "+std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u8>(value) << std::endl;
+	std::cout << "in8("+to_hex<__u8>(offset)+"); Width= "+std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u8>(value) <<'\n';
 	return status ? -1 : value;
 }
 
@@ -17,7 +16,7 @@ __u16 in16(int offset)
 {
 	__u16 value = 0;
 	int status = apci_read16(apci, 0, BAR_REGISTER, offset, &value);
-	std::cout << "in16(" + to_hex<__u8>(offset) + "); Width= " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u16>(value) << std::endl;
+	std::cout << "in16(" + to_hex<__u8>(offset) + "); Width= " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u16>(value) << '\n';
 	return status ? -1 : value;
 }
 
@@ -31,7 +30,7 @@ __u32 in32(int offset)
 	std::string four = std::to_string(status);
 	std::string five = " Value = ";
 	std::string six = to_hex<__u32>(value);
-	std::cout << one << two << three << four << five << six << std::endl;
+	std::cout << one << two << three << four << five << six << '\n';
 	return status ? -1 : value;
 }
 
@@ -54,21 +53,21 @@ __u32 in(int offset)
 TError out8(int offset, __u8 value)
 {
 	int status = apci_write8(apci, 0, BAR_REGISTER, offset, value);
-	std::cout << "out8(" + to_hex<__u8>(offset) + ", "<< to_hex<__u8>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << std::endl;
+	std::cout << "out8(" + to_hex<__u8>(offset) + ", "<< to_hex<__u8>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
 	return status;
 }
 
 TError out16(int offset, __u16 value)
 {
 	int status = apci_write16(apci, 0, BAR_REGISTER, offset, value);
-	std::cout << "out16(" + to_hex<__u8>(offset) + ", "<< to_hex<__u16>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << std::endl;
+	std::cout << "out16(" + to_hex<__u8>(offset) + ", "<< to_hex<__u16>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
 	return status;
 }
 
 TError out32(int offset, __u32 value)
 {
 	int status = apci_write32(apci, 0, BAR_REGISTER, offset, value);
-	std::cout << "out32(" + to_hex<__u8>(offset) + ", "<< to_hex<__u32>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << std::endl;
+	std::cout << "out32(" + to_hex<__u8>(offset) + ", "<< to_hex<__u32>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
 	return status;
 }
 

@@ -9,10 +9,8 @@
 #include "apci.h"
 #include "config.h"
 
-union {
-	__u32 u;
-	float f;
-} map_f__u32;
+#define filename (CONFIG_PATH+which+key+".conf")
+TConfig Config;
 
 void InitConfig(TConfig &config) {
 	config.Hostname = "enetaio000000000000000";
@@ -43,14 +41,8 @@ void InitConfig(TConfig &config) {
 			config.adcRangeCodes[i]=1;
 		}
 	}
-	std::cout << "Config.dacScaleCoefficients[0] configured with "<< Config.dacScaleCoefficients[0]<<" during InitConfig"<<std::endl;
+	std::cout << "Config.dacScaleCoefficients[0] configured with "<< Config.dacScaleCoefficients[0]<<" during InitConfig"<<'\n';
 }
-
-TConfig Config;
-
-
-#define filename (CONFIG_PATH+which+key+".conf")
-
 
 int ReadConfigString(std::string key, std::string &value, std::string which )
 {
@@ -76,9 +68,9 @@ int ReadConfigString(std::string key, std::string &value, std::string which )
 	buf[bytesRead] = 0;
 
 	value = std::string((char *)buf);
-	// std::cout << std::endl
-			//   << "ReadConfigString(" << key << ") got " << value << std::endl
-			//   << std::endl;
+	// std::cout << '\n'
+			//   << "ReadConfigString(" << key << ") got " << value << '\n'
+			//   << '\n';
 	return bytesRead;
 }
 
@@ -87,7 +79,7 @@ int ReadConfigU8(std::string key, __u8 &value, std::string which )
 	std::string v;
 	int bytesRead = ReadConfigString(key, v);
 	if (bytesRead == 2){
-		// std::cout << "ReadConfigU8 got " << v << " bytes read == " << bytesRead << std::endl<< std::endl;
+		// std::cout << "ReadConfigU8 got " << v << " bytes read == " << bytesRead << '\n'<< '\n';
 
 		value = std::stoi(v, nullptr, 16);
 		}
@@ -107,18 +99,16 @@ int ReadConfigFloat(std::string key, float &value, std::string which )
 {
 	__u32 v;
 	int bytesRead = ReadConfigU32(key, v);
-	if (bytesRead == 8){
-		map_f__u32.u = v;
-		value = map_f__u32.f;
-	}
-	// std::cout << "ReadConfigFloat(" << key << ") got " << value << " (from "<< std::hex << v <<") with status " << bytesRead <<std::endl;
+
+	// if (bytesRead == 8){
+	// 	map_f__u32.u = v;
+	// 	value = map_f__u32.f;
+	// }
+	// std::cout << "ReadConfigFloat(" << key << ") got " << value << " (from "<< std::hex << v <<") with status " << bytesRead <<'\n';
 	return bytesRead;
 }
 
 
-#define HandleError(x) {if (x<0)	\
-		Error("Error");				\
-}
 
 int WriteConfigString(std::string key, std::string value, std::string which ){
 	// validate key, value, and filename are valid/safe to use
@@ -161,10 +151,15 @@ int WriteConfigU32(std::string key, __u32 value, std::string which )
 
 int WriteConfigFloat(std::string key, float value, std::string which )
 {
-	map_f__u32.f = value;
-	__u32 v = map_f__u32.u;
+	//map_f__u32.f = value;
+	__u32 v = bit_cast<__u32>(value);
 	return WriteConfigU32(key, v, which);
-	// std::cout << "	 wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<std::endl;
+	// std::cout << "	 wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<'\n';
+}
+
+
+#define HandleError(x) {if (x<0)	\
+		Error("Error");				\
 }
 
 // Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure

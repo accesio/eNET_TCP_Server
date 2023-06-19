@@ -1,36 +1,17 @@
-/* // TODO:
-Upcoming change to centralize the construction of serialized data items:
-
-1) renaming all derived classes' .AsBytes() to eg ".CalcPayload()" thus removing .AsBytes from all derived classes
-2) adding ".CalcPayload()" to the root class for zero-length DataItem convenience
-3) removing this->pushDId() and this->pushLen() related code from all the derived classes .CalcPayload() implementations
-4) write .AsBytes in the root class that pushes the DId, Len(Data), and Data
-*/
-
-/* // TODO:
-Upcoming change to DataItems that "read one register and return the value":
-
-1) use a mezzanine class related to REG_Read1 with a virtual offset field
-2) each "read1return" type DataItem derives from that mezzanine, and consists of just a protected offset field
-
-*/
-
 #include <unistd.h>
 #include <cstdlib>
 #include <stdexcept>
 #include <thread>
 #include <ctime>
-using namespace std;
 
 #include "logging.h"
 #include "TError.h"
 #include "TMessage.h"
-
 #include "DataItems/TDataItem.h"
 #include "eNET-AIO16-16F.h"
 #include "adc.h"
 
-const vector<TMessageId> ValidMessageIDs{
+const std::vector<TMessageId> ValidMessageIDs{
 	// to server
 	'Q', // query/read
 	'C', // config/write
@@ -42,46 +23,7 @@ const vector<TMessageId> ValidMessageIDs{
 	'H', // Hello
 };
 
-/*
-// TODO:
-	Upgrade the TDIdListEntry struct to include pointers to functions for calcPayload() and Go(), plus
-	void * arguments for each.
-
-	Then create a wrapper TDataItem descendant that calls those function pointers (if they aren't NULL) inside
-	its .Go() and .calcPayload(), passing in the void * argument to each.
-
-	This would, for example, allow all of the Data Items that are effectively REG_Read1() to
-	have no classes explicitly in the source: just entries in the DIdList[].
-
-	Similarly for all the Data Items that amount to REG_Write1(), like setting most (individual) ADC options.
-
-	More complex but still re-usable calcPayload or Go can be implemented with new structs as the void * args.
-
-	Perhaps a set of DIds that amount to "run this system command line" and they are simply passed a string.
-
-	?Note: make sure that .AsString() has enough information to do its job "well"; otherwise add another field
-	to TDIdListEntry as needed?  Either the string for .AsString() or another function pointer and void * arg.
-
-*/
-
-template <typename T>
-std::vector<T> slicing(std::vector<T> const &v, int Start, int End)
-{
-	LOG_IT;
-
-	// Begin and End iterator
-	auto first = v.begin() + Start;
-	auto last = v.begin() + End + 1;
-
-	// Copy the element
-	std::vector<T> vector(first, last);
-
-	// Return the results
-	return vector;
-}
-
 #pragma region TMessage implementation
-
 TCheckSum TMessage::calculateChecksum(TBytes Message)
 {
 	LOG_IT;
@@ -377,46 +319,11 @@ TBytes TMessage::AsBytes(bool bAsReply)
 }
 
 
-
-// TBytes TMessage::AsBytes(bool bAsReply)
-// {
-// 	LOG_IT;
-
-// 	Trace("AsBytes"+ bAsReply?", as Reply":", NOT reply");
-// 	TMessagePayloadSize payloadLength = 0;
-// 	for (auto item : this->DataItems)
-// 	{
-// 		payloadLength += item->AsBytes(bAsReply).size();
-// 	}
-// 	TBytes bytes;
-
-// 	bytes.push_back(this->Id);
-
-// 	for (int i = 0; i < (sizeof(TMessagePayloadSize)); i++)
-// 	{ // push message payload length
-// 		__u8 lsb = payloadLength & 0xFF;
-// 		bytes.push_back(lsb);
-// 		payloadLength >>= 8;
-// 	}
-
-// 	for (auto item : this->DataItems)
-// 	{
-// 		TBytes byt = item->AsBytes(bAsReply);
-// 		bytes.insert(end(bytes), begin(byt), end(byt));
-// 	}
-
-// 	TCheckSum csum = -calculateChecksum(bytes);
-// 	bytes.push_back(csum); // WARN: only works because TCheckSum == __u8
-// 	Trace("Built: ", bytes);
-
-// 	return bytes;
-// }
-
-string TMessage::AsString(bool bAsReply)
+std::string TMessage::AsString(bool bAsReply)
 {
 	LOG_IT;
 	Trace("AsString, "+ bAsReply?"as Reply":"");
-	stringstream dest;
+	std::stringstream dest;
 	// TBytes raw = this->AsBytes(bAsReply);
 	// Trace("TMessage, Raw Bytes: ", raw);
 	//dest << "Message = MId:" << to_hex<__u8>(this->getMId()) << ", # DataItems: " << DataItems.size();
@@ -426,8 +333,8 @@ string TMessage::AsString(bool bAsReply)
 		for (int itemNumber = 0; itemNumber < DataItems.size(); itemNumber++)
 		{
 			PTDataItem item = this->DataItems[itemNumber];
-			dest << endl
-				 << "		   " << setw(2) << itemNumber + 1 << ": " << item->AsString(bAsReply);
+			dest << '\n'
+				 << "		   " << std::setw(2) << itemNumber + 1 << ": " << item->AsString(bAsReply);
 		}
 	}
 	return dest.str();

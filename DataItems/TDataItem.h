@@ -74,9 +74,9 @@ enum DataItemIds : TDataId
 	REG_Write1 = 0x105,
 	REG_WriteBuf = 0x107, // like filling a FIFO, TODO: improve name
 
-	REG_ClearBits,
-	REG_SetBits,
-	REG_ToggleBits,
+	REG_ClearBits = 0x0108,
+	REG_SetBits = 0x0109,
+	REG_ToggleBits = 0x010A,
 
 	DAC_ = 0x200, // Query Only. *1
 	DAC_Output1 = 0x201,
@@ -171,15 +171,6 @@ int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
 // returns 0 if offset is invalid
 int widthFromOffset(int ofs);
 
-#define printBytes(dest, intro, buf, crlf)                                                                           \
-	{                                                                                                                \
-		dest << intro;                                                                                               \
-		for (auto byt : buf)                                                                                         \
-			dest << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " "; \
-		if (crlf)                                                                                                    \
-			dest << std::endl;                                                                                       \
-	}
-
 #pragma region inserting ancestor under TDataItem
 class TDataItemParent
 {
@@ -258,6 +249,11 @@ const std::map<TDataId, TDIdDictEntry2> DIdDict2 =
 					 desc : "BRD_Reset()"}},
 };
 
+
+
+
+
+
 #pragma region "class TDataItem" declaration
 class DataItem
 {
@@ -296,6 +292,7 @@ public:
 		auto item = DIdDict2.find(Id);
 		if (item == DIdDict2.end())
 			throw std::logic_error("DId not found in list");
+		// copy list entry into object.  Note: recent change, not used as much as it could/should be
 		minlen = item->second.minLen;
 		typlen = item->second.typLen;
 		maxlen = item->second.maxLen;
@@ -307,40 +304,6 @@ public:
 	}
 };
 
-/*
-
-map of structs
-{
-	{0, {*initfunc, *gofunc, *calcpayload, *printfunc, "format string for docs/logs"}},
-	// *initfunc validates the parameters
-	// *gofunc performs the verb (reads a register or whatever) and appends the result to Data
-	// *calcpayload is usually null in which case DataItem just pushes the Id, length, and Data as the response.
-	//	if calcpayload is non-null it modifies Data into the proper response
-	// *printfunc, if not null, returns a string for logging purposes; in either case the format string can be used for said purpose
-}
-
-The problem, insofar as there can be said to "be" a problem, is the above approach is not OOP: the function pointers aren't methods of a class,
-they don't have a "this" pointer.
-
-In order to "fix" it I think I'd need to add initfun/gofunc/calcpayload/printfunc as virtual functions to DataItem, instantiate default behaviors for them,
-and actually create a different class for every ID...avoiding which is what got me in this rabbit hole in the 1st place.
-
-So: can I create a #define macro that instantiates the necessary class?? Instead of using lambdas for initfun, gofunc, calcpayload, and printfunc it would
-bundle them into class methods...?
-
-
-
-
-*/
-
-/*	The following classes (TDataItem and its descendants) try to use a consistent convention
-	for the order in which Methods are listed:
-		1) Deserialization stuff, used while converting bytes (received via TCP) into Objects
-		2) Serialization stuff, used to construct and convert Objects into byte vectors (for sending over TCP)
-		3) Verbs: stuff associated with using Objects as Actions, and the results thereof
-		4) diagnostic, debug, or otherwise "Rare" stuff, like .AsString()
-	Fields, if any, come last.
-*/
 
 // Base class for all TDataItems, descendants of which will handle payloads specific to the DId
 class TDataItem : TDataItemParent
@@ -366,10 +329,7 @@ public:
 	virtual TBytes calcPayload(bool bAsReply = false) { return Data; }
 	// serialize for sending via TCP; calling TDataItem.AsBytes() is normally done by TMessage::AsBytes()
 	virtual TBytes AsBytes(bool bAsReply = false);
-	// push DId into buf; utility for AsBytes()
-	void pushDId(TBytes &buf);
-	// push Length of Data into buf; utility for AsBytes();
-	static void pushLen(TBytes &buf, TDataItemLength len);
+
 	// 2) Serialization: methods for source to generate TDataItems, typically for "Response Messages"
 
 	// zero-"Data" data item constructor

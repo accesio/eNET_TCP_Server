@@ -140,3 +140,8 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
     #define DmaStart            0x4
     #define DmaAbortClear       0x8
     #define DmaEnableSctrGthr   0x10
+
+
+int widthFromOffset(int offset);
+#define RING_BUFFER_SLOTS 255
+#define DMA_BUFF_SIZE (BYTES_PER_TRANSFER * RING_BUFFER_SLOTS)

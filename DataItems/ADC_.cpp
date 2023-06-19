@@ -39,25 +39,25 @@ std::string TADC_BaseClock::AsString(bool bAsReply)
 	return dest.str();
 }
 
-TADC_StreamStart::TADC_StreamStart(TBytes buf) : TDataItem(ADC_StreamStart)
-{
-	GUARD((buf.size() == 0) || (buf.size() == 4), ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
+// TADC_StreamStart::TADC_StreamStart(TBytes buf) : TDataItem(ADC_StreamStart)
+// {
+// 	GUARD((buf.size() == 0) || (buf.size() == 4), ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
 
-	if (buf.size() == 4)
-	{
-		if (-1 == AdcStreamingConnection)
-		{
-			this->argConnectionID = (int)*(__u32 *)buf.data();
-			AdcStreamingConnection = this->argConnectionID;
-		}
-		else
-		{
-			Error("ADC Busy");
-			throw std::logic_error("ADC Busy already, on Connection: "+std::to_string(AdcStreamingConnection));
-		}
-	}
-	Trace("AdcStreamingConnection: "+std::to_string(AdcStreamingConnection));
-}
+// 	if (buf.size() == 4)
+// 	{
+// 		if (-1 == AdcStreamingConnection)
+// 		{
+// 			this->argConnectionID = (int)*(__u32 *)buf.data();
+// 			AdcStreamingConnection = this->argConnectionID;
+// 		}
+// 		else
+// 		{
+// 			Error("ADC Busy");
+// 			throw std::logic_error("ADC Busy already, on Connection: "+std::to_string(AdcStreamingConnection));
+// 		}
+// 	}
+// 	Trace("AdcStreamingConnection: "+std::to_string(AdcStreamingConnection));
+// }
 
 TBytes TADC_StreamStart::calcPayload(bool bAsReply)
 {
@@ -98,10 +98,10 @@ std::string TADC_StreamStart::AsString(bool bAsReply)
 
 
 
-TADC_StreamStop::TADC_StreamStop(TBytes buf) : TDataItem(ADC_StreamStop)
-{
-	GUARD(buf.size() == 0, ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
-}
+// TADC_StreamStop::TADC_StreamStop(TBytes buf) : TDataItem(ADC_StreamStop)
+// {
+// 	GUARD(buf.size() == 0, ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
+// }
 
 TBytes TADC_StreamStop::calcPayload(bool bAsReply)
 {

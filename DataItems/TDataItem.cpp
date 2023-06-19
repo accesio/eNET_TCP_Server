@@ -16,7 +16,27 @@
 
 extern int apci;
 
-#define DIdNYI2(d)                                        \
+/*
+map of structs
+{
+	{0, {*initfunc, *gofunc, *calcpayload, *printfunc, "format string for docs/logs"}},
+	// *initfunc validates the parameters
+	// *gofunc performs the verb (reads a register or whatever) and appends the result to Data
+	// *calcpayload is usually null in which case DataItem just pushes the Id, length, and Data as the response.
+	//	if calcpayload is non-null it modifies Data into the proper response
+	// *printfunc, if not null, returns a string for logging purposes; in either case the format string can be used for said purpose
+}
+
+The problem, insofar as there can be said to "be" a problem, is the above approach is not OOP: the function pointers aren't methods of a class,
+they don't have a "this" pointer.
+
+In order to "fix" it I think I'd need to add initfun/gofunc/calcpayload/printfunc as virtual functions to DataItem, instantiate default behaviors for them,
+and actually create a different class for every ID...avoiding which is what got me in this rabbit hole in the 1st place.
+
+So: can I create a #define macro that instantiates the necessary class?? Instead of using lambdas for initfun, gofunc, calcpayload, and printfunc it would
+bundle them into class methods...?
+*/
+#define DIdNYI(d)                                         \
 	{                                                     \
 		d,                                                \
 		{                                                 \
@@ -24,24 +44,22 @@ extern int apci;
 		}                                                 \
 	}
 
-#define DATA_ITEM_IMPL_2(x, aclass, a, b, c, y, z)                                  \
-	{                                                                              \
-		x,                                                                         \
-		{                                                                          \
+#define DATA_ITEM_IMPL_2(x, aclass, a, b, c, y, z)                                                 \
+	{                                                                                              \
+		x,                                                                                         \
+		{                                                                                          \
 			a, b, c, [](DataItemIds x, TBytes bytes) { return construct<aclass>(x, bytes); }, y, z \
-		}                                                                          \
+		}                                                                                          \
 	}
-#define DATA_ITEM_IMPL_1(x, aclass, a, b, c, y)                                           \
-	{                                                                                    \
-		x,                                                                               \
-		{                                                                                \
+#define DATA_ITEM_IMPL_1(x, aclass, a, b, c, y)                                                 \
+	{                                                                                           \
+		x,                                                                                      \
+		{                                                                                       \
 			a, b, c, [](DataItemIds x, TBytes bytes) { return construct<aclass>(x, bytes); }, y \
-		}                                                                                \
+		}                                                                                       \
 	}
 #define DATA_ITEM_GET_MACRO(_1, _2, _3, _4, _5, _6, _7, NAME, ...) NAME
 #define DATA_ITEM(...) DATA_ITEM_GET_MACRO(__VA_ARGS__, DATA_ITEM_IMPL_2, DATA_ITEM_IMPL_1)(__VA_ARGS__)
-
-
 
 
 extern bool done;
@@ -61,31 +79,37 @@ const std::map<TDataId, TDIdDictEntry> DIdDict =
 		 			if (token == 3.14)
 		 				done = true; })),
 		DATA_ITEM(REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]"),
-		// DIdNYI2(REG_ReadBuf),
+		// DIdNYI(REG_ReadBuf),
 		DATA_ITEM(REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)"),
-		// DIdNYI2(REG_WriteBuf),
+		// DIdNYI(REG_WriteBuf),
 
 		DATA_ITEM(REG_ClearBits, TDataItem, 2, 5, 5,
 				  "REG_ClearBits(u8 ofs, u8|u32 bitsToClear)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
 						__u8 * pargs = (__u8 *)args;
-						__u8 ofs = *(__u8 *)(((__u8 *)args) );
+						__u8 ofs = *pargs;
 						pargs++;
-						__u32 bits = 0;
 						__u32 data = 0;
-						switch(widthFromOffset(ofs))
-						{
-							case 8: bits = *(__u8 *)(pargs);
-							break;
-							case 16:bits = *(__u16 *)(pargs);
-							break;
-							case 32:bits = *(__u32 *)(pargs);
-							break;
-						}
+						__u32 bits = 0;
+						bits = regextract(pargs, ofs);
+
 						data = in(ofs);
 						data &= ~ bits;
 						out(ofs,data); })),
+		DATA_ITEM(REG_ToggleBits, TDataItem, 2, 5, 5,
+				  "REG_SetBits(u8 ofs, u8|u32 bitsToToggle)",
+				  static_cast<std::function<void(void *)>>([](void *args)
+														   {
+				__u8 * pargs = (__u8 *)args;
+				__u8 ofs = *pargs;
+				pargs++;
+				__u32 data = 0;
+				__u32 bits = 0;
+				bits = regextract(pargs, ofs);
+				data = in(ofs);
+				data ^= bits;
+				out(ofs,data); })),
 		DATA_ITEM(REG_SetBits, TDataItem, 2, 5, 5, "REG_SetBits(u8 ofs, u8|u32 bitsToSet)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
@@ -93,45 +117,26 @@ const std::map<TDataId, TDIdDictEntry> DIdDict =
 				__u8 ofs = *(__u8 *)(((__u8 *)args) );
 				pargs++;
 				__u32 bits = 0;
+				bits = regextract(pargs, ofs);
 				__u32 data = 0;
-				switch(widthFromOffset(ofs))
-				{
-					case 8: bits = *(__u8 *)(pargs);
-					break;
-					case 16:bits = *(__u16 *)(pargs);
-					break;
-					case 32:bits = *(__u32 *)(pargs);
-					break;
-				}
+				// switch(widthFromOffset(ofs))
+				// {
+				// 	case 8: bits = *(__u8 *)(pargs);
+				// 	break;
+				// 	case 16:bits = *(__u16 *)(pargs);
+				// 	break;
+				// 	case 32:bits = *(__u32 *)(pargs);
+				// 	break;
+				// }
 				data = in(ofs);
 				data |= bits;
-				out(ofs,data); })),
-		DATA_ITEM(REG_ToggleBits, TDataItem, 2, 5, 5, "REG_SetBits(u8 ofs, u8|u32 bitsToToggle)",
-				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-				__u8 * pargs = (__u8 *)args;
-				__u8 ofs = *(__u8 *)(((__u8 *)args) );
-				pargs++;
-				__u32 bits = 0;
-				__u32 data = 0;
-				switch(widthFromOffset(ofs))
-				{
-					case 8: bits = *(__u8 *)(pargs);
-					break;
-					case 16:bits = *(__u16 *)(pargs);
-					break;
-					case 32:bits = *(__u32 *)(pargs);
-					break;
-				}
-				data = in(ofs);
-				data ^= bits;
 				out(ofs,data); })),
 
 		// {DAC_, {0, 0, 0, construct<TDataItem>, "TDataItemBase (DAC_)"}},
 		DATA_ITEM(DAC_Output1, TDAC_Output, 5, 5, 5, "DAC_Output1(u8 iDAC, single Volts)"),
 		DATA_ITEM(DAC_Range1, TDAC_Range1, 5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)"),
-		// DIdNYI2(DAC_Configure1),
-		// DIdNYI2(DAC_ConfigAndOutput1),
+		// DIdNYI(DAC_Configure1),
+		// DIdNYI(DAC_ConfigAndOutput1),
 		DATA_ITEM(DAC_Calibrate1, TDataItem, 9, 9, 9, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
@@ -194,74 +199,62 @@ const std::map<TDataId, TDIdDictEntry> DIdDict =
 					Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]);
 					} })),
 
-		// DIdNYI2(DIO_),
-		// DIdNYI2(DIO_Configure1),
-		// DIdNYI2(DIO_Input1),
-		// DIdNYI2(DIO_InputBuf1),
-		// DIdNYI2(DIO_Output1),
-		// DIdNYI2(DIO_OutputBuf),
-		// DIdNYI2(DIO_ConfigureReadWriteReadSome),
-		// DIdNYI2(DIO_Clear1),
-		// DIdNYI2(DIO_Set1),
-		// DIdNYI2(DIO_Toggle1),
-		// DIdNYI2(DIO_Pulse1),
+		// DIdNYI(DIO_),
+		// DIdNYI(DIO_Configure1),
+		// DIdNYI(DIO_Input1),
+		// DIdNYI(DIO_InputBuf1),
+		// DIdNYI(DIO_Output1),
+		// DIdNYI(DIO_OutputBuf),
+		// DIdNYI(DIO_ConfigureReadWriteReadSome),
+		// DIdNYI(DIO_Clear1),
+		// DIdNYI(DIO_Set1),
+		// DIdNYI(DIO_Toggle1),
+		// DIdNYI(DIO_Pulse1),
 
-		// DIdNYI2(PWM_),
-		// DIdNYI2(PWM_Configure1),
-		// DIdNYI2(PWM_Input1),
-		// DIdNYI2(PWM_Output1),
+		// DIdNYI(PWM_),
+		// DIdNYI(PWM_Configure1),
+		// DIdNYI(PWM_Input1),
+		// DIdNYI(PWM_Output1),
 
-		// DIdNYI2(ADC_),
-		// DIdNYI2(ADC_Claim),
-		// DIdNYI2(ADC_Release),
+		// DIdNYI(ADC_),
+		// DIdNYI(ADC_Claim),
+		// DIdNYI(ADC_Release),
 		DATA_ITEM(ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32"),
 		DATA_ITEM(ADC_StartHz, TDataItem, 4, 4, 4, "ADC_StartHz(f32)"),
 		DATA_ITEM(ADC_StartDivisor, TDataItem, 4, 4, 4, "ADC_StartDivisor(u32)"),
-		// DIdNYI2(ADC_ConfigurationOfEverything),
-		// DIdNYI2(ADC_Differential1),
-		// DIdNYI2(ADC_DifferentialAll),
-		// DIdNYI2(ADC_Range1),
-		// DIdNYI2(ADC_RangeAll),
-		// DIdNYI2(ADC_Span1),
-		// DIdNYI2(ADC_SpanAll),
-		// DIdNYI2(ADC_Offset1),
-		// DIdNYI2(ADC_OffsetAll),
-		// DIdNYI2(ADC_Calibration1),
-		// DIdNYI2(ADC_CalibrationAll),
-		// DIdNYI2(ADC_Volts1),
-		// DIdNYI2(ADC_VoltsAll), // ADC_GetScanV
-		// DIdNYI2(ADC_Counts1),
-		// DIdNYI2(ADC_CountsAll), // ADC_GetScanCounts
-		// DIdNYI2(ADC_Raw1),
-		// DIdNYI2(ADC_RawAll),   // ADC_GetScanRaw
+		// DIdNYI(ADC_ConfigurationOfEverything),
+		// DIdNYI(ADC_Differential1),
+		// DIdNYI(ADC_DifferentialAll),
+		// DIdNYI(ADC_Range1),
+		// DIdNYI(ADC_RangeAll),
+		// DIdNYI(ADC_Span1),
+		// DIdNYI(ADC_SpanAll),
+		// DIdNYI(ADC_Offset1),
+		// DIdNYI(ADC_OffsetAll),
+		// DIdNYI(ADC_Calibration1),
+		// DIdNYI(ADC_CalibrationAll),
+		// DIdNYI(ADC_Volts1),
+		// DIdNYI(ADC_VoltsAll), // ADC_GetScanV
+		// DIdNYI(ADC_Counts1),
+		// DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
+		// DIdNYI(ADC_Raw1),
+		// DIdNYI(ADC_RawAll),   // ADC_GetScanRaw
 		DATA_ITEM(ADC_StreamStart, TDataItem, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)"),
 		DATA_ITEM(ADC_StreamStop, TDataItem, 0, 0, 0, "ADC_StreamStop()"),
 
-		// DIdNYI2(ADC_Streaming_stuff_including_Hz_config),
-		// DIdNYI2(SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
-		// DIdNYI2(WDG_),
-		// DIdNYI2(DEF_),
-		// DIdNYI2(SERVICE_),
-		// DIdNYI2(TCP_),
+		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
+		// DIdNYI(SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
+		// DIdNYI(WDG_),
+		// DIdNYI(DEF_),
+		// DIdNYI(SERVICE_),
+		// DIdNYI(TCP_),
 		DATA_ITEM(TCP_ConnectionID, TDataItem, 0, 4, 255, "TDataItem TCP_ConnectionID"),
-		// DIdNYI2(PNP_),
-		// DIdNYI2(CFG_),
+		// DIdNYI(PNP_),
+		// DIdNYI(CFG_),
 		DATA_ITEM(CFG_Hostname, TDataItem, 5, 5, 5, "CFG_Hostname({valid Hostname})"),
-	/*
-	*/
+		/*
+		 */
 };
-
-// crap function returns 8 or 32 for valid offsets into eNET-AIO's register map, or 0 for invalid
-// specific to eNET-AIO register map
-int widthFromOffset(int ofs)
-{
-	//LOG_IT;
-	if (ofs < 0x18)
-		return 8;
-	else if ((ofs <= 0xFC) && (ofs % 4 == 0))
-		return 32;
-	return 0;
-}
 
 #pragma region TDataItem implementation
 /*	TDataItem
@@ -287,7 +280,7 @@ int widthFromOffset(int ofs)
 //   specific validate and parse appropriate to that DataItemID
 int TDataItem::validateDataItemPayload(DataItemIds DId, TBytes bytes)
 {
-	//LOG_IT;
+	// LOG_IT;
 	Trace("ENTER, DId: " + to_hex<TDataId>(DId) + ": ", bytes);
 	int result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
 	int index = TDataItem::getDIdIndex(DId);
@@ -355,16 +348,6 @@ TDataItemLength TDataItem::getMaxLength(DataItemIds DId)
 	return DIdDict.find(DId)->second.maxLen;
 	// Trace(std::to_string(DId));
 	// return DIdList[getDIdIndex(DId)].maxLen;
-}
-
-void inline TDataItem::pushDId(TBytes &bytes)
-{
-	stuff<TDataId>(bytes, this->Id);
-}
-
-void TDataItem::pushLen(TBytes &bytes, TDataItemLength len)
-{
-	stuff<TDataItemLength>(bytes, len);
 }
 
 int TDataItem::isValidDataItemID(DataItemIds DId)
@@ -471,17 +454,16 @@ TDataItem::TDataItem(DataItemIds DId) : TDataItemParent(DId)
 	this->setDId(DId);
 };
 
-
 TDataItem &TDataItem::addData(__u8 aByte)
 {
-	//LOG_IT;
+	// LOG_IT;
 	Data.push_back(aByte);
 	return *this;
 }
 
 TDataItem &TDataItem::setDId(DataItemIds DId)
 {
-	//LOG_IT;
+	// LOG_IT;
 
 	GUARD(isValidDataItemID(DId), ERR_MSG_DATAITEM_ID_UNKNOWN, DId);
 	this->Id = DId;
@@ -490,14 +472,14 @@ TDataItem &TDataItem::setDId(DataItemIds DId)
 
 DataItemIds TDataItem::getDId()
 {
-	//LOG_IT;
+	// LOG_IT;
 
 	return this->Id;
 }
 
 bool TDataItem::isValidDataLength()
 {
-	//LOG_IT;
+	// LOG_IT;
 
 	bool result = false;
 	DataItemIds DId = this->getDId();
@@ -512,11 +494,11 @@ bool TDataItem::isValidDataLength()
 
 TBytes TDataItem::AsBytes(bool bAsReply)
 {
-	//LOG_IT;
+	// LOG_IT;
 	TBytes bytes;
-	this->pushDId(bytes);
+	stuff<TDataId>(bytes, this->Id);
 	this->Data = this->calcPayload(bAsReply);
-	this->pushLen(bytes, this->Data.size());
+	stuff<TDataItemLength>(bytes, this->Data.size());
 
 	bytes.insert(end(bytes), begin(Data), end(Data));
 	return bytes;
@@ -524,7 +506,7 @@ TBytes TDataItem::AsBytes(bool bAsReply)
 
 std::string TDataItem::getDIdDesc()
 {
-	//LOG_IT;
+	// LOG_IT;
 	return DIdDict.find(this->getDId())->second.desc;
 	// return std::string(DIdList[TDataItem::getDIdIndex(this->getDId())].desc);
 }
