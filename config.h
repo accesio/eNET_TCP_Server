@@ -59,9 +59,25 @@ typedef struct TConfigStruct {
 extern TConfig Config;
 
 void InitConfig(TConfig &config);
+void LoadDacCalConfig(std::string which = CONFIG_CURRENT);
+void LoadAdcCalConfig(std::string which = CONFIG_CURRENT);
+void LoadCalConfig(std::string which = CONFIG_CURRENT);
+
+void LoadDacConfig(std::string which = CONFIG_CURRENT);
+void LoadAdcConfig(std::string which = CONFIG_CURRENT);
+
+void LoadSubmuxConfig(std::string which = CONFIG_CURRENT);
+
 void LoadConfig(std::string which = CONFIG_CURRENT);
+
+bool SaveDacCalConfig(std::string which = CONFIG_CURRENT);
+bool SaveAdcCalConfig(std::string which = CONFIG_CURRENT);
+bool SaveCalConfig(std::string which = CONFIG_CURRENT);
+bool SaveAdcConfig(std::string which = CONFIG_CURRENT);
+bool SaveSubmuxConfig(std::string which = CONFIG_CURRENT);
 bool SaveConfig(std::string which = CONFIG_CURRENT);
 void ApplyConfig();
+
 // On success: set value to config string from disk and return 0
 // On error: leave value unchanged and return errno
 // Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/

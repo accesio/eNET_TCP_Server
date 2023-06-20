@@ -157,26 +157,83 @@ int WriteConfigFloat(std::string key, float value, std::string which )
 	// std::cout << "	 wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<'\n';
 }
 
-
+// TODO: improve error handling program-wide
 #define HandleError(x) {if (x<0)	\
 		Error("Error");				\
 }
 
-// Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure
-void LoadConfig(std::string which)
+
+/* LOAD CONFIGURATION STRUCT FROM DISK FILES */
+void LoadDacCalConfig(std::string which)
 {
-	{
-	// read /etc/hostname into Config.Hostname
-		std::ifstream in("/etc/hostname");
-		in >> Config.Hostname;
-		in.close();
-		Debug("Hostname == " + Config.Hostname);
-	}
+	HandleError(ReadConfigFloat("DAC_ScaleCh0", Config.dacScaleCoefficients[0], which));
+	HandleError(ReadConfigFloat("DAC_ScaleCh1", Config.dacScaleCoefficients[1], which));
+	HandleError(ReadConfigFloat("DAC_ScaleCh2", Config.dacScaleCoefficients[2], which));
+	HandleError(ReadConfigFloat("DAC_ScaleCh3", Config.dacScaleCoefficients[3], which));
 
-	HandleError(ReadConfigString("BRD_Model", Config.Model, which));
-	HandleError(ReadConfigString("BRD_Description", Config.Description, which));
-	HandleError(ReadConfigString("BRD_SerialNumber", Config.SerialNumber, which));
+	HandleError(ReadConfigFloat("DAC_OffsetCh0", Config.dacOffsetCoefficients[0], which));
+	HandleError(ReadConfigFloat("DAC_OffsetCh1", Config.dacOffsetCoefficients[1], which));
+	HandleError(ReadConfigFloat("DAC_OffsetCh2", Config.dacOffsetCoefficients[2], which));
+	HandleError(ReadConfigFloat("DAC_OffsetCh3", Config.dacOffsetCoefficients[3], which));
+}
+void LoadAdcCalConfig(std::string which)
+{
+	HandleError(ReadConfigFloat("ADC_ScaleRange0", Config.adcScaleCoefficients[0], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange1", Config.adcScaleCoefficients[1], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange2", Config.adcScaleCoefficients[2], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange3", Config.adcScaleCoefficients[3], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange4", Config.adcScaleCoefficients[4], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange5", Config.adcScaleCoefficients[5], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange6", Config.adcScaleCoefficients[6], which));
+	HandleError(ReadConfigFloat("ADC_ScaleRange7", Config.adcScaleCoefficients[7], which));
 
+	HandleError(ReadConfigFloat("ADC_OffsetRange0", Config.adcOffsetCoefficients[0], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange1", Config.adcOffsetCoefficients[1], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange2", Config.adcOffsetCoefficients[2], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange3", Config.adcOffsetCoefficients[3], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange4", Config.adcOffsetCoefficients[4], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange5", Config.adcOffsetCoefficients[5], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange6", Config.adcOffsetCoefficients[6], which));
+	HandleError(ReadConfigFloat("ADC_OffsetRange7", Config.adcOffsetCoefficients[7], which));
+}
+
+void LoadCalConfig(std::string which)
+{
+	LoadDacCalConfig(which);
+	LoadAdcCalConfig(which);
+}
+
+void LoadDacConfig(std::string which)
+{	HandleError(ReadConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
+	HandleError(ReadConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
+	HandleError(ReadConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
+	HandleError(ReadConfigU32("DAC_RangeCh3", Config.dacRanges[3], which));
+}
+
+void LoadAdcConfig(std::string which)
+{
+	HandleError(ReadConfigU8("ADC_Differential", Config.adcDifferential, which));
+
+	HandleError(ReadConfigU32("ADC_RangeCodeCh00", Config.adcRangeCodes[0], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh01", Config.adcRangeCodes[1], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh02", Config.adcRangeCodes[2], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh03", Config.adcRangeCodes[3], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh04", Config.adcRangeCodes[4], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh05", Config.adcRangeCodes[5], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh06", Config.adcRangeCodes[6], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh07", Config.adcRangeCodes[7], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh08", Config.adcRangeCodes[8], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh09", Config.adcRangeCodes[9], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh10", Config.adcRangeCodes[10], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh11", Config.adcRangeCodes[11], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh12", Config.adcRangeCodes[12], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh13", Config.adcRangeCodes[13], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh14", Config.adcRangeCodes[14], which));
+	HandleError(ReadConfigU32("ADC_RangeCodeCh15", Config.adcRangeCodes[15], which));
+}
+
+void LoadSubmuxConfig(std::string which)
+{
 	HandleError(ReadConfigU8("BRD_NumberOfSubmuxes", Config.numberOfSubmuxes, which));
 
 	HandleError(ReadConfigString("BRD_SubmuxBarcode0", Config.submuxBarcodes[0], which));
@@ -222,68 +279,111 @@ void LoadConfig(std::string which)
 	HandleError(ReadConfigFloat("BRD_Submux3Offset1", Config.submuxOffsets[3][1], which));
 	HandleError(ReadConfigFloat("BRD_Submux3Offset2", Config.submuxOffsets[3][2], which));
 	HandleError(ReadConfigFloat("BRD_Submux3Offset3", Config.submuxOffsets[3][3], which));
-
-	HandleError(ReadConfigU8("ADC_Differential", Config.adcDifferential, which));
-
-	HandleError(ReadConfigU32("ADC_RangeCodeCh00", Config.adcRangeCodes[0], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh01", Config.adcRangeCodes[1], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh02", Config.adcRangeCodes[2], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh03", Config.adcRangeCodes[3], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh04", Config.adcRangeCodes[4], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh05", Config.adcRangeCodes[5], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh06", Config.adcRangeCodes[6], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh07", Config.adcRangeCodes[7], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh08", Config.adcRangeCodes[8], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh09", Config.adcRangeCodes[9], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh10", Config.adcRangeCodes[10], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh11", Config.adcRangeCodes[11], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh12", Config.adcRangeCodes[12], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh13", Config.adcRangeCodes[13], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh14", Config.adcRangeCodes[14], which));
-	HandleError(ReadConfigU32("ADC_RangeCodeCh15", Config.adcRangeCodes[15], which));
-
-	HandleError(ReadConfigFloat("ADC_ScaleRange0", Config.adcScaleCoefficients[0], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange1", Config.adcScaleCoefficients[1], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange2", Config.adcScaleCoefficients[2], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange3", Config.adcScaleCoefficients[3], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange4", Config.adcScaleCoefficients[4], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange5", Config.adcScaleCoefficients[5], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange6", Config.adcScaleCoefficients[6], which));
-	HandleError(ReadConfigFloat("ADC_ScaleRange7", Config.adcScaleCoefficients[7], which));
-
-	HandleError(ReadConfigFloat("ADC_OffsetRange0", Config.adcOffsetCoefficients[0], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange1", Config.adcOffsetCoefficients[1], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange2", Config.adcOffsetCoefficients[2], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange3", Config.adcOffsetCoefficients[3], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange4", Config.adcOffsetCoefficients[4], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange5", Config.adcOffsetCoefficients[5], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange6", Config.adcOffsetCoefficients[6], which));
-	HandleError(ReadConfigFloat("ADC_OffsetRange7", Config.adcOffsetCoefficients[7], which));
-
-	HandleError(ReadConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
-	HandleError(ReadConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
-	HandleError(ReadConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
-	HandleError(ReadConfigU32("DAC_RangeCh3", Config.dacRanges[3], which));
-
-	HandleError(ReadConfigFloat("DAC_ScaleCh0", Config.dacScaleCoefficients[0], which));
-	HandleError(ReadConfigFloat("DAC_ScaleCh1", Config.dacScaleCoefficients[1], which));
-	HandleError(ReadConfigFloat("DAC_ScaleCh2", Config.dacScaleCoefficients[2], which));
-	HandleError(ReadConfigFloat("DAC_ScaleCh3", Config.dacScaleCoefficients[3], which));
-
-	HandleError(ReadConfigFloat("DAC_OffsetCh0", Config.dacOffsetCoefficients[0], which));
-	HandleError(ReadConfigFloat("DAC_OffsetCh1", Config.dacOffsetCoefficients[1], which));
-	HandleError(ReadConfigFloat("DAC_OffsetCh2", Config.dacOffsetCoefficients[2], which));
-	HandleError(ReadConfigFloat("DAC_OffsetCh3", Config.dacOffsetCoefficients[3], which));
 }
 
-// saves the active configuration into current.config or which
-bool SaveConfig(std::string which)
+// Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure
+void LoadConfig(std::string which)
 {
-	Debug("SaveConfig writing Config struct to config files");
-	HandleError(WriteConfigString("BRD_Description", Config.Description, which));
-	HandleError(WriteConfigString("BRD_Model", Config.Model, which));
-	HandleError(WriteConfigString("BRD_SerialNumber", Config.SerialNumber, which));
+	{
+	// read /etc/hostname into Config.Hostname
+		std::ifstream in("/etc/hostname");
+		in >> Config.Hostname;
+		in.close();
+		Debug("Hostname == " + Config.Hostname);
+	}
 
+	HandleError(ReadConfigString("BRD_Model", Config.Model, which));
+	HandleError(ReadConfigString("BRD_Description", Config.Description, which));
+	HandleError(ReadConfigString("BRD_SerialNumber", Config.SerialNumber, which));
+
+	LoadCalConfig(which);
+	LoadDacConfig(which);
+	LoadAdcConfig(which);
+	LoadSubmuxConfig(which);
+}
+
+
+
+
+
+/* SAVE CONFIGURATION STRUCT TO DISK */
+bool SaveDacCalConfig(std::string which)
+{
+	HandleError(WriteConfigFloat("DAC_ScaleCh0", Config.dacScaleCoefficients[0], which));
+	HandleError(WriteConfigFloat("DAC_ScaleCh1", Config.dacScaleCoefficients[1], which));
+	HandleError(WriteConfigFloat("DAC_ScaleCh2", Config.dacScaleCoefficients[2], which));
+	HandleError(WriteConfigFloat("DAC_ScaleCh3", Config.dacScaleCoefficients[3], which));
+
+	HandleError(WriteConfigFloat("DAC_OffsetCh0", Config.dacOffsetCoefficients[0], which));
+	HandleError(WriteConfigFloat("DAC_OffsetCh1", Config.dacOffsetCoefficients[1], which));
+	HandleError(WriteConfigFloat("DAC_OffsetCh2", Config.dacOffsetCoefficients[2], which));
+	HandleError(WriteConfigFloat("DAC_OffsetCh3", Config.dacOffsetCoefficients[3], which));
+	return true;
+}
+
+bool SaveAdcCalConfig(std::string which)
+{
+	HandleError(WriteConfigFloat("ADC_ScaleRange0", Config.adcScaleCoefficients[0], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange1", Config.adcScaleCoefficients[1], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange2", Config.adcScaleCoefficients[2], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange3", Config.adcScaleCoefficients[3], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange4", Config.adcScaleCoefficients[4], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange5", Config.adcScaleCoefficients[5], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange6", Config.adcScaleCoefficients[6], which));
+	HandleError(WriteConfigFloat("ADC_ScaleRange7", Config.adcScaleCoefficients[7], which));
+
+	HandleError(WriteConfigFloat("ADC_OffsetRange0", Config.adcOffsetCoefficients[0], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange1", Config.adcOffsetCoefficients[1], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange2", Config.adcOffsetCoefficients[2], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange3", Config.adcOffsetCoefficients[3], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange4", Config.adcOffsetCoefficients[4], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange5", Config.adcOffsetCoefficients[5], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange6", Config.adcOffsetCoefficients[6], which));
+	HandleError(WriteConfigFloat("ADC_OffsetRange7", Config.adcOffsetCoefficients[7], which));
+	return true;
+}
+
+bool SaveCalConfig(std::string which)
+{
+	SaveDacCalConfig(which);
+	SaveAdcCalConfig(which);
+	return true;
+}
+
+bool SaveDacConfig(std::string which)
+{
+	HandleError(WriteConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
+	HandleError(WriteConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
+	HandleError(WriteConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
+	HandleError(WriteConfigU32("DAC_RangeCh3", Config.dacRanges[3], which));
+	return true;
+}
+
+bool SaveAdcConfig(std::string which)
+{
+	HandleError(WriteConfigU8("ADC_Differential", Config.adcDifferential, which));
+
+	HandleError(WriteConfigU32("ADC_RangeCodeCh00", Config.adcRangeCodes[0], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh01", Config.adcRangeCodes[1], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh02", Config.adcRangeCodes[2], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh03", Config.adcRangeCodes[3], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh04", Config.adcRangeCodes[4], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh05", Config.adcRangeCodes[5], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh06", Config.adcRangeCodes[6], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh07", Config.adcRangeCodes[7], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh08", Config.adcRangeCodes[8], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh09", Config.adcRangeCodes[9], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh10", Config.adcRangeCodes[10], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh11", Config.adcRangeCodes[11], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh12", Config.adcRangeCodes[12], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh13", Config.adcRangeCodes[13], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh14", Config.adcRangeCodes[14], which));
+	HandleError(WriteConfigU32("ADC_RangeCodeCh15", Config.adcRangeCodes[15], which));
+	return true;
+}
+
+bool SaveSubmuxConfig(std::string which)
+{
 	HandleError(WriteConfigU8("BRD_NumberOfSubmuxes", Config.numberOfSubmuxes, which));
 
 	HandleError(WriteConfigString("BRD_SubmuxBarcode0", Config.submuxBarcodes[0], which));
@@ -329,65 +429,34 @@ bool SaveConfig(std::string which)
 	HandleError(WriteConfigFloat("BRD_Submux3Offset1", Config.submuxOffsets[3][1], which));
 	HandleError(WriteConfigFloat("BRD_Submux3Offset2", Config.submuxOffsets[3][2], which));
 	HandleError(WriteConfigFloat("BRD_Submux3Offset3", Config.submuxOffsets[3][3], which));
-
-	HandleError(WriteConfigU8("ADC_Differential", Config.adcDifferential, which));
-
-	HandleError(WriteConfigU32("ADC_RangeCodeCh00", Config.adcRangeCodes[0], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh01", Config.adcRangeCodes[1], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh02", Config.adcRangeCodes[2], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh03", Config.adcRangeCodes[3], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh04", Config.adcRangeCodes[4], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh05", Config.adcRangeCodes[5], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh06", Config.adcRangeCodes[6], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh07", Config.adcRangeCodes[7], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh08", Config.adcRangeCodes[8], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh09", Config.adcRangeCodes[9], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh10", Config.adcRangeCodes[10], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh11", Config.adcRangeCodes[11], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh12", Config.adcRangeCodes[12], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh13", Config.adcRangeCodes[13], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh14", Config.adcRangeCodes[14], which));
-	HandleError(WriteConfigU32("ADC_RangeCodeCh15", Config.adcRangeCodes[15], which));
-
-	HandleError(WriteConfigFloat("ADC_ScaleRange0", Config.adcScaleCoefficients[0], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange1", Config.adcScaleCoefficients[1], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange2", Config.adcScaleCoefficients[2], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange3", Config.adcScaleCoefficients[3], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange4", Config.adcScaleCoefficients[4], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange5", Config.adcScaleCoefficients[5], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange6", Config.adcScaleCoefficients[6], which));
-	HandleError(WriteConfigFloat("ADC_ScaleRange7", Config.adcScaleCoefficients[7], which));
-
-	HandleError(WriteConfigFloat("ADC_OffsetRange0", Config.adcOffsetCoefficients[0], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange1", Config.adcOffsetCoefficients[1], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange2", Config.adcOffsetCoefficients[2], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange3", Config.adcOffsetCoefficients[3], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange4", Config.adcOffsetCoefficients[4], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange5", Config.adcOffsetCoefficients[5], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange6", Config.adcOffsetCoefficients[6], which));
-	HandleError(WriteConfigFloat("ADC_OffsetRange7", Config.adcOffsetCoefficients[7], which));
-
-	HandleError(WriteConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
-	HandleError(WriteConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
-	HandleError(WriteConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
-	HandleError(WriteConfigU32("DAC_RangeCh3", Config.dacRanges[3], which));
-
-	HandleError(WriteConfigFloat("DAC_ScaleCh0", Config.dacScaleCoefficients[0], which));
-	HandleError(WriteConfigFloat("DAC_ScaleCh1", Config.dacScaleCoefficients[1], which));
-	HandleError(WriteConfigFloat("DAC_ScaleCh2", Config.dacScaleCoefficients[2], which));
-	HandleError(WriteConfigFloat("DAC_ScaleCh3", Config.dacScaleCoefficients[3], which));
-
-	HandleError(WriteConfigFloat("DAC_OffsetCh0", Config.dacOffsetCoefficients[0], which));
-	HandleError(WriteConfigFloat("DAC_OffsetCh1", Config.dacOffsetCoefficients[1], which));
-	HandleError(WriteConfigFloat("DAC_OffsetCh2", Config.dacOffsetCoefficients[2], which));
-	HandleError(WriteConfigFloat("DAC_OffsetCh3", Config.dacOffsetCoefficients[3], which));
 	return true;
 }
 
-void ApplyConfig()
+// saves the active configuration into current.config or which
+bool SaveConfig(std::string which)
+{
+	Debug("SaveConfig writing Config struct to config files " + which);
+	HandleError(WriteConfigString("BRD_Description", Config.Description, which));
+	HandleError(WriteConfigString("BRD_Model", Config.Model, which));
+	HandleError(WriteConfigString("BRD_SerialNumber", Config.SerialNumber, which));
+
+	SaveCalConfig(which);
+	SaveDacConfig(which);
+	SaveAdcConfig(which);
+	SaveSubmuxConfig(which);
+
+	return true;
+}
+
+void ApplyAdcCalConfig()
 {
 	for (int cal=0;cal<8;++cal){
 		out(ofsAdcCalScale + cal*ofsAdcCalScaleStride, *reinterpret_cast<__u32 *>(&Config.adcScaleCoefficients[cal]));
 		out(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, *reinterpret_cast<__u32 *>(&Config.adcOffsetCoefficients[cal]));
 	}
+}
+
+void ApplyConfig()
+{
+	ApplyAdcCalConfig();
 }
