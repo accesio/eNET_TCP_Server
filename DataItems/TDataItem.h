@@ -38,10 +38,17 @@ TDataItemParent - virtual / interface
 #include <fmt/core.h>
 
 #include "../logging.h"
-#include "../eNET-types.h"
+#include "../utilities.h"
 #include "../eNET-AIO16-16F.h"
 #include "../TError.h"
 #include "../apci.h"
+
+class TDataItem;
+
+typedef std::shared_ptr<TDataItem> PTDataItem;
+typedef std::vector<PTDataItem> TPayload;
+typedef __u16 TDataId;
+typedef __u16 TDataItemLength;
 
 #pragma region TDataItem DId enum
 

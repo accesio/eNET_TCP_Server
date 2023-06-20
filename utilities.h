@@ -25,21 +25,10 @@ TDataItem IDs, but that should change.
 #include "safe_queue.h"
 #include "TError.h"
 
-
-
 /* type definitions */
 typedef std::vector<__u8> TBytes;
-typedef __u8 TMessageId;
-typedef __u32 TMessagePayloadSize;
-typedef __u8 TCheckSum;
-typedef __u16 TDataId;
-typedef __u16 TDataItemLength;
 
-class TDataItem;
-
-typedef std::shared_ptr<TDataItem> PTDataItem;
-typedef std::vector<PTDataItem> TPayload;
-
+/* utility functions */
 template<typename To, typename From>
 To bit_cast(const From& from) {
     static_assert(sizeof(From) == sizeof(To),
@@ -152,31 +141,6 @@ inline void stuff<float>(TBytes &buf, const float v)
 }
 
 
-typedef struct
-{
-	TMessageId type;
-	TMessagePayloadSize payload_size;
-} TMessageHeader;
-
-typedef struct TSendQueueItemClass
-{
-	// which TCP-per-client-read thread put this item into the Action Queue
-	pthread_t &receiver;
-	// which thread is responsible for sending results of the action to the client
-	pthread_t &sender;
-	// which queue is the sender-thread popping from
-	SafeQueue<TSendQueueItemClass> &sendQueue;
-	// which client is all this from/for
-	int clientref;
-	// what TCP port# was this received on
-	int portReceive;
-	// what TCP port# is this sending out on
-	int portSend;
-} TSendQueueItem;
-
-
-
-extern const char *err_msg[];
 
 // throw exception if conditional is false
 inline void

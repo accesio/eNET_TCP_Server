@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include "apcilib.h"
 //#include "logging.h"
-#include "eNET-types.h"
+#include "utilities.h"
 #include "eNET-AIO16-16F.h"
 extern int apci;
 

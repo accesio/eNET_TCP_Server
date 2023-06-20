@@ -19,7 +19,7 @@ eNET-AIO configuration structure and support API.
 		call LoadConfig(CONFIG_CURRENT), which will update the Config with the customer's desired values
 */
 
-#include "eNET-types.h"
+#include "utilities.h"
 #include "eNET-AIO16-16F.h"
 
 #define CONFIG_PATH "/etc/opt/aioenet/"

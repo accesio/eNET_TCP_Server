@@ -129,7 +129,7 @@ TODO: finish writing the descendants of TDataItem.  See validateDataItemPayload(
 #include <sstream>
 #include <iomanip>
 
-#include "eNET-types.h"
+#include "utilities.h"
 #include "TError.h"
 #include "DataItems/TDataItem.h"
 #include "DataItems/CFG_.h"
@@ -137,11 +137,20 @@ TODO: finish writing the descendants of TDataItem.  See validateDataItemPayload(
 
 extern int apci; // global handle to device file for DAQ circuit on which to perform reads/writes
 
+typedef __u8 TMessageId;
+typedef __u32 TMessagePayloadSize;
+typedef __u8 TCheckSum;
+
 #define __valid_checksum__ (TCheckSum)(0)
 #define minimumMessageLength ((__u32)(sizeof(TMessageHeader) + sizeof(TCheckSum)))
 #define maxDataLength (std::numeric_limits<TDataItemLength>::max())
-#define maxPayloadLength ((__u32)(sizeof(TDataItemHeader) + maxDataLength) * 16)
+#define maxPayloadLength ((TMessagePayloadSize)(sizeof(TDataItemHeader) + maxDataLength) * 16)
 
+typedef struct
+{
+	TMessageId type;
+	TMessagePayloadSize payload_size;
+} TMessageHeader;
 
 #pragma region class TMessage declaration
 class TMessage

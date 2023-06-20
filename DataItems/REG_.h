@@ -1,5 +1,5 @@
 #pragma once
-#include "../eNET-types.h"
+#include "../utilities.h"
 #include "TDataItem.h"
 
 #pragma pack(push, 1)

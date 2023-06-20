@@ -1,7 +1,6 @@
 #include "REG_.h"
 
 #include "../apci.h"
-#include "../eNET-types.h"
 #include "../eNET-AIO16-16F.h"
 #include "../logging.h"
 #include "TDataItem.h"

@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #include "../logging.h"
-#include "../eNET-types.h"
+#include "../utilities.h"
 #include "TDataItem.h"
 #include "ADC_.h"
 #include "BRD_.h"

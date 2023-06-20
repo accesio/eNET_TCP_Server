@@ -1,7 +1,7 @@
 #pragma once
 
 #include "TDataItem.h"
-#include "../eNET-types.h"
+#include "../utilities.h"
 
 class TDAC_Output : public TDataItem
 {

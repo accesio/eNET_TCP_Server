@@ -12,6 +12,23 @@ typedef struct TActionQueueItemClass
 	TMessage &theMessage;
 } TActionQueueItem;
 
+typedef struct TSendQueueItemClass
+{
+	// which TCP-per-client-read thread put this item into the Action Queue
+	pthread_t &receiver;
+	// which thread is responsible for sending results of the action to the client
+	pthread_t &sender;
+	// which queue is the sender-thread popping from
+	SafeQueue<TSendQueueItemClass> &sendQueue;
+	// which client is all this from/for
+	int clientref;
+	// what TCP port# was this received on
+	int portReceive;
+	// what TCP port# is this sending out on
+	int portSend;
+} TSendQueueItem;
+
+
 typedef SafeQueue<TActionQueueItem *> TActionQueue;
 TActionQueue ActionQueue;
 

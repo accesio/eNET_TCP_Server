@@ -7,7 +7,7 @@
 // TError (__u32) is intended to be replaced buy a class someday
 typedef __u32 TError;
 
-#include "eNET-types.h"
+//#include "eNET-types.h"
 
 /* TError stuff */
 
