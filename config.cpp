@@ -12,6 +12,13 @@
 #define filename (CONFIG_PATH+which+key+".conf")
 TConfig Config;
 
+
+/* There are 16 ADC ranges, one per base board channel
+   There can be one submux (AIMUX64M) attached, which turns each ADC channel of the base board into 4 more channels (64 total)
+   or up to four submux (AIMUX32), which turn groups of four ADC channels into 32 channels. With the AIMUX32 each ADC channel's group
+   of 8 submux channels can have complex signal conditioning features applied.  The AIMUX64M merely allows an additional gain factor.
+   This Config struct allows per-submux-channel-group calibration and scaling, as well as the range and calibration for the four DACs and ADC.
+*/
 void InitConfig(TConfig &config) {
 	config.Hostname = "enetaio000000000000000";
 	config.Model = "eNET-untested";
@@ -24,9 +31,9 @@ void InitConfig(TConfig &config) {
 		if (i < 4) {
 			config.submuxBarcodes[i]="";
 			config.submuxTypes[i]="";
-			for(int j=0;j<4;j++) {
-				config.submuxScaleFactors[i][j] = 1.0;
-				config.submuxOffsets[i][j] = 0.0;
+			for(int submux=0; submux<4; submux++) {
+				config.submuxScaleFactors[i][submux] = 1.0;
+				config.submuxOffsets[i][submux] = 0.0;
 			}
 			config.dacRanges[i] = 1;
 			config.dacScaleCoefficients[i] = 1.00000000;
