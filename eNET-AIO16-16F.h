@@ -25,7 +25,11 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
 #define BYTES_PER_FIFO_ENTRY     (4 * SAMPLES_PER_FIFO_ENTRY)
 #define BYTES_PER_TRANSFER       (FIFO_SIZE * BYTES_PER_FIFO_ENTRY)
 #define SAMPLES_PER_TRANSFER     (FIFO_SIZE * SAMPLES_PER_FIFO_ENTRY)
+<<<<<<< HEAD
 #define AdcBaseClock 10000000
+=======
+//#define AdcBaseClock 10000000
+>>>>>>> aioenetd/master
 
 /* Hardware registers */
 #define ofsReset                0x00
@@ -140,3 +144,8 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
     #define DmaStart            0x4
     #define DmaAbortClear       0x8
     #define DmaEnableSctrGthr   0x10
+
+
+int widthFromOffset(int offset);
+#define RING_BUFFER_SLOTS 255
+#define DMA_BUFF_SIZE (BYTES_PER_TRANSFER * RING_BUFFER_SLOTS)

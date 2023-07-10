@@ -58,13 +58,13 @@ This TMessage Library provides functions to:
 	// Messages as code [byte-packed little-endian structs]:
 	struct TDataItem {
 		__u16	DId;
-		__u16	Length;
+		__u16	Length; // 0 to 2^16-2; "FFFF" is reserved so the longest is "FFFE"
 		__u8[Length] Data; // conceptually, a union with per-DId "parameter structs"
 	}
 
 	struct TMessage {
 		__u8	MId;
-		__u32	Length;
+		__u32	Length; // 0 to 2^32-2; "FFFFFFFF" is reserved, so the longest is "FFFFFFFE"
 		__u8[Length] Payload; // conceptually a TDataItem[]
 		__u8	Checksum;
 	}
@@ -129,7 +129,7 @@ TODO: finish writing the descendants of TDataItem.  See validateDataItemPayload(
 #include <sstream>
 #include <iomanip>
 
-#include "eNET-types.h"
+#include "utilities.h"
 #include "TError.h"
 #include "DataItems/TDataItem.h"
 #include "DataItems/CFG_.h"
@@ -137,11 +137,20 @@ TODO: finish writing the descendants of TDataItem.  See validateDataItemPayload(
 
 extern int apci; // global handle to device file for DAQ circuit on which to perform reads/writes
 
+using TMessageId = __u8;
+using TMessagePayloadSize =  __u32;
+using TCheckSum = __u8;
+
 #define __valid_checksum__ (TCheckSum)(0)
 #define minimumMessageLength ((__u32)(sizeof(TMessageHeader) + sizeof(TCheckSum)))
 #define maxDataLength (std::numeric_limits<TDataItemLength>::max())
-#define maxPayloadLength ((__u32)(sizeof(TDataItemHeader) + maxDataLength) * 16)
+#define maxPayloadLength ((TMessagePayloadSize)(sizeof(TDataItemHeader) + maxDataLength) * 16)
 
+using TMessageHeader =  struct
+{
+	TMessageId type;
+	TMessagePayloadSize payload_size;
+};
 
 #pragma region class TMessage declaration
 class TMessage
@@ -180,7 +189,7 @@ public:
 
 public:
 	TMessage() = default;
-	TMessage(TMessageId MId);
+	explicit TMessage(TMessageId MId);
 	TMessage(TMessageId MId, TPayload Payload);
 	/*
 	 * This function parses a vector<byte> that is supposed to be an entire Message
@@ -188,9 +197,10 @@ public:
 	 * Similar to the factory method TMessage::fromBytes(TBytes Bytes, TError Result).
 	 * It throws exceptions on errors
 	 */
-	TMessage(TBytes Msg);
+	explicit TMessage(TBytes Msg);
+	void appendLengthBytes(TBytes &bytes, TMessagePayloadSize length);
+	void appendPayloadLengthAndItems(TBytes &bytes, bool bAsReply);
 
-public:
 	TMessageId getMId();
 	TCheckSum getChecksum(bool bAsReply = false);
 	// set the MId ("MessageId")
@@ -203,6 +213,14 @@ public:
 	// returns this Message as a human-readable std::string
 	std::string AsString(bool bAsReply = false);
 
+	TMessage &Go()
+	{
+		for (auto item : this->DataItems){
+			item->Go();
+		}
+		return *this;
+	}
+
 public:
 	// vector of Data Items (std::vector<std::shared_ptr<TDataItem>>)
 	TPayload DataItems;
@@ -212,13 +230,3 @@ protected:
 	int conn;
 };
 #pragma endregion TMessage declaration
-
-
-
-namespace log__ {
-	const int aioDEBUG = 1;
-	const int aioINFO = 2;
-	const int aioWARN = 4;
-	const int aioERROR = 8;
-	const int aioTRACE = 16;
-}

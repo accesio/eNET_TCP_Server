@@ -1,7 +1,6 @@
 #include "REG_.h"
 
 #include "../apci.h"
-#include "../eNET-types.h"
 #include "../eNET-AIO16-16F.h"
 #include "../logging.h"
 #include "TDataItem.h"
@@ -42,27 +41,22 @@ TError TREG_Read1::validateDataItemPayload(DataItemIds DataItemID, TBytes Data)
 	return result;
 };
 
-TREG_Read1::TREG_Read1(DataItemIds DId, int ofs)
+TREG_Read1::TREG_Read1(DataItemIds DId, int ofs) : TDataItem(DId)
 {
 	Trace("ENTER. DId: " + to_hex<TDataId>(DId) + ", offset: " + to_hex<__u8>(ofs));
-	this->setDId(REG_Read1);
 	this->setOffset(ofs);
 }
 
-TREG_Read1::TREG_Read1()
-{
-	this->setDId(REG_Read1);
-}
+TREG_Read1::TREG_Read1() : TDataItem(DataItemIds::REG_Read1){}
 
-TREG_Read1::TREG_Read1(TBytes data)
+TREG_Read1::TREG_Read1(TBytes data) : TDataItem(DataItemIds::REG_Read1, data)
 {
 	Trace("ENTER. TBytes: ", data);
-	this->setDId(REG_Read1);
 
 	GUARD(data.size() == 1, ERR_DId_BAD_PARAM, data.size());
 	this->offset = data[0];
 	int w = widthFromOffset(offset);
-	GUARD(w != 0, ERR_DId_BAD_PARAM, REG_Read1);
+	GUARD(w != 0, ERR_DId_BAD_PARAM, static_cast<int>(DataItemIds::REG_Read1));
 	this->width = w;
 }
 
@@ -82,7 +76,9 @@ TREG_Read1 &TREG_Read1::setOffset(int ofs)
 TBytes TREG_Read1::calcPayload(bool bAsReply)
 {
 	TBytes bytes;
-	stuff<__u8>(bytes, this->offset);
+	// stuff<__u8>(bytes, this->offset);
+	bytes.push_back(this->offset);
+	Debug("offset = " + to_hex<__u8>(this->offset) + " bytes now holds: ", bytes);
 
 	if (bAsReply)
 	{
@@ -91,10 +87,17 @@ TBytes TREG_Read1::calcPayload(bool bAsReply)
 
 		if (this->width == 8)
 		{
-			stuff<__u8>(bytes, v&0xFF);
+			bytes.push_back(v & 0xFF);
+			Debug("byte reg value="+to_hex<__u8>(v&0xff), bytes);
+			// stuff<__u8>(bytes, & 0xFF);
 		}
 		else
 		{
+			// for (int i=0;i<4;i++){
+			// 	bytes.push_back(v & 0xFF);
+			// 	v >>= 8;
+			// }
+			Debug("byte reg value=" + to_hex<__u32>(*((__u32 *)value.get())), bytes);
 			stuff<__u32>(bytes, v);
 		}
 	}
@@ -216,23 +219,19 @@ std::string TREG_Writes::AsString(bool bAsReply)
 		__u32 v = aWrite.value;
 		dest << "REG_Write1(" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(aWrite.offset) << ", " << std::hex << std::setw(aWrite.width / 8 * 2) << v << ");";
 	}
+	Debug(dest.str());
 	return dest.str();
 }
 #pragma endregion TREG_Writes
 
 #pragma region TREG_Write1 implementation
-TREG_Write1::TREG_Write1()
-{
-	this->setDId(REG_Write1);
-}
 TREG_Write1::~TREG_Write1()
 {
 	this->Writes.clear();
 }
 
-TREG_Write1::TREG_Write1(TBytes buf)
+TREG_Write1::TREG_Write1(DataItemIds ID, TBytes buf) : TREG_Writes(DataItemIds::REG_Write1)
 {
-	this->setDId(REG_Write1);
 	GUARD(buf.size() > 0, ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
 	__u8 ofs = buf[0];
 	int w = widthFromOffset(ofs);
@@ -246,21 +245,22 @@ TREG_Write1::TREG_Write1(TBytes buf)
 		value = *(__u32 *)&buf[1];
 
 	this->addWrite(w, ofs, value);
+	Trace("width="+std::to_string(w)+" value="+to_hex<__u32>(value));
 }
 
 TBytes TREG_Write1::calcPayload(bool bAsReply)
 {
 	TBytes bytes;
-	if (this->Writes.size() > 0)
+	if (this->Writes.size() > 0){
 		stuff<__u8>(bytes, this->Writes[0].offset);
-	else
+		__u32 v = this->Writes[0].value;
+		for (int i = 0; i < this->Writes[0].width / 8; i++)
+		{
+			bytes.push_back(v & 0x000000FF);
+			v >>= 8;
+		}
+	}else
 		Error("ERROR: nothing in Write[] queue");
 
-	__u32 v = this->Writes[0].value;
-	for (int i = 0; i < this->Writes[0].width / 8; i++)
-	{
-		bytes.push_back(v & 0x000000FF);
-		v >>= 8;
-	}
 	return bytes;
 }

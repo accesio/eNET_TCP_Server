@@ -1,12 +1,13 @@
 #pragma once
 
 #include "TDataItem.h"
-#include "../eNET-types.h"
+#include "../utilities.h"
 
 class TDAC_Output : public TDataItem
 {
 public:
-	TDAC_Output(TBytes buf);
+	explicit TDAC_Output(TBytes buf);
+	TDAC_Output(DataItemIds DId, TBytes FromBytes) : TDataItem(DId, FromBytes) {}
 	virtual TBytes calcPayload(bool bAsReply=false);
 	virtual std::string AsString(bool bAsReply = false);
 	virtual TDAC_Output &Go();
@@ -20,8 +21,9 @@ protected:
 class TDAC_Range1 : public TDataItem
 {
 public:
-	TDAC_Range1(TBytes buf);
-	TDAC_Range1(){ setDId(DAC_Range1);};
+	explicit TDAC_Range1(TBytes buf);
+	TDAC_Range1() : TDataItem(DataItemIds::DAC_Range1){};
+	TDAC_Range1(DataItemIds DId, TBytes FromBytes) : TDataItem(DId, FromBytes) {}
 	virtual TBytes calcPayload(bool bAsReply=false);
 	virtual std::string AsString(bool bAsReply = false);
 	virtual TDAC_Range1 &Go();

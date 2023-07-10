@@ -1,0 +1,35 @@
+#pragma once
+
+#include "TDataItem.h"
+
+void UploadFilesByDataItem(const TDataItem& item);
+
+
+class TSYS_UploadFileName : public TDataItem
+{
+public:
+	explicit TSYS_UploadFileName(TBytes buf) : TSYS_UploadFileName(DataItemIds::SYS_UploadFileName, buf){};
+	explicit TSYS_UploadFileName(DataItemIds DId, TBytes buf);
+	//TSYS_UploadFileName() : TDataItem(SYS_UploadFileName){}
+
+	// returns the sanitized file name
+	virtual TBytes calcPayload(bool bAsReply = false);
+	virtual std::string AsString(bool bAsReply = false);
+	virtual TSYS_UploadFileName &Go();
+};
+
+
+// SYS_UploadFileName.Go will call UploadFilesByDataItem(*this).
+
+
+class TSYS_UploadFileData : public TDataItem
+{
+public:
+	explicit TSYS_UploadFileData(TBytes buf) : TSYS_UploadFileData(DataItemIds::SYS_UploadFileName, buf){};
+	explicit TSYS_UploadFileData(DataItemIds DId, TBytes buf);
+
+	// returns the sanitized file name
+	virtual TBytes calcPayload(bool bAsReply = false);
+	virtual std::string AsString(bool bAsReply = false);
+	virtual TSYS_UploadFileData &Go();
+};

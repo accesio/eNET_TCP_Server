@@ -1,29 +1,8 @@
-#include <string>
-#include <vector>
-#include <queue>
-#include <sstream>
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>	   //close
-#include <arpa/inet.h> //close
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
-#include <semaphore.h>
+#include <arpa/inet.h> //MSG_NOSIGNAL
 #include <pthread.h>
+#include <semaphore.h>
 #include <sys/mman.h>
-#include <signal.h>
-#include <math.h>
-#include <thread>
-#include <netdb.h>
-#include <fcntl.h>
-#include <mutex>
+
 
 //#include "safe_queue.h"
 #include "logging.h"

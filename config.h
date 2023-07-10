@@ -19,7 +19,7 @@ eNET-AIO configuration structure and support API.
 		call LoadConfig(CONFIG_CURRENT), which will update the Config with the customer's desired values
 */
 
-#include "eNET-types.h"
+#include "utilities.h"
 #include "eNET-AIO16-16F.h"
 
 #define CONFIG_PATH "/etc/opt/aioenet/"
@@ -37,7 +37,7 @@ RangeCode 5 = ±2 V
 RangeCode 6 = 0-1 V
 RangeCode 7 = ±1 V
 */
-typedef struct TConfigStruct {
+using TConfig = struct TConfigStruct {
 	std::string Hostname;
 	std::string Model;
 	std::string Description;
@@ -55,13 +55,28 @@ typedef struct TConfigStruct {
 	__u32 dacRanges[4];
 	float dacScaleCoefficients[4];
 	float dacOffsetCoefficients[4];
-} TConfig;
+};
 extern TConfig Config;
 
 void InitConfig(TConfig &config);
+
+void LoadSubmuxConfig(std::string which = CONFIG_CURRENT);
+void LoadAdcConfig(std::string which = CONFIG_CURRENT);
+void LoadDacConfig(std::string which = CONFIG_CURRENT);
+void LoadAdcCalConfig(std::string which = CONFIG_CURRENT);
+void LoadDacCalConfig(std::string which = CONFIG_CURRENT);
+void LoadCalConfig(std::string which = CONFIG_CURRENT);
 void LoadConfig(std::string which = CONFIG_CURRENT);
+
+bool SaveDacCalConfig(std::string which = CONFIG_CURRENT);
+bool SaveAdcCalConfig(std::string which = CONFIG_CURRENT);
+bool SaveCalConfig(std::string which = CONFIG_CURRENT);
+bool SaveAdcConfig(std::string which = CONFIG_CURRENT);
+bool SaveSubmuxConfig(std::string which = CONFIG_CURRENT);
 bool SaveConfig(std::string which = CONFIG_CURRENT);
+
 void ApplyConfig();
+
 // On success: set value to config string from disk and return 0
 // On error: leave value unchanged and return errno
 // Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/
@@ -91,8 +106,6 @@ int WriteConfigString(std::string key, std::string value, std::string which = CO
 int WriteConfigFloat(std::string key, float value, std::string which = CONFIG_CURRENT);
 int WriteConfigU8(std::string key, __u8 value, std::string which = CONFIG_CURRENT);
 int WriteConfigU32(std::string key, __u32 value, std::string which = CONFIG_CURRENT);
-
-// void SaveConfig(TConfig config, std::string which = CONFIG_CURRENT);
 
 // create /etc/opt/aioenet/ if missing.
 // create /etc/opt/aioenet/config.factory/ if missing.

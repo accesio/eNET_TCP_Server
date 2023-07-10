@@ -5,9 +5,9 @@
 
 #include <linux/types.h>
 // TError (__u32) is intended to be replaced buy a class someday
-typedef __u32 TError;
+using TError = __u32;
 
-#include "eNET-types.h"
+//#include "eNET-types.h"
 
 /* TError stuff */
 

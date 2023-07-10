@@ -1,26 +1,72 @@
+/*
+TDataItemParent - virtual / interface
+	Provides a base class that defines the basic functionality and data associated with every action or query available
+	to the eNET- protocol as encapsulated by serialized Data Items.
+
+	Every serialized DataItem has a type code, a payload length, and an optional payload (called "Data").  The
+	TDataItemParent deserializes this packet in its constructor, creating an Object of type TDataItem(descendant).
+
+	The private fields in TDataItemParent are virtually identical to the serialized form of the Data Item: a DataItemId
+	identical to the type code, and the Data as a TBytes (vector<__u8>) which maintains the payload length and content.
+
+	TDataItemParent should have a factory function that takes a serialized DataItem and parses it for validity then
+	constructs the appropriate descendant type as found in the dictionary<DataItemID, struct DataItemInfoStructThingy>
+
+	However, the behavior of all DataItems is structually identical ...
+	)	TDataItems descendants have a constructor
+	)	TDataItems have a "Go()" function that the ActionThread executes as part of the TMessage execution.
+	)	TDataItems have a "calcPayload(bAsReply)" function that the send thread executes to serialize the results into a
+		packet for sending to the client.
+	... thus it is plausible to define these three functions instead of a descendant class, and pass the function pointers as
+	part of the DataItemInfoStructThingy.  Doing so is the non-class/OOP technique.
+
+
+	The goal of this discussion is to refactor the existing Data Item class hierarchy into a clean, steamlined, and logical
+	concept.
+
+	basically, TDataItemParent should act like TObject in the Delphi VCL and each descendant should add minimally.
+
+	First, a bunch of static functions should move from TDataItem to the TDataItemParent.  Others should be deleted.  (A bunch
+	of code is conceptually needed for consumers of TMessage et al who act as *clients*, not a concern at the moment, worry
+	about it later!)
+*/
+
 #pragma once
+#include <functional>
+#include <map>
+#include <memory>
+#include <iterator>
+#include <fmt/core.h>
 
-#include "../eNET-types.h"
+#include "../logging.h"
+#include "../utilities.h"
+#include "../eNET-AIO16-16F.h"
 #include "../TError.h"
+#include "../apci.h"
 
+class TDataItem;
 
+using PTDataItem = std::shared_ptr<TDataItem>;
+using TPayload = std::vector<PTDataItem>;
+using TDataId = __u16;
+using TDataItemLength=__u16;
 
 #pragma region TDataItem DId enum
 
-
 #define _INVALID_DATAITEMID_ ((TDataId)-1)
 
-enum DataItemIds : TDataId // specific numbering, ordering, and grouping are preliminary
+enum class DataItemIds : TDataId
 {
 	INVALID = _INVALID_DATAITEMID_,
 	// Note 1: the "TLA_" DIds (e.g., `BRD_` and `REG_` et al; i.e., those DId names that don't have anything after the `_`)
 	//         return human-readable text of all TLA_ category DIds and what they do & why
 	BRD_ = 0x0000, // Query Only.
-	BRD_Reset,
+	BRD_Reset = 0x0001,
 	BRD_DeviceID,
 	BRD_Features,
 	BRD_FpgaID,
 	BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC, // TBD, long list
+	BRD_REBOOT = 0xFF,
 
 	REG_ = 0x100, // Query Only.
 	// NOTE: REG_ister access functionality does not allow (at this time) specifying 8-. 16-, or 32-bit access width.
@@ -30,111 +76,83 @@ enum DataItemIds : TDataId // specific numbering, ordering, and grouping are pre
 	// NOTE: int widthFromOffset(int ofs) is used to determine the register width but it is hard-coded, specific to eNET-AIO, by ranges
 	//       of offsets. We'll want the aioenetd to eventually support OTHER (non-eNET-AIO16-128A Family) eNET- boards so this will
 	//       need to be a configurable, preferably read off the hardware (although "from eMMC" is probably sufficient)
-	REG_Read1,
-	REG_ReadAll,
-	REG_ReadSome,
+	REG_Read1 = 0x101,
+	REG_ReadAll = 0x103,
 	REG_ReadBuf, // like draining a FIFO, TODO: improve name
-	REG_Write1,
-	REG_WriteSome,
-	REG_WriteBuf, // like filling a FIFO, TODO: improve name
+	REG_Write1 = 0x105,
+	REG_WriteBuf = 0x107, // like filling a FIFO, TODO: improve name
 
-	REG_ClearBits,
-	REG_SetBits,
-	REG_ToggleBits,
+	REG_ClearBits = 0x0108,
+	REG_SetBits = 0x0109,
+	REG_ToggleBits = 0x010A,
 
 	DAC_ = 0x200, // Query Only. *1
-	DAC_Output1,
+	DAC_Output1 = 0x201,
 	DAC_OutputAll,
-	DAC_OutputSome,
 	DAC_Range1 = 0x204, // Query Only.
-	DAC_Configure1,
-	DAC_ConfigureAll,
-	DAC_ConfigureSome,
-	DAC_ConfigAndOutput1,
-	DAC_ConfigAndOutputAll,
-	DAC_ConfigAndOutputSome,
-	DAC_ReadbackAll,
 	DAC_Calibrate1 = 0x20C,
 	DAC_CalibrateAll,
-	DAC_Offset1,
-	DAC_OffsetAll,
-	DAC_Scale1,
-	DAC_ScaleAll,
+	DAC_Offset1 = 0x20E,
+	DAC_OffsetAll = 0x20F,
+	DAC_Scale1 = 0x210,
+	DAC_ScaleAll = 0x211,
 
 	DIO_ = 0x300, // Query Only. *1
 	DIO_Configure1,
 	DIO_ConfigureAll,
-	DIO_ConfigureSome,
 	DIO_Input1,
-	DIO_InputAll,
-	DIO_InputSome,
+	DIO_InputAll = 0x0305,
 	DIO_InputBuf1,
 	DIO_InputBufAll,
-	DIO_InputBufSome, // repeated unpaced reads of Digital Inputs; NOTE: not sure this is useful
 	DIO_Output1,
 	DIO_OutputAll,
-	DIO_OutputSome,
 	DIO_OutputBuf, // like unpaced waveform output; NOTE: not sure this is useful
 	DIO_ConfigureReadWriteReadSome,
 	DIO_Clear1,
 	DIO_ClearAll,
-	DIO_ClearSome,
 	DIO_Set1,
 	DIO_SetAll,
 	DIO_SetSome,
 	DIO_Toggle1,
 	DIO_ToggleAll,
-	DIO_ToggleSome,
 	DIO_Pulse1,
 	DIO_PulseAll,
-	DIO_PulseSome,
 
 	PWM_ = 0x400, // Query Only. *1
 	PWM_Configure1,
 	PWM_ConfigureAll,
-	PWM_ConfigureSome,
 	PWM_Input1,
 	PWM_InputAll,
-	PWM_InputSome,
 	PWM_Output1,
 	PWM_OutputAll,
-	PWM_OutputSome,
 
-	ADC_ = 0x1000,				   // Query Only. *1
-	ADC_Claim,
-	ADC_Release,
+	ADC_ = 0x1000, // Query Only. *1
+	ADC_Claim = 0x1001,
+	ADC_Release = 0x1002,
 	ADC_BaseClock = 0x1003,
-	ADC_StartHz,
-	ADC_StartDivisor,
-	ADC_ConfigurationOfEverything,
-	ADC_Differential1,
-	ADC_DifferentialAll,
-	ADC_DifferentialSome,
-	ADC_Range1,
-	ADC_RangeAll,
-	ADC_RangeSome,
-	ADC_Calibration1,
-	ADC_CalibrationAll,
-	ADC_CalibrationSome,
-	ADC_Span1,
-	ADC_SpanAll,
-	ADC_SpanSome,
-	ADC_Offset1,
-	ADC_OffsetAll,
-	ADC_OffsetSome,
-	ADC_Volts1,
-	ADC_VoltsAll,
-	ADC_VoltsSome,
-	ADC_Counts1,
-	ADC_CountsAll,
-	ADC_CountsSome,
-	ADC_Raw1,
-	ADC_RawAll,
-	ADC_RawSome,
+	ADC_StartHz = 0x1004,
+	ADC_StartDivisor = 0x1005,
+	ADC_ConfigurationOfEverything = 0x1006,
+	ADC_Differential1 = 0x1007,
+	ADC_DifferentialAll = 0x1008,
+	ADC_Range1 = 0x1009,
+	ADC_RangeAll = 0x100A,
+	ADC_Calibration1 = 0x100C,
+	ADC_CalibrationAll = 0x100D,
+	ADC_Scale1 = 0x100E,
+	ADC_ScaleAll = 0x100F,
+	ADC_Offset1 = 0x1010,
+	ADC_OffsetAll = 0x1011,
+	ADC_Volts1 = 0x1020,
+	ADC_VoltsAll = 0x1021,
+	ADC_Counts1 = 0x1030,
+	ADC_CountsAll = 0x1031,
+	ADC_Raw1 = 0x1040,
+	ADC_RawAll = 0x1041,
 
 	ADC_Stream = 0x1100,
-	ADC_StreamStart,
-	ADC_StreamStop,
+	ADC_StreamStart = 0x1101,
+	ADC_StreamStop = 0x1102,
 
 	ADC_Streaming_stuff_including_Hz_config, // TODO: finish
 
@@ -143,105 +161,84 @@ enum DataItemIds : TDataId // specific numbering, ordering, and grouping are pre
 	SCRIPT_Pause, // insert a pause in execution of TDataItems
 
 	// broken out from "BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC" mentioned above
-	WDG_ = 0x4000,	// Watchdog related
-	DEF_ = 0x5000,	// power-on default state related
-	SERVICE_,		// tech support stuff
-	TCP_ = 0x7000,	// TCP-IP stuff broken out from the
+	WDG_ = 0x4000, // Watchdog related
+	DEF_ = 0x5000, // power-on default state related
+	SERVICE_,	   // tech support stuff
+	TCP_ = 0x7000, // TCP-IP stuff broken out from the
 	TCP_ConnectionID = 0x7001,
-	PNP_,			// distinct from BRD_?
-	CFG_ = 0x9000,	// "Other" Configuration stuff; Linux, IIoT protocol selection, etc?
+	PNP_,		   // distinct from BRD_?
+	CFG_ = 0x9000, // "Other" Configuration stuff; Linux, IIoT protocol selection, etc?
 	CFG_Hostname,
+	SYS_UploadFileName=0xEF01,
+	SYS_UploadFileData=0xEF02,
 };
 #pragma endregion
 
 #pragma pack(push, 1)
+
+int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
+// return register width for given offset as defined for eNET-AIO registers
+// returns 0 if offset is invalid
+int widthFromOffset(int ofs);
+
+#pragma region inserting ancestor under TDataItem
+class TDataItemParent
+{
+public:
+	explicit TDataItemParent(DataItemIds DId) : Id(DId){};
+	TDataItemParent(DataItemIds DId, TBytes data) : Id(DId), Data(data)
+	{
+		Debug("DataItemParent()");
+	};
+	TDataItemParent &setData(TBytes bytes)
+	{
+		Data = bytes;
+		return *this;
+	};
+
+	DataItemIds Id{DataItemIds(0)};
+	TBytes Data{};
+};
+
+#pragma endregion
+
+typedef std::unique_ptr<TDataItem> DIdConstructor(DataItemIds DId, TBytes FromBytes);
+
+template <class q>
+std::unique_ptr<TDataItem> construct(DataItemIds DId, TBytes FromBytes)
+{
+	return std::unique_ptr<TDataItem>(new q(DId, FromBytes));
+}
+
 typedef struct
 {
 	DataItemIds DId;
 	TDataItemLength dataLength;
 } TDataItemHeader;
-#pragma pack(pop)
 
-int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
-
-#define printBytes(dest, intro, buf, crlf)                                                       \
-	{                                                                                            \
-		dest << intro;                                                                           \
-		for (auto byt : buf)                                                                     \
-			dest << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " "; \
-		if (crlf)                                                                                \
-			dest << std::endl;                                                                        \
-	}
-
-// return register width for given offset as defined for eNET-AIO registers
-// returns 0 if offset is invalid
-int widthFromOffset(int ofs);
-
-template <typename T> void stuff(TBytes & buf, const T v)
+typedef struct __DIdDictEntry_inner
 {
-	auto value = v;
-	for (int i = 0; i < sizeof(T); i++)
-	{
-		buf.push_back(value & 0xFF);
-		value >>= 8;
-	}
-}
-
-template <typename T=std::string> void stuff(TBytes & buf, const std::string v)
-{
-	for (char c : v)
-		buf.push_back(c);
-}
-
-// void stuff32(TBytes & buf, const __u32 v)
-// {
-// 	auto value = v;
-// 	for (int i = 0; i < sizeof(value); i++)
-// 	{
-// 		buf.push_back(value & 0x000000FF);
-// 		value >>= 8;
-// 	}
-// }
-
-// utility template to turn class into (base-class)-pointer-to-instance-on-heap, so derived class gets called
-template <class X> std::unique_ptr<TDataItem> configConstruct(void * ptr, size_t size) { return std::unique_ptr<TDataItem>(new X(ptr, size)); }
-//typedef std::unique_ptr<TDataItem> DIdConstructor(...);
-//template <class X> std::unique_ptr<TDataItem> construct(FromBytes) { return std::unique_ptr<TDataItem>(new X()); }
-
-// utility template to turn class into (base-class)-pointer-to-instance-on-heap, so derived class gets called
-typedef std::unique_ptr<TDataItem> DIdConstructor(TBytes FromBytes);
-template <class X> std::unique_ptr<TDataItem> construct(TBytes FromBytes) { return std::unique_ptr<TDataItem>(new X(FromBytes)); }
-
-typedef struct
-{
-	DataItemIds DId;
 	TDataItemLength minLen;
-	TDataItemLength expectedLen;
+	TDataItemLength typLen;
 	TDataItemLength maxLen;
+	// std::function<std::unique_ptr<TDataItem>(TBytes)> Construct;
 	DIdConstructor *Construct;
 	std::string desc;
-	__u8 a, b, c, d;
-	void *ptr;
-	size_t size;
-} TDIdListEntry;
+	std::function<void(void *)> go;
+} TDIdDictEntry;
 
-extern TDIdListEntry const DIdList[];
+//  __DIdDictEntry_inner ;
+extern const std::map<DataItemIds, TDIdDictEntry> DIdDict;
+
 
 
 #pragma region "class TDataItem" declaration
 
-/*	The following classes (TDataItem and its descendants) try to use a consistent convention
-	for the order in which Methods are listed:
-		1) Deserialization stuff, used while converting bytes (received via TCP) into Objects
-		2) Serialization stuff, used to construct and convert Objects into byte vectors (for sending over TCP)
-		3) Verbs: stuff associated with using Objects as Actions, and the results thereof
-		4) diagnostic, debug, or otherwise "Rare" stuff, like .AsString()
-	Fields, if any, come last.
-*/
 
 // Base class for all TDataItems, descendants of which will handle payloads specific to the DId
-class TDataItem
+class TDataItem : public TDataItemParent
 {
+
 public:
 	// 1) Deserialization: methods used when converting byte vectors into objects
 
@@ -260,24 +257,21 @@ public:
 	// index into DIdList; TODO: kinda belongs in a DIdList class method...
 	static int getDIdIndex(DataItemIds DId);
 	// serialize the Payload portion of the Data Item; calling this->calcPayload is done by TDataItem.AsBytes(), only
-	virtual TBytes calcPayload(bool bAsReply = false) {return Data;}
+	virtual TBytes calcPayload(bool bAsReply = false) { return Data; }
 	// serialize for sending via TCP; calling TDataItem.AsBytes() is normally done by TMessage::AsBytes()
-	virtual TBytes AsBytes(bool bAsReply=false);
-	// push DId into buf; utility for AsBytes()
-	void pushDId(TBytes &buf);
-	// push Length of Data into buf; utility for AsBytes();
-	static void pushLen(TBytes &buf, TDataItemLength len);
+	virtual TBytes AsBytes(bool bAsReply = false);
+
 	// 2) Serialization: methods for source to generate TDataItems, typically for "Response Messages"
 
 	// zero-"Data" data item constructor
-	TDataItem(DataItemIds DId);
+	explicit TDataItem(DataItemIds DId);
 	// some-"Data" constructor for specific DId; *RARE*, *DEBUG mainly, to test round-trip conversion implementation*
 	// any DId that is supposed to have data would use its own constructor that takes the correct data types, not a
 	// simple TBytes, for the Data Payload
-	TDataItem(DataItemIds DId, TBytes bytes);
-
-	// TODO: WARN: Why would this *ever* be used?
-	TDataItem();
+	TDataItem(DataItemIds DId, TBytes bytes) : TDataItemParent(DId, bytes)
+	{
+		Debug("TDataItem(DId,bytes) constructor");
+	};
 
 	// TDataItem anItem(DId_Read1).addData(offset) kind of thing.  no idea if it will be useful other than debugging
 	virtual TDataItem &addData(__u8 aByte);
@@ -290,7 +284,7 @@ public:
 
 	// parse byte array into TDataItem; *RARE*, *DEBUG mainly, to test round-trip conversion implementation*
 	// this is an explicit class-specific .fromBytes(), which the class method .fromBytes() will invoke for NYI DIds etc
-	TDataItem(TBytes bytes);
+	explicit TDataItem(TBytes bytes);
 
 	// 3) Verbs -- things used when *executing* the TDataItem Object
 public:
@@ -305,19 +299,17 @@ public:
 	// 4) Diagnostic / Debug - methods typically used for implementation debugging
 public:
 	// returns human-readable string representing the DataItem and its payload; normally used by TMessage.AsString(bAsReply)
-	virtual std::string AsString(bool bAsReply=false);
+	virtual std::string AsString(bool bAsReply = false);
 	// used by .AsString(bAsReply) to fetch the human-readable name/description of the DId (from DIdList[].Description)
 	virtual std::string getDIdDesc();
 	// class method to get the human-readable name/description of any known DId; TODO: should maybe be a method of DIdList[]
 	static std::string getDIdDesc(DataItemIds DId);
 
-protected:
-	TBytes Data;
+public:
 	TError resultCode;
 	int conn;
 
 protected:
-	DataItemIds Id{DataItemIds(0)};
 	bool bWrite = false;
 };
 #pragma endregion TDataItem declaration
@@ -327,53 +319,6 @@ class TDataItemNYI : public TDataItem
 {
 public:
 	TDataItemNYI() = default;
-	TDataItemNYI(TBytes buf) : TDataItem::TDataItem{buf}{};
+	explicit TDataItemNYI(TBytes buf) : TDataItem::TDataItem{buf} {};
 };
 #pragma endregion
-
-
-
-#pragma region "class TConfigField" mezzanine declaration
-template <typename... Ts>
-class TConfigField : public TDataItem
-{
-public:
-	TConfigField(void *ptr, size_t size) : ptr_(ptr), size_(size){};
-TConfigField(TBytes bytes)
-	{
-
-	};
-	virtual TBytes calcPayload(bool bAsReply=false);
-	virtual TConfigField &Go();
-	virtual std::string AsString(bool bAsReply = false);
-
-	template <typename T>
-    void set(T value) {
-        if (sizeof(T) != size_) {
-            throw std::invalid_argument("Invalid size");
-        }
-        *static_cast<T*>(ptr_) = value;
-    }
-
-    template <typename T>
-    T get() const {
-        if (sizeof(T) != size_) {
-            throw std::invalid_argument("Invalid size");
-        }
-        return *static_cast<T*>(ptr_);
-    }
-
-private:
-    void* ptr_;
-    size_t size_;
-};
-// // Use
-// ConfigField port_field(&config.port, sizeof(config.port));
-// ConfigField address_field(&config.address, sizeof(config.address));
-// int port = port_field.get<int>();
-// port_field.set<int>(8080);
-// std::string address = address_field.get<std::string>();
-// address_field.set<std::string>("127.0.0.1");
-
-#pragma endregion
-

@@ -1,91 +1,32 @@
-/* // TODO:
-Upcoming change to centralize the construction of serialized data items:
-
-1) renaming all derived classes' .AsBytes() to eg ".CalcPayload()" thus removing .AsBytes from all derived classes
-2) adding ".CalcPayload()" to the root class for zero-length DataItem convenience
-3) removing this->pushDId() and this->pushLen() related code from all the derived classes .CalcPayload() implementations
-4) write .AsBytes in the root class that pushes the DId, Len(Data), and Data
-*/
-
-/* // TODO:
-Upcoming change to DataItems that "read one register and return the value":
-
-1) use a mezzanine class related to REG_Read1 with a virtual offset field
-2) each "read1return" type DataItem derives from that mezzanine, and consists of just a protected offset field
-
-*/
-
 #include <unistd.h>
 #include <cstdlib>
 #include <stdexcept>
 #include <thread>
 #include <ctime>
-using namespace std;
 
 #include "logging.h"
 #include "TError.h"
 #include "TMessage.h"
-
 #include "DataItems/TDataItem.h"
 #include "eNET-AIO16-16F.h"
 #include "adc.h"
 
-const vector<TMessageId> ValidMessageIDs{
-// to server
+const std::vector<TMessageId> ValidMessageIDs{
+	// to server
 	'Q', // query/read
 	'C', // config/write
 	'M', // generic Message; bundle of Actions
-// to client
+		 // to client
 	'R', // Response, no errors
 	'X', // response, error, syntaX
 	'E', // response, Error, semantic (e.g., "out of range" in an argument ), or operational (e.g., hardware timeout)
 	'H', // Hello
 };
 
-
-
-/*
-// TODO:
-	Upgrade the TDIdListEntry struct to include pointers to functions for calcPayload() and Go(), plus
-	void * arguments for each.
-
-	Then create a wrapper TDataItem descendant that calls those function pointers (if they aren't NULL) inside
-	its .Go() and .calcPayload(), passing in the void * argument to each.
-
-	This would, for example, allow all of the Data Items that are effectively REG_Read1() to
-	have no classes explicitly in the source: just entries in the DIdList[].
-
-	Similarly for all the Data Items that amount to REG_Write1(), like setting most (individual) ADC options.
-
-	More complex but still re-usable calcPayload or Go can be implemented with new structs as the void * args.
-
-	Perhaps a set of DIds that amount to "run this system command line" and they are simply passed a string.
-
-	?Note: make sure that .AsString() has enough information to do its job "well"; otherwise add another field
-	to TDIdListEntry as needed?  Either the string for .AsString() or another function pointer and void * arg.
-
-*/
-
-
-template <typename T> std::vector<T> slicing(std::vector<T> const &v, int Start, int End)
-{
-
-	// Begin and End iterator
-	auto first = v.begin() + Start;
-	auto last = v.begin() + End + 1;
-
-	// Copy the element
-	std::vector<T> vector(first, last);
-
-	// Return the results
-	return vector;
-}
-
-
 #pragma region TMessage implementation
-
 TCheckSum TMessage::calculateChecksum(TBytes Message)
 {
+	LOG_IT;
 
 	TCheckSum checksum = 0;
 	for (__u8 aByte : Message)
@@ -95,7 +36,6 @@ TCheckSum TMessage::calculateChecksum(TBytes Message)
 
 bool TMessage::isValidMessageID(TMessageId MessageId)
 {
-
 	bool result = false;
 	for (int i = 0; i < sizeof(ValidMessageIDs) / sizeof(TMessageId); i++)
 	{
@@ -114,6 +54,7 @@ bool TMessage::isValidMessageID(TMessageId MessageId)
 // "A Message has an optional Payload, which is a sequence of zero or more Data Items"
 TError TMessage::validatePayload(TBytes Payload)
 {
+	LOG_IT;
 
 	// WARN: Does not seem to work as expected when parsing multiple DataItems
 	TError result = ERR_SUCCESS;
@@ -122,7 +63,7 @@ TError TMessage::validatePayload(TBytes Payload)
 
 	if (Payload.size() == 0) // zero-length Payload size is a valid payload
 		return ERR_MSG_DATAITEM_TOO_SHORT;
-	if (Payload.size() < sizeof(TDataItemHeader))
+	if (Payload.size() < sizeof(DataItemIds)+sizeof(TDataItemLength))
 		return ERR_MSG_DATAITEM_TOO_SHORT;
 
 	TDataItemHeader *head = (TDataItemHeader *)Payload.data();
@@ -130,7 +71,7 @@ TError TMessage::validatePayload(TBytes Payload)
 	int DataItemSize = sizeof(TDataItemHeader) + head->dataLength;
 	if (DataItemSize > Payload.size())
 	{
-		Error("--ERR: data item thinks it is longer than payload, disize: " + std::to_string(DataItemSize) +", psize: " + std::to_string(Payload.size()));
+		Error("--ERR: data item thinks it is longer than payload, disize: " + std::to_string(DataItemSize) + ", psize: " + std::to_string(Payload.size()));
 		result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
 	}
 	else
@@ -152,6 +93,8 @@ TError TMessage::validatePayload(TBytes Payload)
 // returns 0 if Message is well-formed
 TError TMessage::validateMessage(TBytes buf) // "NAK()" is shorthand for return error condition etc
 {
+	LOG_IT;
+
 	Trace("ENTER: RAW Message: ", buf);
 	if (buf.size() < minimumMessageLength)
 		return ERR_MSG_TOO_SHORT; // NAK(received insufficient data, yet) until more data (the rest of the Message/header) received?
@@ -167,10 +110,11 @@ TError TMessage::validateMessage(TBytes buf) // "NAK()" is shorthand for return 
 
 	TCheckSum checksum = TMessage::calculateChecksum(buf);
 
-	if (__valid_checksum__ != checksum){
-		Error("calculated csum: "+std::to_string(checksum)+" ERROR should be zero\n");
+	if (__valid_checksum__ != checksum)
+	{
+		Error("calculated csum: " + std::to_string(checksum) + " ERROR should be zero\n");
 		return ERR_MSG_CHECKSUM; // NAK(invalid checksum)
-}
+	}
 	TBytes payload = buf;
 	payload.erase(payload.cbegin(), payload.cbegin() + sizeof(TMessageHeader));
 
@@ -186,14 +130,17 @@ TError TMessage::validateMessage(TBytes buf) // "NAK()" is shorthand for return 
  */
 TPayload TMessage::parsePayload(TBytes Payload, __u32 payload_length, TError &result)
 {
+	LOG_IT;
 
 	TPayload dataItems; // an empty vector<>
 	result = ERR_SUCCESS;
-	if (payload_length == 0){ // zero-length payload size is a valid payload
+	if (payload_length == 0)
+	{ // zero-length payload size is a valid payload
 		return dataItems;
 	}
 
 	TBytes DataItemBytes = Payload; // pointer to start of byte[] Payload
+	Debug("Parsing Each Data Item in Payload generated by TMessage::FromBytes");
 	while (payload_length >= sizeof(TDataItemHeader))
 	{
 		TDataItemHeader *head = (TDataItemHeader *)DataItemBytes.data();
@@ -224,15 +171,16 @@ TPayload TMessage::parsePayload(TBytes Payload, __u32 payload_length, TError &re
 
 TMessage TMessage::FromBytes(TBytes buf, TError &result)
 {
+	LOG_IT;
 
 	result = ERR_SUCCESS;
-	Trace("Received: ", buf);
+	Debug("Received: ", buf);
 
 	auto siz = buf.size();
 	if (siz < minimumMessageLength)
 	{
 		result = ERR_MSG_TOO_SHORT;
-		Error("Message Size < minimumMessageLength ("+std::to_string(siz)+" < " + std::to_string(minimumMessageLength));
+		Error("Message Size < minimumMessageLength (" + std::to_string(siz) + " < " + std::to_string(minimumMessageLength));
 		return TMessage(_INVALID_MESSAGEID_); // NAK(received insufficient data, yet) until more data (the rest of the Message/header) received?
 	}
 	TMessageHeader *head = (TMessageHeader *)buf.data();
@@ -240,7 +188,7 @@ TMessage TMessage::FromBytes(TBytes buf, TError &result)
 	if (!isValidMessageID(head->type))
 	{
 		result = ERR_MSG_ID_UNKNOWN; // NAK(invalid MessageID Category byte)
-		Error("TMessage::FromBytes: detected invalid MId: "+ std::to_string(result) + ", " + err_msg[-result]);
+		Error("TMessage::FromBytes: detected invalid MId: " + std::to_string(result) + ", " + err_msg[-result]);
 		return TMessage();
 	}
 	__u32 statedMessageLength = minimumMessageLength + head->payload_size;
@@ -265,23 +213,25 @@ TMessage TMessage::FromBytes(TBytes buf, TError &result)
 	if (__valid_checksum__ != checksum)
 	{
 		result = ERR_MSG_CHECKSUM; // NAK(invalid checksum)
-		Error("TMessage::FromBytes: invalid checksum "+std::to_string(checksum)+" ERROR should be zero\n");
+		Error("TMessage::FromBytes: invalid checksum " + std::to_string(checksum) + " ERROR should be zero\n");
 		return TMessage();
 	}
 
 	TMessage message = TMessage(head->type, dataItems);
-	Trace("TMessage::FromBytes: TMessage constructed...Payload DataItem Count: "+ std::to_string(message.DataItems.size()));
+	Trace("TMessage::FromBytes: TMessage constructed...Payload DataItem Count: " + std::to_string(message.DataItems.size()));
 	return message;
 }
 
 TMessage::TMessage(TMessageId MId)
 {
+	LOG_IT;
 
 	this->setMId(MId);
 }
 
 TMessage::TMessage(TMessageId MId, TPayload Payload)
 {
+	LOG_IT;
 
 	this->setMId(MId);
 	for (auto one : Payload)
@@ -293,6 +243,7 @@ TMessage::TMessage(TMessageId MId, TPayload Payload)
 
 TMessage::TMessage(TBytes Msg)
 {
+	LOG_IT;
 
 	TError result = ERR_SUCCESS;
 	*this = TMessage::FromBytes(Msg, result); // CODE SMELL: this technique makes me question my existence
@@ -302,19 +253,16 @@ TMessage::TMessage(TBytes Msg)
 
 TMessageId TMessage::getMId()
 {
-	Trace("TMessage");
 	return this->Id;
 }
 
 TCheckSum TMessage::getChecksum(bool bAsReply)
 {
-	Trace("TMessage");
 	return TMessage::calculateChecksum(this->AsBytes(bAsReply));
 }
 
 TMessage &TMessage::setMId(TMessageId ID)
 {
-	Trace("TMessage MId=" + std::to_string(ID));
 	if (!isValidMessageID(ID))
 		throw std::logic_error("ERR_MSG_ID_UNKNOWN"); // TODO: FIX using TError
 	this->Id = ID;
@@ -324,56 +272,69 @@ TMessage &TMessage::setMId(TMessageId ID)
 
 TMessage &TMessage::addDataItem(PTDataItem item)
 {
+	LOG_IT;
 
 	this->DataItems.push_back(item);
 	return *this;
 }
 
+void TMessage::appendLengthBytes(TBytes& bytes, TMessagePayloadSize length)
+{
+    for (int i = 0; i < sizeof(TMessagePayloadSize); i++)
+    {
+        __u8 lsb = length & 0xFF;
+        bytes.push_back(lsb);
+        length >>= 8;
+    }
+}
+void TMessage::appendPayloadLengthAndItems(TBytes& bytes, bool bAsReply)
+{
+    TMessagePayloadSize payloadLength = 0;
+    TBytes payloadBytes;
+
+    for (auto item : this->DataItems)
+    {
+        TBytes itemBytes = item->AsBytes(bAsReply);
+        payloadBytes.insert(end(payloadBytes), begin(itemBytes), end(itemBytes));
+        payloadLength += itemBytes.size();
+    }
+
+    appendLengthBytes(bytes, payloadLength);
+    bytes.insert(end(bytes), begin(payloadBytes), end(payloadBytes));
+}
 TBytes TMessage::AsBytes(bool bAsReply)
 {
+    LOG_IT;
+    Trace("AsBytes"+ bAsReply?", as Reply":", NOT reply");
 
-	TMessagePayloadSize payloadLength = 0;
-	for (auto item : this->DataItems)
-	{
-		payloadLength += item->AsBytes(bAsReply).size();
-	}
-	TBytes bytes;
+    TBytes bytes;
+    bytes.push_back(this->Id);
+    appendPayloadLengthAndItems(bytes, bAsReply);
 
-	bytes.push_back(this->Id);
+    TCheckSum csum = -calculateChecksum(bytes);
+    bytes.push_back(csum); // WARN: only works because TCheckSum == __u8
+    Trace("Built: ", bytes);
 
-	for (int i=0; i < (sizeof(TMessagePayloadSize)); i++){ // push message payload length
-		__u8 lsb = payloadLength & 0xFF;
-		bytes.push_back(lsb);
-		payloadLength >>= 8;
-	}
-
-	for (auto item : this->DataItems)
-	{
-		TBytes byt = item->AsBytes(bAsReply);
-		bytes.insert(end(bytes), begin(byt), end(byt));
-	}
-
-	TCheckSum csum = -calculateChecksum(bytes);
-	bytes.push_back(csum); // WARN: only works because TCheckSum == __u8
-	Trace("Built: ", bytes);
-
-	return bytes;
+    return bytes;
 }
 
-string TMessage::AsString(bool bAsReply)
-{
 
-	stringstream dest;
-	//TBytes raw = this->AsBytes(bAsReply);
-	//Trace("TMessage, Raw Bytes: ", raw);
-	dest << "Message = MId:" << to_hex<__u8>(this->getMId()) << ", # DataItems: " << DataItems.size();
+std::string TMessage::AsString(bool bAsReply)
+{
+	LOG_IT;
+	Trace("AsString, "+ bAsReply?"as Reply":"");
+	std::stringstream dest;
+	// TBytes raw = this->AsBytes(bAsReply);
+	// Trace("TMessage, Raw Bytes: ", raw);
+	//dest << "Message = MId:" << to_hex<__u8>(this->getMId()) << ", # DataItems: " << DataItems.size();
+	dest << "Message = MId: '" << this->getMId() << "', # DataItems: " << DataItems.size();
 	if (DataItems.size() != 0)
 	{
 		for (int itemNumber = 0; itemNumber < DataItems.size(); itemNumber++)
 		{
 			PTDataItem item = this->DataItems[itemNumber];
-			dest << endl
-				 << "		   " << setw(2) << itemNumber+1 << ": " << item->AsString(bAsReply);
+			dest << '\n'
+				 << "		   " << std::setw(2) << itemNumber + 1 << ": " << item->AsString(bAsReply);
 		}
 	}
 	return dest.str();

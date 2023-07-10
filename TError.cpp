@@ -17,4 +17,5 @@ const char *err_msg[] = {
 	/* -13 */ "Not Yet Implemented",
 	/* -14 */ "ADC Busy",
 	/* -15 */ "ADC FATAL",
+	0
 };

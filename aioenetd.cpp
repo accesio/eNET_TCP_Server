@@ -195,6 +195,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <unistd.h>
 #include <algorithm>
 
+
 #define LOGGING_DISABLE
 
 #include "apci.h"
@@ -208,9 +209,9 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/DAC_.h"
 #include "DataItems/REG_.h"
 #include "DataItems/TDataItem.h"
-#define VersionString "0.2.4"
+#include "aioenetd.h"
 
-TConfig Config;
+#define VersionString "0.3.5"
 
 int apci = -1;
 bool done = false;
@@ -219,27 +220,6 @@ bool bTERMINATE = false;
 int ControlListenPort = 18767; // 0x494f, ASCII for "IO"
 int AdcListenPort = ControlListenPort + 1;
 
-typedef struct TActionQueueItemClass
-{
-	// pthread_t &sender; // which thread is responsible for sending results of the action to the client
-	// TActinQueue &SendQueue; // which queue to stuff Responses into for sending to Clients
-	int Socket; // which client is all this from/for
-	TMessage &theMessage;
-} TActionQueueItem;
-
-typedef SafeQueue<TActionQueueItem*> TActionQueue;
-//SafeQueue<pthread_t> ReceiverThreadQueue;
-TActionQueue ActionQueue;
-//TActionQueue ReplyQueue; // J2H: consider one per ReceiveThread...(i.e., make one ReplyThread per ReceiveThread, each with an associated queue)
-
-void OpenDevFile();
-void abort_handler(int s);
-void Intro(int argc, char **argv);
-void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in &addr, fd_set &ReadFDs);
-void HandleNewControlClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in &addr, fd_set &ReadFDs);
-void *ActionThread(TActionQueue * Q);
-void *ControlListenerThread(void* arg);
-void *AdcListenerThread(void *arg);
 pthread_t action_thread;
 pthread_t controlListener_thread;
 pthread_t adcListener_thread;
@@ -249,29 +229,35 @@ pthread_t adcListener6_thread;
 int main(int argc, char *argv[])
 {
 	Intro(argc, argv);
-	LoadConfig();
-	if (0.0 == Config.dacScaleCoefficients[0]){
-		printf("corrupt config detected (DAC scale == %s); fixing\n", std::to_string((__u32)Config.dacScaleCoefficients[0]).c_str());
-		InitConfig(Config);}
+	InitConfig(Config);
+	try
+	{
+		LoadConfig();
+	}
+	catch (std::exception e)
+	{
+		Error(e.what());
+	};
+
 	ApplyConfig();
 	OpenDevFile(); // sets apci
 
-	pthread_create(&action_thread, NULL, (void*(*)(void *))&ActionThread, &ActionQueue);
-	pthread_create(&controlListener6_thread, NULL, ControlListenerThread, (void*)AF_INET6);
-	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void*)AF_INET6);
+	pthread_create(&action_thread, NULL, (void *(*)(void *)) & ActionThread, &ActionQueue);
+	pthread_create(&controlListener6_thread, NULL, ControlListenerThread, (void *)AF_INET6);
+	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void *)AF_INET6);
 
-	sleep(2);
-	do{
+	do
+	{
 		usleep(100000);
 	} while (!done);
-
 
 	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga
 	abort_handler(0);
 	return 0;
 }
 
-void abort_handler(int s){
+void abort_handler(int s)
+{
 	done = true;
 	std::time_t end_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	pthread_cancel(controlListener_thread);
@@ -289,15 +275,15 @@ void abort_handler(int s){
 void Intro(int argc, char **argv)
 {
 	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	Log(std::string("AIOeNET Daemon ") +VersionString +" STARTING, it is now: " + std::string(std::ctime(&start_time)));
+	Log(std::string("AIOeNET Daemon ") + VersionString + " STARTING, it is now: " + std::string(std::ctime(&start_time)));
 	struct sigaction sigIntHandler;
 	sigIntHandler.sa_handler = abort_handler;
 	sigemptyset(&sigIntHandler.sa_mask);
 	sigIntHandler.sa_flags = 0;
 
-	 sigaction(SIGINT, &sigIntHandler, NULL);
-	 sigaction(SIGABRT, &sigIntHandler, NULL);
-	 sigaction(SIGTERM, &sigIntHandler, NULL);
+	sigaction(SIGINT, &sigIntHandler, NULL);
+	sigaction(SIGABRT, &sigIntHandler, NULL);
+	sigaction(SIGTERM, &sigIntHandler, NULL);
 
 	if (argc < 2)
 	{
@@ -326,10 +312,10 @@ void OpenDevFile()
 	Log("Opening device @ " + devicefile);
 }
 
-void Bind(int &Socket, int &Port, void * structaddr, int iNET)
+void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 {
-	struct sockaddr_in * addr4 = (sockaddr_in *)structaddr;
-	struct sockaddr_in6 * addr6 = (sockaddr_in6 *)structaddr;
+	struct sockaddr_in *addr4 = (sockaddr_in *)structaddr;
+	struct sockaddr_in6 *addr6 = (sockaddr_in6 *)structaddr;
 	int result = -1;
 
 	if ((Socket = socket(iNET, SOCK_STREAM, 0)) == 0)
@@ -346,7 +332,8 @@ void Bind(int &Socket, int &Port, void * structaddr, int iNET)
 		exit(EXIT_FAILURE);
 	}
 
-	if (iNET == AF_INET){
+	if (iNET == AF_INET)
+	{
 		addr4->sin_family = AF_INET;
 		addr4->sin_port = htons(Port);
 		addr4->sin_addr.s_addr = INADDR_ANY;
@@ -359,11 +346,13 @@ void Bind(int &Socket, int &Port, void * structaddr, int iNET)
 	}
 	else // if (iNET == AF_INET6)
 	{
+		memset(addr6, 0, sizeof(*addr6));
 		addr6->sin6_family = AF_INET6;
 		addr6->sin6_port = htons(Port);
-		addr6->sin6_flowinfo = 0x607ACCE5;
+		addr6->sin6_flowinfo = 0; //0x607ACCE5;
 		addr6->sin6_addr = IN6ADDR_ANY_INIT;
-		//addr6->sin6_scope_id = 0x0e;
+		addr6->sin6_scope_id = 0;
+		// addr6->sin6_scope_id = 0x0e;
 		result = bind(Socket, (struct sockaddr *)addr6, sizeof(sockaddr_in6));
 		if (result < 0)
 		{
@@ -371,7 +360,6 @@ void Bind(int &Socket, int &Port, void * structaddr, int iNET)
 			perror("Bind failed: ");
 			exit(EXIT_FAILURE);
 		}
-
 	}
 }
 
@@ -385,7 +373,7 @@ void Listen(int &Socket, int num)
 	}
 }
 
-void *ControlListenerThread(void* arg)
+void *ControlListenerThread(void *arg)
 {
 	int iNET = (__s64)arg;
 	struct sockaddr_in ControlAddr4;
@@ -394,10 +382,14 @@ void *ControlListenerThread(void* arg)
 	std::vector<int> ControlClients;
 	fd_set ControlFDs;
 
-	if (iNET == AF_INET6){
+	if (iNET == AF_INET6)
+	{
 		Bind(ControlSocket, ControlListenPort, &ControlAddr6, AF_INET6);
 		ControlAddrSize = sizeof(ControlAddr6);
-	}else{
+	}
+	else
+	{
+		memset(&ControlAddr6, 0, sizeof(sockaddr_in6));
 		Bind(ControlSocket, ControlListenPort, &ControlAddr4, AF_INET);
 		ControlAddrSize = sizeof(ControlAddr4);
 	}
@@ -424,7 +416,7 @@ void SendAdcHello(int Socket)
 	}
 }
 
-void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in * addr, fd_set &ReadFDs)
+void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in *addr, fd_set &ReadFDs)
 {
 	int new_socket;
 	Log("accept ADC");
@@ -437,24 +429,27 @@ void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList,
 	SendAdcHello(new_socket);
 }
 
-void *AdcListenerThread(void* arg)
+void *AdcListenerThread(void *arg)
 {
-	int iNET = (__s64 )arg;
+	int iNET = (__s64)arg;
 	struct sockaddr_in AdcAddr4;
 	struct sockaddr_in6 AdcAddr6;
 	int AdcSocket, AdcAddrSize, bytesRead;
-	char buffer[maxPayloadLength + minimumMessageLength + 1]; // data buffer of 1K // TODO: FIX: there shouldn't be both a byte array and a vector; resolve
+	char buffer[sizeof(DataItemIds) + sizeof(TDataItemLength) + 1]; // data buffer of 1K // TODO: FIX: there shouldn't be both a byte array and a vector; resolve
 	std::vector<int> AdcClients;
 	fd_set AdcFDs;
 
-	if (iNET == AF_INET6){
+	if (iNET == AF_INET6)
+	{
 		Log("Binding ADC for IPv6");
 		Bind(AdcSocket, AdcListenPort, &AdcAddr6, iNET);
 		AdcAddrSize = sizeof(AdcAddr6);
 		Listen(AdcSocket, 1);
 		for (;;)
 			HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcClients, (sockaddr_in *)&AdcAddr6, AdcFDs);
-	}else{
+	}
+	else
+	{
 		Log("Binding ADC for IPv4");
 		Bind(AdcSocket, AdcListenPort, &AdcAddr4, iNET);
 		AdcAddrSize = sizeof(AdcAddr4);
@@ -474,31 +469,37 @@ void SendControlHello(int Socket)
 	TBytes data{};
 	for (int byt = 0; byt < sizeof(Socket); byt++)
 		data.push_back((Socket >> (8 * byt)) & 0x000000FF);
-	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(TCP_ConnectionID, data));
+	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::TCP_ConnectionID, data));
 	Payload.push_back(d2);
 
 	//__u32 dacRangeDefault = 0x3031E142;
-	//__u32 dacRangeDefault = 0x35303055; // FIX: TODO: should be read from non-volatile memory not hard-coded.
+	//__u32 dacRangeDefault = 0x35303055;
 	for (int channel = 0; channel < 4; channel++)
 	{
-		data.clear(); data.push_back(channel);
+		data.clear();
+		data.push_back(channel);
 		for (int byt = 0; byt < sizeof(Config.dacRanges[channel]); byt++)
 			data.push_back((Config.dacRanges[channel] >> (8 * byt)) & 0x000000FF);
-		d2 = std::unique_ptr<TDataItem>(new TDataItem(DAC_Range1, data));
+		d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::DAC_Range1, data));
 		Payload.push_back(d2);
 	}
 
-	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
 	PTDataItem features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
 	PTDataItem deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
 	PTDataItem adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
-	try{
-		fpgaId->Go(); Payload.push_back(fpgaId);
-		features->Go(); Payload.push_back(features);
-		deviceID->Go(); Payload.push_back(deviceID);
-		adcBaseClock->Go(); Payload.push_back(adcBaseClock);
+	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
+	try
+	{
+		features->Go();
+		Payload.push_back(features);
+		deviceID->Go();
+		Payload.push_back(deviceID);
+		adcBaseClock->Go();
+		Payload.push_back(adcBaseClock);
+		fpgaId->Go();
+		Payload.push_back(fpgaId);
 	}
-	catch(std::logic_error e)
+	catch (std::logic_error e)
 	{
 		Error(e.what());
 		perror(e.what());
@@ -540,32 +541,31 @@ bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 {
 	TError result;
 	TBytes buf(theBuffer, theBuffer + bytesRead);
-	// Log("buf has ", buf);
-	// buf.clear();
-	// // TODO: DOES NOT WORK? // buf.assign(buffer, buffer + bytesRead); // turn buffer into TBytes
-	// for (int i = 0; i < bytesRead; i++) buf.push_back(theBuffer[i]);
-	Debug("Received " + std::to_string(buf.size()) + " bytes, from Control Client: ", buf);
 
 	parsedMessage = TMessage::FromBytes(buf, result);
-
+	Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:");
 	if (result != ERR_SUCCESS)
 	{
-		Error("TMessage::fromBytes(buf) returned " + std::to_string(result) + err_msg[-result]);
+		Error("TMessage::fromBytes(buf) returned " + std::to_string(-result) + ": " + err_msg[-result]);
 		return false;
 	}
-	Log("Received on Control connection:\n		  " + parsedMessage.AsString());
+	Log("Received "+std::to_string(bytesRead)+" bytes on Control connection:\n		  " + parsedMessage.AsString());
 	return true;
 }
 
+/// @brief
+/// @param arg
+/// @return
 void *threadReceiver(void *arg) // J2H: In progress
 {
-	int controlSocket = (long long )arg;
+	int controlSocket = (long long)arg;
 
 	Log("New Control connection thread, socket fd is: " + std::to_string(controlSocket));
 	SendControlHello(controlSocket);
 
 	ssize_t bytesRead = 0;
-	int bufLen = maxPayloadLength + minimumMessageLength + 1;
+	//int bufLen = sizeof(DataItemIds) + sizeof(TDataItemLength) + minimumMessageLength + 1;
+	int bufLen=65536;
 	char buffer[bufLen];
 	do
 	{
@@ -589,11 +589,14 @@ void *threadReceiver(void *arg) // J2H: In progress
 		{
 			try
 			{
+				Debug("control receiver got "+std::to_string(bytesRead)+ " bytes");
 				TMessage *aMessage = new TMessage;
 				if (!GotMessage(buffer, bytesRead, *aMessage))
 					continue;
-				TActionQueueItem *Action = new TActionQueueItem{controlSocket, *aMessage };
+				Debug("GotMessage says valid");
+				TActionQueueItem *Action = new TActionQueueItem{controlSocket, *aMessage};
 				ActionQueue.enqueue(Action);
+				Debug(Action->theMessage.AsString(true));
 			}
 			catch (std::logic_error e)
 			{
@@ -619,11 +622,10 @@ void HandleNewControlClients(int ControlListenSocket, int addrSize, std::vector<
 	Log("New Control connection, socket fd is: " + std::to_string(new_socket));
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
-	pthread_create(&receive_thread, NULL, &threadReceiver, (void *) new_socket); // spawn Control Read thread here, pass in new_socket
+	pthread_create(&receive_thread, NULL, &threadReceiver, (void *)new_socket); // spawn Control Read thread here, pass in new_socket
 #pragma GCC diagnostic pop
 	// ReceiverThreadQueue.enqueue(receive_thread);
 }
-
 
 bool RunMessage(TMessage &aMessage)
 {
@@ -631,13 +633,16 @@ bool RunMessage(TMessage &aMessage)
 	try
 	{
 		for (auto anItem : aMessage.DataItems)
+		{
+			Debug(anItem->AsString(true), anItem->AsBytes(true));
 			anItem->Go();
+		}
 		aMessage.setMId('R'); // FIX: should be performed based on anItem.getResultCode() indicating no errors
 	}
 	catch (std::logic_error e)
 	{
 		aMessage.setMId('X');
-		Error(e.what());
+		Error("EXCEPTION! " + std::string(e.what()));
 		Log("Error Message built: \n		  " + aMessage.AsString(true));
 		return false;
 	}
@@ -647,7 +652,7 @@ bool RunMessage(TMessage &aMessage)
 
 void SendResponse(int Client, TMessage &aMessage)
 {
-	TBytes rbuf = aMessage.AsBytes(true);					   // valgrind
+	TBytes rbuf = aMessage.AsBytes(true);									  // valgrind
 	ssize_t bytesSent = send(Client, rbuf.data(), rbuf.size(), MSG_NOSIGNAL); // valgrind
 	if (bytesSent == -1)
 	{
@@ -660,17 +665,17 @@ void SendResponse(int Client, TMessage &aMessage)
 	}
 }
 
-void *ActionThread(TActionQueue * Q)
+void *ActionThread(TActionQueue *Q)
 {
-	for (;;) {
+	for (;;)
+	{
 		TActionQueueItem *anAction = ActionQueue.dequeue();
 		Log("---DEQUEUED---");
 		RunMessage(anAction->theMessage);
 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
-		free(anAction);
+		//free(anAction);
 	}
 }
-
 
 //------------------- Signal---------------------------
 #define max_BRK_attempts 3
@@ -686,4 +691,3 @@ static void sig_handler(int sig)
 	}
 }
 //---------------------End signal -----------------------
-

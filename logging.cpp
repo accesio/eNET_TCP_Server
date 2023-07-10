@@ -1,15 +1,11 @@
 #include <string>
-// #include <memory>
-// #include <sstream>
-// #include <iostream>
-// #include <iomanip>
 #include <stdio.h>
-// #include <linux/types.h>
 
 #include "logging.h"
 
 timespec firsttime;
-
+int FUNCTION_DEPTH = 0;
+std::string elapsedms() __attribute__((no_instrument_function));
 std::string elapsedms()
 {
 	struct timespec up;
@@ -24,20 +20,28 @@ std::string elapsedms()
 // "\033[33m[Warning]\033[0m ";
 
 
+#define RED "\033[31m"
+#define YELLOW "\033[32m"
+#define CYAN "\033[36m"
+#define logtext "%s[ %5s ] %12s %23s %23s\033[0m %s (%5d) %s"
+#define logCR "%s"
+
 #ifndef LOG_DISABLE_INFO
 int Log(const std::string message, const source_location &loc)
 {
-	printf("\033[32m[ INFO  ]\033[0m %14s \033[32m%13s %s\033[0m (%5d) %s\n", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), message.c_str());
+	std::string prefix(FUNCTION_DEPTH, '-');
+	printf(logtext "\n", CYAN, "INFO ", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), message.c_str());
 	return 0;
 }
 
 int Log(const std::string intro, const TBytes bytes, bool crlf, const source_location &loc)
 {
+	std::string prefix(FUNCTION_DEPTH, '-');
 	std::stringstream msg;
 	msg << intro;
 	for (auto byt : bytes)
 		msg << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " ";
-	printf("\033[32m[ INFO  ]\033[0m %14s \033[32m%13s %s\033[0m (%5d) %s%s", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), msg.str().c_str(), crlf?"\n":"");
+	printf(logtext logCR, CYAN, "INFO ", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), msg.str().c_str(), crlf?"\n":"");
 	return 0;
 }
 #endif
@@ -45,17 +49,19 @@ int Log(const std::string intro, const TBytes bytes, bool crlf, const source_loc
 #ifndef LOG_DISABLE_TRACE
 int Trace(const std::string message, const source_location &loc)
 {
-	printf("\033[36m[ TRACE ]\033[0m %14s \033[32m%13s %s\033[0m (%5d) %s\n", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), message.c_str());
+	std::string prefix(FUNCTION_DEPTH, '-');
+	printf(logtext "\n", CYAN, "TRACE", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), message.c_str());
 	return 0;
 }
 
 int Trace(const std::string intro, const TBytes bytes, bool crlf, const source_location &loc)
 {
+	std::string prefix(FUNCTION_DEPTH, '-');
 	std::stringstream msg;
 	msg << intro;
 	for (auto byt : bytes)
 		msg << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " ";
-	printf("\033[36m[ TRACE ]\033[0m %14s \033[32m%13s %s\033[0m (%5d) %s%s\n", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), msg.str().c_str(), crlf?"\n":"");
+	printf(logtext logCR, CYAN, "TRACE", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), msg.str().c_str(), crlf?"\n":"");
 	return 0;
 }
 #endif
@@ -63,34 +69,38 @@ int Trace(const std::string intro, const TBytes bytes, bool crlf, const source_l
 #ifndef LOG_DISABLE_DEBUG
 int Debug(const std::string message, const source_location &loc)
 {
-	printf("[ DEBUG ] %14s \033[32m%13s %s\033[0m (%5d) %s\n", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), message.c_str());
+	std::string prefix(FUNCTION_DEPTH, '-');
+	printf(logtext "\n", YELLOW, "DEBUG", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), message.c_str());
 	return 0;
 }
 
 int Debug(const std::string intro, const TBytes bytes, bool crlf, const source_location &loc)
-{
+{	std::string prefix(FUNCTION_DEPTH, '-');
+
 	std::stringstream msg;
 	msg << intro;
 	for (auto byt : bytes)
 		msg << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " ";
-	printf("[ DEBUG ] %14s \033[32m%13s %s\033[0m (%5d) %s%s", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), msg.str().c_str(), crlf?"\n":"");
+	printf(logtext logCR, YELLOW, "DEBUG", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), msg.str().c_str(), crlf?"\n":"");
 	return 0;
 }
 #endif
 
 int Error(const std::string message, const source_location &loc)
 {
-	printf("\033[31m[ ERROR ]\033[0m %14s \033[32m%13s %s\033[0m (%5d) %s\n", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), message.c_str());
+	std::string prefix(FUNCTION_DEPTH, '-');
+	printf(logtext "\n", RED, "ERROR", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), message.c_str());
 	return 0;
 }
 
 int Error(const std::string intro, const TBytes bytes, bool crlf, const source_location &loc)
 {
+	std::string prefix(FUNCTION_DEPTH, '-');
 	std::stringstream msg;
 	msg << intro;
 	for (auto byt : bytes)
 		msg << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<int>(byt) << " ";
-	printf("\033[31m[ ERROR ]\033[0m %14s \033[32m%13s %s\033[0m (%5d) %s%s", elapsedms().c_str(), loc.file_name(), loc.function_name(), loc.line(), msg.str().c_str(), crlf?"\n":"");
+	printf(logtext logCR, RED, "ERROR", elapsedms().c_str(), loc.file_name(), loc.function_name(), prefix.c_str(), loc.line(), msg.str().c_str(), crlf?"\n":"");
 
 	return 0;
 }
