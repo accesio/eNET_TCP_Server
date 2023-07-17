@@ -48,14 +48,14 @@ TConfigField<Ts...> :: TConfigField(DataItemIds DId, TBytes bytes) //: TDataItem
 	Trace("constructor(TBytes) for TConfigField received: ", bytes);
 	Data = bytes;
 	return;
-};
+}
 
 template <typename... Ts>
 TConfigField<Ts...> :: TConfigField(Ts ... arguments)
 {
 	LOG_IT;
 	return;
-};
+}
 
 template <typename... Ts>
 TBytes TConfigField<Ts...> :: calcPayload(bool bAsReply)
@@ -63,7 +63,7 @@ TBytes TConfigField<Ts...> :: calcPayload(bool bAsReply)
 	LOG_IT;
 	TBytes result = Data;
 	return result;
-};
+}
 
 template <typename... Ts>
 TConfigField<Ts...> &TConfigField<Ts...> :: Go()
@@ -74,14 +74,15 @@ TConfigField<Ts...> &TConfigField<Ts...> :: Go()
 	Trace("this->Data = ", this->Data);
 	item->second.go(this->Data.data());
 	return *this;
-};
+}
 
 template <typename... Ts>
 std::string TConfigField<Ts...> :: AsString(bool bAsReply)
-{LOG_IT;
+{
+	LOG_IT;
 	return DIdDict.find(this->Id)->second.desc;
 
-};
+}
 
 #pragma endregion
 

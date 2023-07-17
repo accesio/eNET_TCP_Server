@@ -39,7 +39,7 @@ TError TREG_Read1::validateDataItemPayload(DataItemIds DataItemID, TBytes Data)
 	}
 
 	return result;
-};
+}
 
 TREG_Read1::TREG_Read1(DataItemIds DId, int ofs) : TDataItem(DId)
 {
@@ -110,7 +110,7 @@ std::string TREG_Read1::AsString(bool bAsReply)
 {
 	std::stringstream dest;
 
-	dest << "REG_Read1(" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(this->offset) << ")";
+	dest << "REG_Read1(" << std::hex << std::setw(2) << std::setfill('0') << this->offset << ")";
 	if (bAsReply)
 	{
 		dest << " → ";
@@ -181,9 +181,6 @@ __s64 now() // in nanoseconds
 
 TREG_Writes &TREG_Writes::Go()
 {
-	static __s64 nextAllowedTimeDioSpi = now(), nextAllowedTimeDacSpi = now();
-	__s64 diffTime = 0.0;
-
 	this->resultCode = 0;
 	for (auto action : this->Writes)
 	{
@@ -240,7 +237,7 @@ TREG_Write1::TREG_Write1(DataItemIds ID, TBytes buf) : TREG_Writes(DataItemIds::
 
 	__u32 value = 0;
 	if (w == 8)
-		value = *(__u8 *)&buf[1];
+		value = buf[1];
 	else
 		value = *(__u32 *)&buf[1];
 

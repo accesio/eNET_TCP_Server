@@ -46,21 +46,21 @@ extern bool done;
 const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	{
 		//{INVALID, { 9, 9, 9,( [](DataItemIds x, TBytes bytes) { return construct<TDataItem>(x, bytes); }), "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", nullptr}},
-		DATA_ITEM(DataItemIds::INVALID, TDataItem, 0, 0, 0, "Invalid DId -1"),
-		DATA_ITEM(DataItemIds::BRD_, TDataItem, 0, 0, 0, "Invalid DID 0"),
-		DATA_ITEM(DataItemIds::BRD_Reset, TDataItem, 0, 0, 0, "BRD_Reset()"),
-		DATA_ITEM(DataItemIds::BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32"),
-		DATA_ITEM(DataItemIds::BRD_Features, TBRD_Features, 0, 4, 255, "BRD_Features() → u8"),
-		DATA_ITEM(DataItemIds::BRD_FpgaID, TBRD_FpgaId, 0, 4, 255, "BRD_FpgaID() → u32"),
+		DATA_ITEM(DataItemIds::INVALID, TDataItem, 0, 0, 0, "Invalid DId -1", nullptr),
+		DATA_ITEM(DataItemIds::BRD_, TDataItem, 0, 0, 0, "Invalid DID 0", nullptr),
+		DATA_ITEM(DataItemIds::BRD_Reset, TDataItem, 0, 0, 0, "BRD_Reset()", nullptr),
+		DATA_ITEM(DataItemIds::BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32", nullptr),
+		DATA_ITEM(DataItemIds::BRD_Features, TBRD_Features, 0, 4, 255, "BRD_Features() → u8", nullptr),
+		DATA_ITEM(DataItemIds::BRD_FpgaID, TBRD_FpgaId, 0, 4, 255, "BRD_FpgaID() → u32", nullptr),
 		DATA_ITEM(DataItemIds::BRD_REBOOT, TDataItem, 8, 8, 8, "BRD_REBOOT(double)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
 		 			double token = *(double *)args;
 		 			if (token == M_PI)
 		 				done = true; })),
-		DATA_ITEM(DataItemIds::REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]"),
+		DATA_ITEM(DataItemIds::REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]", nullptr),
 		// DIdNYI(REG_ReadBuf),
-		DATA_ITEM(DataItemIds::REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)"),
+		DATA_ITEM(DataItemIds::REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)", nullptr),
 		// DIdNYI(REG_WriteBuf),
 
 		DATA_ITEM(DataItemIds::REG_ClearBits, TDataItem, 2, 5, 5,
@@ -94,7 +94,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
 				__u8 * pargs = (__u8 *)args;
-				__u8 ofs = *(__u8 *)(((__u8 *)args) );
+				__u8 ofs = *((__u8 *)args) ;
 				pargs++;
 				__u32 bits = 0;
 				bits = regextract(pargs, ofs);
@@ -113,8 +113,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 				out(ofs,data); })),
 
 		// {DAC_, {0, 0, 0, construct<TDataItem>, "TDataItemBase (DAC_)"}},
-		DATA_ITEM(DataItemIds::DAC_Output1, TDAC_Output, 5, 5, 5, "DAC_Output1(u8 iDAC, single Volts)"),
-		DATA_ITEM(DataItemIds::DAC_Range1, TDAC_Range1, 5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)"),
+		DATA_ITEM(DataItemIds::DAC_Output1, TDAC_Output, 5, 5, 5, "DAC_Output1(u8 iDAC, single Volts)", nullptr),
+		DATA_ITEM(DataItemIds::DAC_Range1, TDAC_Range1, 5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)", nullptr),
 		// DIdNYI(DAC_Configure1),
 		// DIdNYI(DAC_ConfigAndOutput1),
 		DATA_ITEM(DataItemIds::DAC_Calibrate1, TDataItem, 9, 9, 9, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)",
@@ -123,7 +123,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 					float offset;
 					float scale;
 					__u8 dacnum;
-					dacnum = *(__u8 *)(((__u8 *)args) + 0);
+					dacnum = *(((__u8 *)args) + 0);
 					offset = *(float *)(((__u8 *)args) + 5);
 					scale = *(float *)(((__u8 *)args) + 1);
 					printf("....DAC %hhx scale=%3.3f offset=%3.3f\n", dacnum, scale, offset);
@@ -135,9 +135,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(DataItemIds::DAC_Offset1, TDataItem, 5, 5, 5, "DAC_Offset1(u8 iDac, single Offset)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
-		 			float offset,scale;
+		 			float offset;
 		 			__u8 dacnum;
-		 			dacnum = *(__u8 *)(((__u8 *)args) + 0);
+		 			dacnum = *(((__u8 *)args) + 0);
 		 			offset = *(float *)(((__u8 *)args) + 1);
 		 			printf("....DAC %hhx offset=%3.3f\n", dacnum, offset);
 		 			Config.dacOffsetCoefficients[dacnum] = offset;
@@ -158,9 +158,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(DataItemIds::DAC_Scale1, TDataItem, 5, 5, 5, "DAC_Scale1(u8 iDac, single Scale)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
-					float offset,scale;
+					float scale;
 					__u8 dacnum;
-					dacnum = *(__u8 *)(((__u8 *)args) + 0);
+					dacnum = *(((__u8 *)args) + 0);
 					scale = *(float *)(((__u8 *)args) + 1);
 					printf("....DAC %hhx scale=%3.3f \n", dacnum, scale);
 					Config.dacScaleCoefficients[dacnum] = scale;
@@ -199,9 +199,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		// DIdNYI(ADC_),
 		// DIdNYI(ADC_Claim),
 		// DIdNYI(ADC_Release),
-		DATA_ITEM(DataItemIds::ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32"),
-		DATA_ITEM(DataItemIds::ADC_StartHz, TDataItem, 4, 4, 4, "ADC_StartHz(f32)"),
-		DATA_ITEM(DataItemIds::ADC_StartDivisor, TDataItem, 4, 4, 4, "ADC_StartDivisor(u32)"),
+		DATA_ITEM(DataItemIds::ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32", nullptr),
+		DATA_ITEM(DataItemIds::ADC_StartHz, TDataItem, 4, 4, 4, "ADC_StartHz(f32)", nullptr),
+		DATA_ITEM(DataItemIds::ADC_StartDivisor, TDataItem, 4, 4, 4, "ADC_StartDivisor(u32)", nullptr),
 		// DIdNYI(ADC_ConfigurationOfEverything),
 		// DIdNYI(ADC_Differential1),
 		// DIdNYI(ADC_DifferentialAll),
@@ -219,8 +219,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		// DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
 		// DIdNYI(ADC_Raw1),
 		// DIdNYI(ADC_RawAll),   // ADC_GetScanRaw
-		DATA_ITEM(DataItemIds::ADC_StreamStart, TDataItem, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)"),
-		DATA_ITEM(DataItemIds::ADC_StreamStop, TDataItem, 0, 0, 0, "ADC_StreamStop()"),
+		DATA_ITEM(DataItemIds::ADC_StreamStart, TDataItem, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
+		DATA_ITEM(DataItemIds::ADC_StreamStop, TDataItem, 0, 0, 0, "ADC_StreamStop()", nullptr),
 
 		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
 
@@ -229,11 +229,12 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		// DIdNYI(DEF_),
 		// DIdNYI(SERVICE_),
 		// DIdNYI(TCP_),
-		DATA_ITEM(DataItemIds::TCP_ConnectionID, TDataItem, 0, 0, 255, "TCP_ConnectionID() → u32"),
+		DATA_ITEM(DataItemIds::TCP_ConnectionID, TDataItem, 0, 0, 255, "TCP_ConnectionID() → u32", nullptr),
 		// DIdNYI(PNP_),
 		// DIdNYI(CFG_),
-		DATA_ITEM(DataItemIds::CFG_Hostname, TDataItem, 1, 20, 253, "CFG_Hostname({valid Hostname})"),
-		DATA_ITEM(DataItemIds::SYS_UploadFileName, TSYS_UploadFileName, 1, 255, 255, "SYS_UploadFileName({valid filepath})"),
+		DATA_ITEM(DataItemIds::CFG_Hostname, TDataItem, 1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
+		DATA_ITEM(DataItemIds::SYS_UploadFileName, TSYS_UploadFileName, 1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
+		DATA_ITEM(DataItemIds::SYS_UploadFileData, TSYS_UploadFileData, 1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
 /*
  */
 };
@@ -264,7 +265,6 @@ int TDataItem::validateDataItemPayload(DataItemIds DId, TBytes bytes)
 {
 	Trace("ENTER, DId: " + to_hex<TDataId>(DId) + ": ", bytes);
 	int result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
-	int index = TDataItem::getDIdIndex(DId);
 	TDataItemLength len = bytes.size();
 	Trace(std::to_string(getMinLength(DId)) + " <= " + std::to_string(len) + " <= " + std::to_string(getMaxLength(DId)));
 	if ((TDataItem::getMinLength(DId) <= len) && (len <= TDataItem::getMaxLength(DId)))
@@ -312,7 +312,7 @@ TDataItemLength TDataItem::getMaxLength(DataItemIds DId)
 
 int TDataItem::isValidDataItemID(DataItemIds DId)
 {
-	Debug("DataItemId: " + to_hex<__u16>(DId));
+	Debug("DataItemId: " + to_hex<__u16>((static_cast<__u16>(DId))));
 	auto item = DIdDict.find(DId);
 	return (item != DIdDict.end());
 }
@@ -360,7 +360,7 @@ PTDataItem TDataItem::fromBytes(TBytes bytes, TError &result)
 {
 	LOG_IT;
 	result = ERR_SUCCESS;
-	Debug("Received = ", bytes);
+	//Debug("Received = ", bytes);
 
 	GUARD((bytes.size() >= sizeof(TDataItemHeader)), ERR_MSG_DATAITEM_TOO_SHORT, bytes.size());
 
@@ -384,7 +384,7 @@ PTDataItem TDataItem::fromBytes(TBytes bytes, TError &result)
 			return PTDataItem(new TDataItem(DataItemIds::INVALID));
 		}
 	}
-	Debug("TDataItem::fromBytes sending to constructor: ", data);
+	//Debug("TDataItem::fromBytes sending to constructor: ", data);
 	// auto item = DIdDict.find(head->DId)->second.Construct(head->DId, data); // TODO: FIX: WARN: FIX: WARN: ASfdafasdfasdfasdfasdfasdfas dfasd fasdf asd fasd fased f
 	auto item = DIdDict.find(head->DId)->second.Construct(head->DId, data); // TODO: FIX: WARN: FIX: WARN: ASfdafasdfasdfasdfasdfasdfas dfasd fasdf asd fasd fased f
 	Debug("Constructed Item as string:" + item->AsString());
@@ -397,7 +397,7 @@ TDataItem::TDataItem(DataItemIds DId) : TDataItemParent(DId)
 {
 	Trace("ENTER, DId: " + to_hex<TDataId>(DId));
 	this->setDId(DId);
-};
+}
 
 TDataItem &TDataItem::addData(__u8 aByte)
 {
@@ -421,7 +421,6 @@ bool TDataItem::isValidDataLength()
 {
 	bool result = false;
 	DataItemIds DId = this->getDId();
-	int index = TDataItem::getDIdIndex(DId);
 	TDataItemLength len = this->Data.size();
 	if ((this->getMinLength(DId) <= len) && (this->getMaxLength(DId) >= len))
 	{

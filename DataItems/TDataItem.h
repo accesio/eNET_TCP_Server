@@ -304,7 +304,7 @@ public:
 	virtual std::string getDIdDesc();
 	// class method to get the human-readable name/description of any known DId; TODO: should maybe be a method of DIdList[]
 	static std::string getDIdDesc(DataItemIds DId);
-
+	virtual ~TDataItem(){}
 public:
 	TError resultCode;
 	int conn;

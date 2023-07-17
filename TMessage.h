@@ -179,7 +179,7 @@ public:
 
 	static void pushLen(TBytes & buf, TMessagePayloadSize len)
 	{
-		for (int i = 0; i < (sizeof(len)); i++)
+		for (unsigned int i = 0; i < (sizeof(len)); i++)
 		{
 			__u8 lsb = len & 0xFF;
 			buf.push_back(lsb);

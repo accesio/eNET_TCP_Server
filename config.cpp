@@ -142,7 +142,7 @@ int WriteConfigString(std::string key, std::string value, std::string which ){
 	}
 	// Trace(which + key + " = " + value );
 	return bytesRead;
-};
+}
 
 int WriteConfigU8(std::string key, __u8 value, std::string which )
 {

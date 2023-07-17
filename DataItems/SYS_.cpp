@@ -7,27 +7,30 @@
 #include "SYS_.h"
 
 bool sanitizePath(std::string& path) {
-    std::filesystem::path basePath = std::filesystem::canonical("/home/acces/");
+    std::filesystem::path basePath = std::filesystem::absolute("/home/pb/"); // Use absolute instead of canonical
 
+    // Check for null bytes in the path
     if (path.find('\0') != std::string::npos) {
-        Error( "Error: Path contains null bytes." );
+        Error("Error: Path contains null bytes.");
         return false;
     }
 
-    try {
-        std::filesystem::path p = std::filesystem::canonical(path);
-        path = p.string();
-    } catch(const std::exception& e) {
-        Error( "Error: Failed to resolve path: " + std::string(e.what()));
+    // Convert path to absolute path
+    std::filesystem::path p = std::filesystem::absolute(path);
+    std::string absPath = p.string();
+
+    // Replace incorrect file separators
+    std::replace(absPath.begin(), absPath.end(), '\\', std::filesystem::path::preferred_separator);
+
+    // Check if path is within allowed directory
+    if (absPath.compare(0, basePath.string().size(), basePath.string()) != 0) {
+        Error("Error: Path is not within allowed directory.");
         return false;
     }
 
-    std::replace(path.begin(), path.end(), '\\', std::filesystem::path::preferred_separator); // Replace incorrect file separators
+    // Update path with sanitized version
+    path = absPath;
 
-    if (path.compare(0, basePath.string().size(), basePath.string()) != 0) {
-        Error( "Error: Path is not within allowed directory.");
-        return false;
-    }
     return true;
 }
 
@@ -46,39 +49,48 @@ std::string GetTempFileName()
     }
     close(fileDescriptor); // Close the file descriptor.
 
-    Debug( "Created temp file: " + filenameTemplate);
+    Debug( "Created temp file: " + std::string(filenameTemplate));
     return filenameTemplate;
 }
-
+std::ofstream ofs;
+std::string filename;
+        // Data = {};
 void UploadFilesByDataItem(TDataItem& item)
 {
-    static std::ofstream ofs;
-    static std::string filename;
-
     if (item.getDId() == DataItemIds::SYS_UploadFileName) {
+        Debug("SYS_UploadFileName()");
         if (ofs.is_open()) {
+            Debug("File is open");
             ofs.close();
             if (!ofs) {
+                Debug("File Upload process failed to close file " + filename);
                 throw std::runtime_error("File Upload process failed to close file " + filename);
             }
         }
         auto data = item.Data;
         filename = std::string(data.begin(), data.end());
+        Debug("Opening File: "+filename);
         ofs.open(filename, std::ios::binary);
         if (!ofs) {
+            Debug("File Upload process cannot open file " + filename);
             throw std::runtime_error("File Upload process cannot open file " + filename);
         }
     } else if (item.getDId() == DataItemIds::SYS_UploadFileData) {
+        Debug("SYS_UploadFileData()");
         if (!ofs.is_open()) {
+            Debug("File Upload process received data item before filename");
             throw std::runtime_error("File Upload process received data item before filename");
         }
         auto data = item.Data;
-        if (data.size() == 0) {
+        if (item.Data.size() == 0) {
+            Debug("Data Size == 0, Closing.");
             ofs.close();
             if (!ofs) {
+                Debug("File Upload process failed to close file " + filename);
                 throw std::runtime_error("File Upload process failed to close file " + filename);
             }
         } else {
+            Debug("Writing data: "+ std::to_string(data.size())+" bytes.");
             ofs.write(reinterpret_cast<const char *>(data.data()), data.size());
             if (!ofs) {
                 throw std::runtime_error("File Upload process failed to write to file " + filename);
@@ -96,12 +108,14 @@ TSYS_UploadFileName::TSYS_UploadFileName(DataItemIds DId, TBytes buf) : TDataIte
         // copy sanitized path into this.Data
         std::vector<__u8> vec(str.begin(), str.end());
         Data = vec;
+        Debug("Sanitized filename: "+str+": ",Data);
     }
     else
     {
-        // zero out .Data and change Message to indicate Error
-    }
+        Data = {};
 
+        //TODO: zero out .Data and change Message to indicate Error
+    }
 }
 
 TBytes TSYS_UploadFileName::calcPayload(bool bAsReply)
@@ -111,15 +125,48 @@ TBytes TSYS_UploadFileName::calcPayload(bool bAsReply)
 
 std::string TSYS_UploadFileName::AsString(bool bAsReply)
 {
-    return "UploadFileName";
+    return DIdDict.find(this->Id)->second.desc;
 }
 
 TSYS_UploadFileName & TSYS_UploadFileName::Go()
 {
     try{
+        Debug("Calling UploadFilesByDataItem()");
         UploadFilesByDataItem(*this);
     }
-    catch (std::exception e)
+    catch (const std::exception & e)
+    {
+        Error(e.what());
+    }
+    return *this;
+}
+
+
+TSYS_UploadFileData::TSYS_UploadFileData(DataItemIds DId, TBytes buf) : TDataItem(DId)
+{
+    Data = buf;
+    //Debug("Buffer received: ", buf);
+}
+
+TBytes TSYS_UploadFileData::calcPayload(bool bAsReply)
+{
+    Debug("CalcPayload() called for FileData");
+    //Data = {};
+    return Data;
+}
+
+std::string TSYS_UploadFileData::AsString(bool bAsReply)
+{
+    return DIdDict.find(this->Id)->second.desc;
+}
+
+TSYS_UploadFileData & TSYS_UploadFileData::Go()
+{
+    try{
+        //Debug("Calling UploadFilesByDataItem():", Data);
+        UploadFilesByDataItem(*this);
+    }
+    catch (const std::runtime_error & e)
     {
         Error(e.what());
     }

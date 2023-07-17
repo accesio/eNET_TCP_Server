@@ -37,7 +37,7 @@ TCheckSum TMessage::calculateChecksum(TBytes Message)
 bool TMessage::isValidMessageID(TMessageId MessageId)
 {
 	bool result = false;
-	for (int i = 0; i < sizeof(ValidMessageIDs) / sizeof(TMessageId); i++)
+	for (uint i = 0; i < sizeof(ValidMessageIDs) / sizeof(TMessageId); i++)
 	{
 		if (ValidMessageIDs[i] == MessageId)
 		{
@@ -68,7 +68,7 @@ TError TMessage::validatePayload(TBytes Payload)
 
 	TDataItemHeader *head = (TDataItemHeader *)Payload.data();
 
-	int DataItemSize = sizeof(TDataItemHeader) + head->dataLength;
+	__u32 DataItemSize = sizeof(TDataItemHeader) + head->dataLength;
 	if (DataItemSize > Payload.size())
 	{
 		Error("--ERR: data item thinks it is longer than payload, disize: " + std::to_string(DataItemSize) + ", psize: " + std::to_string(Payload.size()));
@@ -146,7 +146,7 @@ TPayload TMessage::parsePayload(TBytes Payload, __u32 payload_length, TError &re
 		TDataItemHeader *head = (TDataItemHeader *)DataItemBytes.data();
 		// DataItemLength is the size of the Data Item, including the size of the Data Item Length
 		// + Data Item ID, and the Data Item's payload's bytelength
-		int DataItemLength = sizeof(TDataItemHeader) + head->dataLength; // DataItem[3] is payload length
+		__u32 DataItemLength = sizeof(TDataItemHeader) + head->dataLength; // DataItem[3] is payload length
 		if (DataItemLength > payload_length)
 		{
 			result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
@@ -174,7 +174,7 @@ TMessage TMessage::FromBytes(TBytes buf, TError &result)
 	LOG_IT;
 
 	result = ERR_SUCCESS;
-	Debug("Received: ", buf);
+	//Debug("Received: ", buf);
 
 	auto siz = buf.size();
 	if (siz < minimumMessageLength)
@@ -249,7 +249,7 @@ TMessage::TMessage(TBytes Msg)
 	*this = TMessage::FromBytes(Msg, result); // CODE SMELL: this technique makes me question my existence
 	if (result != ERR_SUCCESS)
 		throw std::logic_error(err_msg[-result]);
-};
+}
 
 TMessageId TMessage::getMId()
 {
@@ -280,7 +280,8 @@ TMessage &TMessage::addDataItem(PTDataItem item)
 
 void TMessage::appendLengthBytes(TBytes& bytes, TMessagePayloadSize length)
 {
-    for (int i = 0; i < sizeof(TMessagePayloadSize); i++)
+	if (length>0)
+    for (uint i = 0; i < sizeof(TMessagePayloadSize); i++)
     {
         __u8 lsb = length & 0xFF;
         bytes.push_back(lsb);
@@ -330,7 +331,7 @@ std::string TMessage::AsString(bool bAsReply)
 	dest << "Message = MId: '" << this->getMId() << "', # DataItems: " << DataItems.size();
 	if (DataItems.size() != 0)
 	{
-		for (int itemNumber = 0; itemNumber < DataItems.size(); itemNumber++)
+		for (uint itemNumber = 0; itemNumber < DataItems.size(); itemNumber++)
 		{
 			PTDataItem item = this->DataItems[itemNumber];
 			dest << '\n'

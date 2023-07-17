@@ -105,9 +105,9 @@ inline __u32 regextract(__u8 * buf, int regofs)
 {
 	switch(widthFromOffset(regofs))
 	{
-		case 8: return *(__u8 *)(buf);
-		case 16: return *(__u16 *)(buf);
-		case 32: return *(__u32 *)(buf);
+		case 8: return *buf;
+		case 16: return *reinterpret_cast<__u16 *> ((buf));
+		case 32: return *reinterpret_cast<__u32 *> ((buf));
 	}
 	return 0;
 }
@@ -116,7 +116,7 @@ template <typename T>
 void stuff(TBytes &buf, const T v)
 {
 	auto value = v;
-	for (int i = 0; i < sizeof(T); i++)
+	for (uint i = 0; i < sizeof(T); i++)
 	{
 		buf.push_back(value & 0xFF);
 		value >>= 8;

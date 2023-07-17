@@ -91,7 +91,7 @@ void *worker_main(void *arg)
 		return (void *)(size_t)status;
 	}
 
-	void *mmap_addr = (void *)mmap(NULL, DMA_BUFF_SIZE, PROT_READ, MAP_SHARED, apci, 0);
+	void *mmap_addr = mmap(NULL, DMA_BUFF_SIZE, PROT_READ, MAP_SHARED, apci, 0);
 	if (mmap_addr == NULL)
 	{
 		Error("mmap failed");
@@ -145,7 +145,7 @@ void *worker_main(void *arg)
 		}
 		Trace("Thread ended");
 	}
-	catch(std::exception e)
+	catch (const std::logic_error & e)
 	{
 		Error(e.what());
 	}

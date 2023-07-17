@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 	{
 		LoadConfig();
 	}
-	catch (std::exception e)
+	catch (const std::logic_error & e)
 	{
 		Error(e.what());
 	};
@@ -259,7 +259,8 @@ int main(int argc, char *argv[])
 void abort_handler(int s)
 {
 	done = true;
-	std::time_t end_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	// note __attribute__((unused)) is to silence an incorrect compiler warning
+	std::time_t end_time __attribute__((unused))= std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	pthread_cancel(controlListener_thread);
 	pthread_cancel(adcListener_thread);
 	pthread_cancel(action_thread);
@@ -274,7 +275,8 @@ void abort_handler(int s)
 
 void Intro(int argc, char **argv)
 {
-	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	// note __attribute__((unused)) is to silence an incorrect compiler warning
+	std::time_t start_time __attribute__((unused))= std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	Log(std::string("AIOeNET Daemon ") + VersionString + " STARTING, it is now: " + std::string(std::ctime(&start_time)));
 	struct sigaction sigIntHandler;
 	sigIntHandler.sa_handler = abort_handler;
@@ -403,7 +405,7 @@ void *ControlListenerThread(void *arg)
 
 void SendAdcHello(int Socket)
 {
-	__u32 HelloAdc = (__u32)(Socket | 0x80000000); // "invalid ADC bit, and connection ID"
+	__u32 HelloAdc = Socket | 0x80000000; // "invalid ADC bit, and connection ID"
 	ssize_t bytesSent = send(Socket, &HelloAdc, 4, MSG_NOSIGNAL);
 	if (bytesSent == -1)
 	{
@@ -434,8 +436,8 @@ void *AdcListenerThread(void *arg)
 	int iNET = (__s64)arg;
 	struct sockaddr_in AdcAddr4;
 	struct sockaddr_in6 AdcAddr6;
-	int AdcSocket, AdcAddrSize, bytesRead;
-	char buffer[sizeof(DataItemIds) + sizeof(TDataItemLength) + 1]; // data buffer of 1K // TODO: FIX: there shouldn't be both a byte array and a vector; resolve
+	int AdcSocket, AdcAddrSize;
+	//char buffer[sizeof(DataItemIds) + sizeof(TDataItemLength) + 1]; // data buffer of 1K // TODO: FIX: there shouldn't be both a byte array and a vector; resolve
 	std::vector<int> AdcClients;
 	fd_set AdcFDs;
 
@@ -456,7 +458,7 @@ void *AdcListenerThread(void *arg)
 		Log("Listen ADC for on IPv6");
 		Listen(AdcSocket, 1);
 		for (;;)
-			HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcClients, (sockaddr_in *)&AdcAddr4, AdcFDs);
+			HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcClients, &AdcAddr4, AdcFDs);
 	}
 	AdcClients.clear();
 	return nullptr;
@@ -467,7 +469,7 @@ void SendControlHello(int Socket)
 	TMessageId MId_Hello = 'H';
 	TPayload Payload;
 	TBytes data{};
-	for (int byt = 0; byt < sizeof(Socket); byt++)
+	for (uint byt = 0; byt < sizeof(Socket); byt++)
 		data.push_back((Socket >> (8 * byt)) & 0x000000FF);
 	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::TCP_ConnectionID, data));
 	Payload.push_back(d2);
@@ -478,7 +480,7 @@ void SendControlHello(int Socket)
 	{
 		data.clear();
 		data.push_back(channel);
-		for (int byt = 0; byt < sizeof(Config.dacRanges[channel]); byt++)
+		for (uint byt = 0; byt < sizeof(Config.dacRanges[channel]); byt++)
 			data.push_back((Config.dacRanges[channel] >> (8 * byt)) & 0x000000FF);
 		d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::DAC_Range1, data));
 		Payload.push_back(d2);
@@ -499,7 +501,7 @@ void SendControlHello(int Socket)
 		fpgaId->Go();
 		Payload.push_back(fpgaId);
 	}
-	catch (std::logic_error e)
+	catch (const std::logic_error & e)
 	{
 		Error(e.what());
 		perror(e.what());
@@ -553,57 +555,75 @@ bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 	return true;
 }
 
-/// @brief
-/// @param arg
-/// @return
+// new version of threadReceiver written by ChatGPT to accumulate and chunk incoming packets
+ssize_t ReceiveFromSocket(int controlSocket, std::vector<char>& buffer) {
+    char tempBuffer[65536];
+    ssize_t bytesRead = recv(controlSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
+    if (bytesRead > 0) {
+        buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
+    }
+    return bytesRead;
+}
+
+int CheckDisconnect(int bytesRead, int controlSocket) {
+    if (bytesRead == 0) {
+        struct sockaddr_in addr;
+        socklen_t addrSize = sizeof(addr);
+        getpeername(controlSocket, (struct sockaddr *)&addr, &addrSize);
+        Log(std::string("Host disconnected Control connection " + std::to_string(controlSocket) + ", ip: ") + inet_ntoa(addr.sin_addr) + ", listen_port " + std::to_string(ntohs(addr.sin_port)));
+        close(controlSocket);
+		return true;
+	}
+	return false;
+}
+
+void ProcessMessage(std::vector<char>& buffer, int controlSocket) {
+    static __u32 expectedMessageLength = 0;
+
+    if (expectedMessageLength == 0 && buffer.size() >= 5) {
+        expectedMessageLength = *reinterpret_cast<__u32*>(&buffer[1]);
+        expectedMessageLength = le32toh(expectedMessageLength);
+		Debug("-- Expected Length: "+std::to_string(expectedMessageLength));
+    }
+
+    if (buffer.size() >= expectedMessageLength + 5 + 1) {
+        TMessage* aMessage = new TMessage;
+        if (GotMessage(buffer.data(), expectedMessageLength+5+1, *aMessage)) {
+            TActionQueueItem* action = new TActionQueueItem{controlSocket, *aMessage};
+            ActionQueue.enqueue(action);
+            Debug(action->theMessage.AsString(true));
+        }
+        buffer.erase(buffer.begin(), buffer.begin() + expectedMessageLength+5+1 );
+        expectedMessageLength = 0;
+    }
+}
+
 void *threadReceiver(void *arg) // J2H: In progress
 {
-	int controlSocket = (long long)arg;
-
+	int controlSocket = (__u64)arg;
 	Log("New Control connection thread, socket fd is: " + std::to_string(controlSocket));
 	SendControlHello(controlSocket);
 
-	ssize_t bytesRead = 0;
-	//int bufLen = sizeof(DataItemIds) + sizeof(TDataItemLength) + minimumMessageLength + 1;
-	int bufLen=65536;
-	char buffer[bufLen];
-	do
-	{
-		if ((bytesRead = recv(controlSocket, buffer, bufLen, MSG_NOSIGNAL)) < 0)
-		{
-			Error("error on Control recv(): " + std::to_string(errno));
-			// error handling? frex "connection closed" or EAGAIN or EINTR?
-			continue;
-		}
+	std::vector<char> buffer;
 
-		if (bytesRead == 0)
-		{
-			struct sockaddr_in addr;
-			socklen_t addrSize = sizeof(addr);
-			getpeername(controlSocket, (struct sockaddr *)&addr, (socklen_t *)&addrSize);
-			Log(std::string("Host disconnected Control connection " + std::to_string(controlSocket) + ", ip: ") + inet_ntoa(addr.sin_addr) + ", listen_port " + std::to_string(ntohs(addr.sin_port)));
-			close(controlSocket);
-			break; // end listener thread
+	while (!done) {
+		ssize_t bytesRead = ReceiveFromSocket(controlSocket, buffer);
+		if (bytesRead < 0) {
+			Error("error on Control recv(): " + std::to_string(errno));
+			break;// error handling? frex "connection closed" or EAGAIN or EINTR?
 		}
-		else
-		{
-			try
-			{
-				Debug("control receiver got "+std::to_string(bytesRead)+ " bytes");
-				TMessage *aMessage = new TMessage;
-				if (!GotMessage(buffer, bytesRead, *aMessage))
-					continue;
-				Debug("GotMessage says valid");
-				TActionQueueItem *Action = new TActionQueueItem{controlSocket, *aMessage};
-				ActionQueue.enqueue(Action);
-				Debug(Action->theMessage.AsString(true));
-			}
-			catch (std::logic_error e)
-			{
-				Error(e.what());
-			}
+		if (CheckDisconnect(bytesRead, controlSocket))
+			break;
+
+		try {
+			Debug("control receiver got "+std::to_string(bytesRead)+ " bytes");
+			ProcessMessage(buffer, controlSocket);
 		}
-	} while (1);
+		catch (const std::logic_error & e)
+		{
+			Error(e.what());
+		}
+	};
 	Log("Closing threadReceiver for connection " + std::to_string(controlSocket));
 	return nullptr;
 }
@@ -634,12 +654,12 @@ bool RunMessage(TMessage &aMessage)
 	{
 		for (auto anItem : aMessage.DataItems)
 		{
-			Debug(anItem->AsString(true), anItem->AsBytes(true));
+			//Debug("About to execute " + anItem->AsString(true)+": ", anItem->AsBytes(true));
 			anItem->Go();
 		}
 		aMessage.setMId('R'); // FIX: should be performed based on anItem.getResultCode() indicating no errors
 	}
-	catch (std::logic_error e)
+	catch (const std::logic_error & e)
 	{
 		aMessage.setMId('X');
 		Error("EXCEPTION! " + std::string(e.what()));
@@ -677,17 +697,17 @@ void *ActionThread(TActionQueue *Q)
 	}
 }
 
-//------------------- Signal---------------------------
-#define max_BRK_attempts 3
-static void sig_handler(int sig)
-{
-	static int sig_count = 1;
-	Log("signal " + std::to_string(sig) + " detected " + std::to_string(sig_count++) + " time; exiting");
-	done = true;
-	if (sig_count > max_BRK_attempts)
-	{
-		Error("main runloop's `done` flag not managing to exit, Terminating!");
-		exit(1);
-	}
-}
-//---------------------End signal -----------------------
+// //------------------- Signal---------------------------
+// #define max_BRK_attempts 3
+// static void sig_handler(int sig)
+// {
+// 	static int sig_count = 1;
+// 	Log("signal " + std::to_string(sig) + " detected " + std::to_string(sig_count++) + " time; exiting");
+// 	done = true;
+// 	if (sig_count > max_BRK_attempts)
+// 	{
+// 		Error("main runloop's `done` flag not managing to exit, Terminating!");
+// 		exit(1);
+// 	}
+// }
+// //---------------------End signal -----------------------

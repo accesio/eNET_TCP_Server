@@ -25,11 +25,7 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
 #define BYTES_PER_FIFO_ENTRY     (4 * SAMPLES_PER_FIFO_ENTRY)
 #define BYTES_PER_TRANSFER       (FIFO_SIZE * BYTES_PER_FIFO_ENTRY)
 #define SAMPLES_PER_TRANSFER     (FIFO_SIZE * SAMPLES_PER_FIFO_ENTRY)
-<<<<<<< HEAD
-#define AdcBaseClock 10000000
-=======
 //#define AdcBaseClock 10000000
->>>>>>> aioenetd/master
 
 /* Hardware registers */
 #define ofsReset                0x00
