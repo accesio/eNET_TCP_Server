@@ -25,11 +25,8 @@ TDataItem IDs, but that should change.
 using TBytes = std::vector<__u8>;
 
 /* utility functions */
-
-std::string generateBackupFilename(std::string base = "aioenetd_");
-std::string generateBackupFilenameWithBuildTime(std::string base="aioenetd_");
-std::error_code update_symlink(const char *target, const char *linkpath);
-std::error_code Update(TBytes newfile);
+bool sanitizePath(std::string &path);
+std::string GetTempFileName();
 
 template<typename To, typename From>
 To bit_cast(const From& from) {

@@ -1,57 +1,126 @@
-
-#include <fstream>
-#include <filesystem>
-
 #include <algorithm>
+#include <chrono>
+#include <errno.h> // for errno
+#include <fcntl.h>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <stdio.h> // for renameat2, perror
+#include <sys/stat.h>
+#include <system_error>
+#include <unistd.h>
 
 #include "SYS_.h"
 
-bool sanitizePath(std::string& path) {
-    std::filesystem::path basePath = std::filesystem::absolute("/home/pb/"); // Use absolute instead of canonical
+#define PATH_ROOT "/home/pb/eNET_TCP_Server/"
 
-    // Check for null bytes in the path
-    if (path.find('\0') != std::string::npos) {
-        Error("Error: Path contains null bytes.");
-        return false;
-    }
-
-    // Convert path to absolute path
-    std::filesystem::path p = std::filesystem::absolute(path);
-    std::string absPath = p.string();
-
-    // Replace incorrect file separators
-    std::replace(absPath.begin(), absPath.end(), '\\', std::filesystem::path::preferred_separator);
-
-    // Check if path is within allowed directory
-    if (absPath.compare(0, basePath.string().size(), basePath.string()) != 0) {
-        Error("Error: Path is not within allowed directory.");
-        return false;
-    }
-
-    // Update path with sanitized version
-    path = absPath;
-
-    return true;
+std::string generateBackupFilenameWithBuildTime(std::string base) {
+	std::string build_date = __DATE__; // Format: Mmm dd yyyy
+	std::string build_time = __TIME__; // Format: hh:mm:ss
+	std::tm build_tm = {};
+	std::istringstream iss(build_date + " " + build_time);
+	iss >> std::get_time(&build_tm, "%b %d %Y %H:%M:%S"); // Parse the date and time
+	std::ostringstream oss;
+	oss << std::put_time(&build_tm, "%Y-%m-%d_%H-%M-%S");
+	std::string timestamp = oss.str();
+	std::string filename = base + timestamp + ".backup";
+	return filename;
 }
 
-std::string GetTempFileName()
-{
-    std::filesystem::path tmpDir = std::filesystem::temp_directory_path();
-    std::filesystem::path tmpFile = tmpDir / "aioenet_upload_XXXXXX";
+std::error_code update_symlink_atomic(const char* target, const char* linkpath) {
 
-    char filenameTemplate[1024];
-    strncpy(filenameTemplate, tmpFile.c_str(), tmpFile.string().size()+1);
-    int fileDescriptor = mkstemp(filenameTemplate);    // Generate unique filename and create/open it
+	std::string tmp = generateBackupFilenameWithBuildTime(PATH_ROOT + std::string("temp_link"));
+	if (std::filesystem::exists(tmp))
+	{
+		std::filesystem::remove(tmp);
+	}
 
-    if (fileDescriptor == -1) {
-        Error( "Failed to create temp file.");
-        return "";
-    }
-    close(fileDescriptor); // Close the file descriptor.
+	Debug("Creating temporary symlink " + tmp + " → " + std::string(target));
+	if (symlink(target, tmp.c_str()) == -1)
+	{
+		Debug("Cannot create temp link " + tmp);
+        return std::error_code(errno, std::generic_category());
+	}
 
-    Debug( "Created temp file: " + std::string(filenameTemplate));
-    return filenameTemplate;
+	Debug("Moving " + tmp + " onto " + std::string(linkpath));
+    if (renameat2(AT_FDCWD, tmp.c_str(), AT_FDCWD, linkpath, RENAME_EXCHANGE) == -1)
+	{
+		Debug("Can't renameat2() the temp link onto the actual link");
+        return std::error_code(errno, std::generic_category());
+	}
+    return std::error_code();
 }
+
+
+// copies the contents of newfile as a new copy of `aioenetd` without ever leaving the system in a non-working state
+// That is:
+// 1) Creates backup copy of currently running aioenetd
+// 2) changes the symlink that runs at boot to point at backup
+// 3) writes the new data as aioenetd
+// 4) changes the symlink to point at updated aioenetd
+std::error_code Update(TBytes newfile) {
+	std::error_code ec;
+	std::string backupFile = PATH_ROOT + generateBackupFilenameWithBuildTime("aioenetd_");
+// 1)
+	Debug("Copying aioenetd to " + std::string(backupFile));
+	std::filesystem::copy(PATH_ROOT + std::string("aioenetd"), backupFile, ec);
+	if (ec) return ec;
+// 2)
+	ec = update_symlink_atomic(backupFile.c_str(), "/opt/aioenet/aioenetd");
+	if (ec)	return ec;
+// 3)
+	Debug("Opening File for writing");
+	std::ofstream file(PATH_ROOT + std::string("aioenetd"), std::ios::binary);
+	if (!file) return std::error_code(errno, std::generic_category());
+
+	Debug("Writing file contents");
+	file.write(reinterpret_cast<const char*>(newfile.data()), newfile.size());
+	if (file.fail()){
+		file.close();
+		return std::error_code(errno, std::generic_category());
+	}
+
+	Debug("Closing File");
+	file.close();
+	if (file.fail()) return std::error_code(errno, std::generic_category());
+
+	Debug("Setting the executable bit");
+	if (chmod((PATH_ROOT + std::string("aioenetd")).c_str(), S_IRWXU) == -1) {
+		Debug("Failed to set the executable bit");
+		return std::error_code(errno, std::generic_category());
+	}
+
+	// TODO: Verify the new executable here.  MD5?
+
+// 4)
+	ec = update_symlink_atomic(std::string(PATH_ROOT + std::string("aioenetd")).c_str(), "/opt/aioenet/aioenetd");
+	if (ec)	return ec;
+	return std::error_code();
+}
+
+
+std::error_code Revert() {
+    std::error_code ec;
+    std::string backupFile = PATH_ROOT + generateBackupFilenameWithBuildTime("aioenetd_");
+	std::string actualFile = PATH_ROOT + std::string("aioenetd");
+
+	if (!std::filesystem::exists(backupFile)) {
+        return std::make_error_code(std::errc::no_such_file_or_directory);
+    }
+
+    // 1. Rename (move) the backup file to the original file. This will overwrite the original file.
+    std::filesystem::rename(backupFile, actualFile, ec);
+    if (ec) return ec;
+
+    // 2. Update the symbolic link to point back to the original file
+    ec = update_symlink_atomic(actualFile.c_str(), "/opt/aioenet/aioenetd");
+    if (ec) return ec;
+
+    return std::error_code();
+}
+
+
+
 std::ofstream ofs;
 std::string filename;
         // Data = {};
@@ -84,10 +153,41 @@ void UploadFilesByDataItem(TDataItem& item)
         auto data = item.Data;
         if (item.Data.size() == 0) {
             Debug("Data Size == 0, Closing.");
+
             ofs.close();
             if (!ofs) {
                 Debug("File Upload process failed to close file " + filename);
                 throw std::runtime_error("File Upload process failed to close file " + filename);
+            }
+
+            // if filename is `aioenetd` then send the completed file to std::error_code Update(TBytes newfile)
+            // apparently `vector vec(fd)` is sufficient to load the entire file "fd" into memory vector, can I
+            // pass the file descriptor (prior to closing it, I imagine....?) as the TBytes parameter to Update()?
+            //
+            if (filename == "/home/pb/eNET_TCP_Server/aioenetd.new")
+            {
+                Debug("UPDATING");
+                std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
+                if (!ifs) {
+                    Debug("Cannot open " + filename + " for reading.");
+                    throw std::runtime_error("Cannot open " + filename + " for reading.");
+                }
+
+                std::ifstream::pos_type pos = ifs.tellg();
+                TBytes newfile(pos);
+
+                ifs.seekg(0, std::ios::beg);
+                ifs.read(reinterpret_cast<char*>(newfile.data()), pos);
+                ifs.close();
+
+
+                std::error_code ec = Update(newfile);
+                if (ec) {
+                    Error("Error in Update: " + ec.message());
+                        Debug("REVERTING ");
+                    Revert();
+                    // handle error...
+                }
             }
         } else {
             Debug("Writing data: "+ std::to_string(data.size())+" bytes.");

@@ -211,7 +211,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/TDataItem.h"
 #include "aioenetd.h"
 
-#define VersionString "0.3.5"
+#define VersionString "0.6.1"
 
 int apci = -1;
 bool done = false;

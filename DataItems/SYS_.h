@@ -3,6 +3,10 @@
 #include "TDataItem.h"
 
 void UploadFilesByDataItem(const TDataItem& item);
+std::string generateBackupFilenameWithBuildTime(std::string base="aioenetd_");
+std::error_code update_symlink_atomic(const char *target, const char *linkpath);
+std::error_code Update(TBytes newfile);
+std::error_code Revert();
 
 
 class TSYS_UploadFileName : public TDataItem

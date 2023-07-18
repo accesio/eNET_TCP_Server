@@ -1,124 +1,53 @@
-#include <chrono>
-#include <fcntl.h>
 #include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <system_error>
 #include <unistd.h>
 
+#include "logging.h"
 #include "utilities.h"
 
 
-std::string generateBackupFilename(std::string base) {
-	auto now = std::chrono::system_clock::now();
-	auto now_time_t = std::chrono::system_clock::to_time_t(now);
-	auto tm = *std::localtime(&now_time_t);
-	std::ostringstream oss;
-	oss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
-	std::string timestamp = oss.str();
-	std::string filename = base + timestamp + ".backup";
-	return filename;
+bool sanitizePath(std::string& path) {
+    std::filesystem::path basePath = std::filesystem::absolute("/home/pb/"); // Use absolute instead of canonical
+
+    // Check for null bytes in the path
+    if (path.find('\0') != std::string::npos) {
+        Error("Error: Path contains null bytes.");
+        return false;
+    }
+
+    // Convert path to absolute path
+    std::filesystem::path p = std::filesystem::absolute(path);
+    std::string absPath = p.string();
+
+    // Replace incorrect file separators
+    std::replace(absPath.begin(), absPath.end(), '\\', std::filesystem::path::preferred_separator);
+
+    // Check if path is within allowed directory
+    if (absPath.compare(0, basePath.string().size(), basePath.string()) != 0) {
+        Error("Error: Path is not within allowed directory.");
+        return false;
+    }
+
+    // Update path with sanitized version
+    path = absPath;
+
+    return true;
 }
 
-std::string generateBackupFilenameWithBuildTime(std::string base) {
-	std::string build_date = __DATE__; // Format: Mmm dd yyyy
-	std::string build_time = __TIME__; // Format: hh:mm:ss
-	std::tm build_tm = {};
-	std::istringstream iss(build_date + " " + build_time);
-	iss >> std::get_time(&build_tm, "%b %d %Y %H:%M:%S"); // Parse the date and time
-	std::ostringstream oss;
-	oss << std::put_time(&build_tm, "%Y-%m-%d_%H-%M-%S");
-	std::string timestamp = oss.str();
-	std::string filename = base + timestamp + ".backup";
-	return filename;
+std::string GetTempFileName()
+{
+    std::filesystem::path tmpDir = std::filesystem::temp_directory_path();
+    std::filesystem::path tmpFile = tmpDir / "aioenet_upload_XXXXXX";
+
+    char filenameTemplate[1024];
+    strncpy(filenameTemplate, tmpFile.c_str(), tmpFile.string().size()+1);
+    int fileDescriptor = mkstemp(filenameTemplate);    // Generate unique filename and create/open it
+
+    if (fileDescriptor == -1) {
+        Error( "Failed to create temp file.");
+        return "";
+    }
+    close(fileDescriptor); // Close the file descriptor.
+
+    Debug( "Created temp file: " + std::string(filenameTemplate));
+    return filenameTemplate;
 }
-
-std::error_code update_symlink(const char* target, const char* linkpath) {
-	if (symlinkat(target,  AT_FDCWD, linkpath) == -1)
-		return std::error_code(errno, std::generic_category());
-	return std::error_code(); // Return an empty error_code, indicating success
-}
-
-std::error_code Update(TBytes newfile) {
-	std::string backupFile = "/home/acces/" + generateBackupFilenameWithBuildTime("aioenetd_");
-	std::error_code ec;
-	std::filesystem::copy("/home/acces/aioenetd", backupFile, ec);
-	if (ec) return ec;
-	ec = update_symlink(backupFile.c_str(), "/etc/aioenet/aioenetd");
-	if (ec)	return ec;
-	std::ofstream file("/home/acces/aioenetd", std::ios::binary);
-	if (!file) return std::error_code(errno, std::generic_category());
-	file.write(reinterpret_cast<const char*>(newfile.data()), newfile.size());
-	if (file.fail()) return std::error_code(errno, std::generic_category());
-	file.close();
-	if (file.fail()) return std::error_code(errno, std::generic_category());
-
-	// TODO: Verify the new executable here
-
-	ec = update_symlink("/home/acces/aioenetd", "/etc/aioenet/aioenetd");
-	if (ec)	return ec;
-	return std::error_code();
-}
-
-
-
-
-// #include <iostream>
-// #include <functional>
-// #include <chrono>
-// #include <thread>
-// #include <atomic>
-// #include <condition_variable>
-
-// class ResettableTimer {
-// public:
-//     ResettableTimer(std::chrono::milliseconds timeout, std::function<void()> callback)
-//         : timeout(timeout)
-//         , callback(callback)
-//         , running(false)
-//     { }
-
-//     void Start() {
-//         running.store(true);
-//         timerThread = std::thread(&ResettableTimer::Run, this);
-//     }
-
-//     void Stop() {
-//         running.store(false);
-//         cv.notify_one(); // Wake up the timer thread if it's waiting
-//         if(timerThread.joinable())
-//             timerThread.join();
-//     }
-
-//     void Reset() {
-//         std::lock_guard<std::mutex> lock(mutex);
-//         reset.store(true);
-//         cv.notify_one(); // Wake up the timer thread if it's waiting
-//     }
-
-// private:
-//     void Run() {
-//         while(running.load()) {
-//             std::unique_lock<std::mutex> lock(mutex);
-//             if(cv.wait_for(lock, timeout, [this] { return !running.load() || reset.load(); })) {
-//                 if(reset.load()) {
-//                     reset.store(false);
-//                 } else {
-//                     // Stop running, since we're no longer valid (not reset and not running)
-//                     running.store(false);
-//                 }
-//             } else {
-//                 callback();
-//                 running.store(false); // Timeout occurred without reset, so stop running
-//             }
-//         }
-//     }
-
-//     std::chrono::milliseconds timeout;
-//     std::function<void()> callback;
-//     std::thread timerThread;
-//     std::atomic<bool> running;
-//     std::atomic<bool> reset;
-//     std::mutex mutex;
-//     std::condition_variable cv;
-// };
