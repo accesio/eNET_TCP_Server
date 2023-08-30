@@ -54,13 +54,13 @@ void InitConfig(TConfig &config) {
 int ReadConfigString(std::string key, std::string &value, std::string which )
 {
 	auto f = open(filename.c_str(), O_RDONLY | O_CLOEXEC | O_SYNC);
-	int bytesRead = -1;
+	ssize_t bytesRead = -1;
 	if (f < 0)
 	{
 		bytesRead = -errno;
 		Error("failed to open() on " + filename + ", code " + std::to_string(bytesRead));
 		perror("ReadConfigString() file open failed ");
-		return bytesRead;
+		return static_cast<int>(bytesRead);
 	}
 	__u8 buf[257];
 	bytesRead = read(f, buf, 256);
@@ -69,7 +69,7 @@ int ReadConfigString(std::string key, std::string &value, std::string which )
 		bytesRead = errno;
 		Error("ReadConfigString() " + filename + " failed, bytesRead=" + std::to_string(bytesRead) + ", status " + std::to_string(bytesRead));
 		perror("ReadConfigString() failed ");
-		return bytesRead;
+		return static_cast<int>(bytesRead);
 	}
 
 	buf[bytesRead] = 0;
@@ -78,30 +78,31 @@ int ReadConfigString(std::string key, std::string &value, std::string which )
 	// std::cout << '\n'
 			//   << "ReadConfigString(" << key << ") got " << value << '\n'
 			//   << '\n';
-	return bytesRead;
+	return static_cast<int>(bytesRead);
 }
 
 int ReadConfigU8(std::string key, __u8 &value, std::string which )
 {
 	std::string v;
-	int bytesRead = ReadConfigString(key, v);
+	ssize_t bytesRead = ReadConfigString(key, v);
 	if (bytesRead == 2){
 		// std::cout << "ReadConfigU8 got " << v << " bytes read == " << bytesRead << '\n'<< '\n';
 
-		value = std::stoi(v, nullptr, 16);
+		value = static_cast<__u8>(std::stoi(v, nullptr, 16));
 		}
-	return bytesRead;
+	return static_cast<int>(bytesRead);
 }
 
 int ReadConfigU32(std::string key, __u32 &value, std::string which )
 {
 	std::string v;
-	int bytesRead = ReadConfigString(key, v);
+	ssize_t bytesRead = ReadConfigString(key, v);
 	if (bytesRead == 8)
 		value = std::stoi(v, nullptr, 16);
-	return bytesRead;
+	return static_cast<int>(bytesRead);
 }
 
+// DEBUG BROKEN DOES NOT UPDATE value FIX FIX J2H --J2H TODO: FIX:
 int ReadConfigFloat(std::string key, float &value, std::string which )
 {
 	__u32 v;
@@ -122,7 +123,7 @@ int WriteConfigString(std::string key, std::string value, std::string which ){
 	// if file == "config.current" then key must already exist
 	// ConfigWrite(file, key, value);
 	//std::string filename = CONFIG_PATH + file + "/" + key + ".conf";
-	int bytesRead = -1;
+	ssize_t bytesRead = -1;
 	auto f = open(filename.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC | O_SYNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 	if (f < 0)
 	{
@@ -141,7 +142,7 @@ int WriteConfigString(std::string key, std::string value, std::string which ){
 		}	close(f);
 	}
 	// Trace(which + key + " = " + value );
-	return bytesRead;
+	return static_cast<int>(bytesRead);
 }
 
 int WriteConfigU8(std::string key, __u8 value, std::string which )

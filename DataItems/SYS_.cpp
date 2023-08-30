@@ -62,7 +62,7 @@ std::error_code Update(TBytes newfile) {
 	std::error_code ec;
 	std::string backupFile = PATH_ROOT + generateBackupFilenameWithBuildTime("aioenetd_");
 // 1)
-	Debug("Copying aioenetd to " + std::string(backupFile));
+	Debug("Copying aioenetd to " + backupFile);
 	std::filesystem::copy(PATH_ROOT + std::string("aioenetd"), backupFile, ec);
 	if (ec) return ec;
 // 2)
@@ -93,7 +93,7 @@ std::error_code Update(TBytes newfile) {
 	// TODO: Verify the new executable here.  MD5?
 
 // 4)
-	ec = update_symlink_atomic(std::string(PATH_ROOT + std::string("aioenetd")).c_str(), "/opt/aioenet/aioenetd");
+	ec = update_symlink_atomic((PATH_ROOT + std::string("aioenetd")).c_str(), "/opt/aioenet/aioenetd");
 	if (ec)	return ec;
 	return std::error_code();
 }

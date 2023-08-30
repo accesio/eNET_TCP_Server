@@ -18,7 +18,7 @@ std::shared_ptr<void> TREG_Read1::getResultValue()
 {
 	Trace("returning " + (this->width == 8 ? to_hex<__u8>((__u8)this->Value) : to_hex<__u32>((__u32)this->Value)));
 	return this->width == 8
-			   ? (std::shared_ptr<void>)std::shared_ptr<__u8>(new __u8(this->Value))
+			   ? (std::shared_ptr<void>)std::shared_ptr<__u8>(new __u8(static_cast<__u8>(this->Value)))
 			   : (std::shared_ptr<void>)std::shared_ptr<__u32>(new __u32(this->Value));
 }
 
@@ -53,7 +53,7 @@ TREG_Read1::TREG_Read1(TBytes data) : TDataItem(DataItemIds::REG_Read1, data)
 {
 	Trace("ENTER. TBytes: ", data);
 
-	GUARD(data.size() == 1, ERR_DId_BAD_PARAM, data.size());
+	GUARD(data.size() == 1, ERR_DId_BAD_PARAM, static_cast<int>(data.size()));
 	this->offset = data[0];
 	int w = widthFromOffset(offset);
 	GUARD(w != 0, ERR_DId_BAD_PARAM, static_cast<int>(DataItemIds::REG_Read1));
@@ -77,8 +77,8 @@ TBytes TREG_Read1::calcPayload(bool bAsReply)
 {
 	TBytes bytes;
 	// stuff<__u8>(bytes, this->offset);
-	bytes.push_back(this->offset);
-	Debug("offset = " + to_hex<__u8>(this->offset) + " bytes now holds: ", bytes);
+	bytes.push_back(static_cast<__u8>(this->offset));
+	Debug("offset = " + to_hex<__u8>(static_cast<__u8>(this->offset)) + " bytes now holds: ", bytes);
 
 	if (bAsReply)
 	{
@@ -163,7 +163,7 @@ TREG_Writes &TREG_Writes::addWrite(__u8 w, int ofs, __u32 value)
 	Trace("ENTER, w:" + std::to_string(w) + ", offset: " + to_hex<__u8>(ofs) + ", value: " + to_hex<__u32>(value));
 	REG_Write aWrite;
 	aWrite.width = w;
-	aWrite.offset = ofs;
+	aWrite.offset = static_cast<__u8>(ofs);
 	aWrite.value = value;
 	this->Writes.emplace_back(aWrite);
 	return *this;
@@ -176,7 +176,7 @@ __s64 now() // in nanoseconds
 {
 	timespec Now;
 	clock_gettime(CLOCK_BOOTTIME, &Now);
-	return Now.tv_sec * 1E9 + Now.tv_nsec;
+	return Now.tv_sec * 1000000000 + Now.tv_nsec;
 }
 
 TREG_Writes &TREG_Writes::Go()
@@ -233,7 +233,7 @@ TREG_Write1::TREG_Write1(DataItemIds ID, TBytes buf) : TREG_Writes(DataItemIds::
 	__u8 ofs = buf[0];
 	int w = widthFromOffset(ofs);
 	GUARD(w != 0, ERR_DId_BAD_OFFSET, ofs);
-	GUARD(w == 8 ? (buf.size() == 2) : (buf.size() == 5), ERR_DId_BAD_PARAM, buf.size());
+	GUARD(w == 8 ? (buf.size() == 2) : (buf.size() == 5), ERR_DId_BAD_PARAM, static_cast<int>(buf.size()));
 
 	__u32 value = 0;
 	if (w == 8)
@@ -241,7 +241,7 @@ TREG_Write1::TREG_Write1(DataItemIds ID, TBytes buf) : TREG_Writes(DataItemIds::
 	else
 		value = *(__u32 *)&buf[1];
 
-	this->addWrite(w, ofs, value);
+	this->addWrite(static_cast<__u8>(w), ofs, value);
 	Trace("width="+std::to_string(w)+" value="+to_hex<__u32>(value));
 }
 

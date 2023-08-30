@@ -30,7 +30,7 @@ TCheckSum TMessage::calculateChecksum(TBytes Message)
 
 	TCheckSum checksum = 0;
 	for (__u8 aByte : Message)
-		checksum += aByte;
+		checksum = static_cast<TCheckSum>(checksum + aByte);
 	return checksum;
 }
 
@@ -68,7 +68,7 @@ TError TMessage::validatePayload(TBytes Payload)
 
 	TDataItemHeader *head = (TDataItemHeader *)Payload.data();
 
-	__u32 DataItemSize = sizeof(TDataItemHeader) + head->dataLength;
+	__u32 DataItemSize = static_cast<__u32>(sizeof(TDataItemHeader) + head->dataLength);
 	if (DataItemSize > Payload.size())
 	{
 		Error("--ERR: data item thinks it is longer than payload, disize: " + std::to_string(DataItemSize) + ", psize: " + std::to_string(Payload.size()));
@@ -146,7 +146,7 @@ TPayload TMessage::parsePayload(TBytes Payload, __u32 payload_length, TError &re
 		TDataItemHeader *head = (TDataItemHeader *)DataItemBytes.data();
 		// DataItemLength is the size of the Data Item, including the size of the Data Item Length
 		// + Data Item ID, and the Data Item's payload's bytelength
-		__u32 DataItemLength = sizeof(TDataItemHeader) + head->dataLength; // DataItem[3] is payload length
+		__u32 DataItemLength = static_cast<__u32>(sizeof(TDataItemHeader) + head->dataLength); // DataItem[3] is payload length
 		if (DataItemLength > payload_length)
 		{
 			result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
@@ -297,7 +297,7 @@ void TMessage::appendPayloadLengthAndItems(TBytes& bytes, bool bAsReply)
     {
         TBytes itemBytes = item->AsBytes(bAsReply);
         payloadBytes.insert(end(payloadBytes), begin(itemBytes), end(itemBytes));
-        payloadLength += itemBytes.size();
+        payloadLength = static_cast<TMessagePayloadSize>(payloadLength + itemBytes.size());
     }
 
     appendLengthBytes(bytes, payloadLength);
@@ -312,7 +312,7 @@ TBytes TMessage::AsBytes(bool bAsReply)
     bytes.push_back(this->Id);
     appendPayloadLengthAndItems(bytes, bAsReply);
 
-    TCheckSum csum = -calculateChecksum(bytes);
+    TCheckSum csum = static_cast<TCheckSum>(-calculateChecksum(bytes));
     bytes.push_back(csum); // WARN: only works because TCheckSum == __u8
     Trace("Built: ", bytes);
 

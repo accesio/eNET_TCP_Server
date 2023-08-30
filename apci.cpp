@@ -8,7 +8,7 @@ __u8 in8(int offset)
 {
 	__u8 value = 0;
 	int status = apci_read8(apci, 0, BAR_REGISTER, offset, &value);
-	std::cout << "in8("+to_hex<__u8>(offset)+"); Width= "+std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u8>(value) <<'\n';
+	std::cout << "in8("+to_hex<__u8>(static_cast<__u8>(offset))+"); Width= "+std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u8>(value) <<'\n';
 	return status ? -1 : value;
 }
 
@@ -16,7 +16,7 @@ __u16 in16(int offset)
 {
 	__u16 value = 0;
 	int status = apci_read16(apci, 0, BAR_REGISTER, offset, &value);
-	std::cout << "in16(" + to_hex<__u8>(offset) + "); Width= " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u16>(value) << '\n';
+	std::cout << "in16(" + to_hex<__u8>(static_cast<__u8>(offset)) + "); Width= " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u16>(value) << '\n';
 	return status ? -1 : value;
 }
 
@@ -24,7 +24,7 @@ __u32 in32(int offset)
 {
 	__u32 value = 0;
 	int status = apci_read32(apci, 0, BAR_REGISTER, offset, &value);
-	std::string one = "in32(" + to_hex<__u8>(offset) + "); Width= ";
+	std::string one = "in32(" + to_hex<__u8>(static_cast<__u8>(offset)) + "); Width= ";
 	std::string two = std::to_string(widthFromOffset(offset));
 	std::string three = " status = ";
 	std::string four = std::to_string(status);
@@ -53,21 +53,21 @@ __u32 in(int offset)
 TError out8(int offset, __u8 value)
 {
 	int status = apci_write8(apci, 0, BAR_REGISTER, offset, value);
-	std::cout << "out8(" + to_hex<__u8>(offset) + ", "<< to_hex<__u8>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
+	std::cout << "out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", "<< to_hex<__u8>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
 	return status;
 }
 
 TError out16(int offset, __u16 value)
 {
 	int status = apci_write16(apci, 0, BAR_REGISTER, offset, value);
-	std::cout << "out16(" + to_hex<__u8>(offset) + ", "<< to_hex<__u16>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
+	std::cout << "out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", "<< to_hex<__u16>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
 	return status;
 }
 
 TError out32(int offset, __u32 value)
 {
 	int status = apci_write32(apci, 0, BAR_REGISTER, offset, value);
-	std::cout << "out32(" + to_hex<__u8>(offset) + ", "<< to_hex<__u32>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
+	std::cout << "out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", "<< to_hex<__u32>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
 	return status;
 }
 
@@ -76,9 +76,9 @@ TError out(int offset, __u32 value)
 	switch (widthFromOffset(offset))
 	{
 	case 8:
-		return out8(offset, value);
+		return out8(offset, static_cast<__u8>(value));
 	case 16:
-		return out16(offset, value);
+		return out16(offset, static_cast<__u16>(value));
 	case 32:
 		return out32(offset, value);
 	default:

@@ -18,10 +18,10 @@ TDAC_Output::TDAC_Output(TBytes bytes) : TDataItem(DataItemIds::DAC_Output1, byt
 	}
 	if (bytes.size() == 3)
 	{
-		__u16 counts = bytes[1] | bytes[2] << 8;
+		__u16 counts = static_cast<__u16>(bytes[1] | bytes[2] << 8);
 		this->bWrite = true;
 		// this->dacCounts = counts;  // uncalibrated
-		this->dacCounts = counts * Config.dacScaleCoefficients[this->dacChannel] + Config.dacOffsetCoefficients[this->dacChannel];
+		this->dacCounts = static_cast<__u16>(counts * Config.dacScaleCoefficients[this->dacChannel] + Config.dacOffsetCoefficients[this->dacChannel]);
 		Debug("DAC "+std::to_string(this->dacChannel)+" output: 0x"+to_hex<__u16>(this->dacCounts));
 	}
 	return;

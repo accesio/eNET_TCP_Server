@@ -195,7 +195,6 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <unistd.h>
 #include <algorithm>
 
-
 #define LOGGING_DISABLE
 
 #include "apci.h"
@@ -251,7 +250,8 @@ int main(int argc, char *argv[])
 		usleep(100000);
 	} while (!done);
 
-	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga
+	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga and upgrader
+
 	abort_handler(0);
 	return 0;
 }
@@ -337,7 +337,7 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 	if (iNET == AF_INET)
 	{
 		addr4->sin_family = AF_INET;
-		addr4->sin_port = htons(Port);
+		addr4->sin_port = htons(static_cast<short>(Port));
 		addr4->sin_addr.s_addr = INADDR_ANY;
 		result = bind(Socket, (struct sockaddr *)addr4, sizeof(sockaddr_in));
 		if (result < 0)
@@ -350,7 +350,7 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 	{
 		memset(addr6, 0, sizeof(*addr6));
 		addr6->sin6_family = AF_INET6;
-		addr6->sin6_port = htons(Port);
+		addr6->sin6_port = htons(static_cast<short>(Port));
 		addr6->sin6_flowinfo = 0; //0x607ACCE5;
 		addr6->sin6_addr = IN6ADDR_ANY_INIT;
 		addr6->sin6_scope_id = 0;
@@ -377,12 +377,11 @@ void Listen(int &Socket, int num)
 
 void *ControlListenerThread(void *arg)
 {
-	int iNET = (__s64)arg;
+	__s64 iNET = (__s64)arg;
 	struct sockaddr_in ControlAddr4;
 	struct sockaddr_in6 ControlAddr6;
 	int ControlSocket, ControlAddrSize;
 	std::vector<int> ControlClients;
-	fd_set ControlFDs;
 
 	if (iNET == AF_INET6)
 	{
@@ -398,7 +397,7 @@ void *ControlListenerThread(void *arg)
 	Log("Listen for Control Socket");
 	Listen(ControlSocket, 32);
 	for (;;)
-		HandleNewControlClients(ControlSocket, ControlAddrSize, ControlClients, ControlAddr4, ControlFDs);
+		HandleNewControlClients(ControlSocket, ControlAddrSize, ControlAddr4);
 	ControlClients.clear();
 	return nullptr;
 }
@@ -418,7 +417,7 @@ void SendAdcHello(int Socket)
 	}
 }
 
-void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in *addr, fd_set &ReadFDs)
+void HandleNewAdcClients(int Socket, int addrSize, struct sockaddr_in *addr)
 {
 	int new_socket;
 	Log("accept ADC");
@@ -433,13 +432,12 @@ void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList,
 
 void *AdcListenerThread(void *arg)
 {
-	int iNET = (__s64)arg;
+	int iNET = static_cast<int>((__s64)arg);
 	struct sockaddr_in AdcAddr4;
 	struct sockaddr_in6 AdcAddr6;
 	int AdcSocket, AdcAddrSize;
 	//char buffer[sizeof(DataItemIds) + sizeof(TDataItemLength) + 1]; // data buffer of 1K // TODO: FIX: there shouldn't be both a byte array and a vector; resolve
 	std::vector<int> AdcClients;
-	fd_set AdcFDs;
 
 	if (iNET == AF_INET6)
 	{
@@ -448,7 +446,7 @@ void *AdcListenerThread(void *arg)
 		AdcAddrSize = sizeof(AdcAddr6);
 		Listen(AdcSocket, 1);
 		for (;;)
-			HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcClients, (sockaddr_in *)&AdcAddr6, AdcFDs);
+			HandleNewAdcClients(AdcSocket, AdcAddrSize, (sockaddr_in *)&AdcAddr6);
 	}
 	else
 	{
@@ -458,7 +456,7 @@ void *AdcListenerThread(void *arg)
 		Log("Listen ADC for on IPv6");
 		Listen(AdcSocket, 1);
 		for (;;)
-			HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcClients, &AdcAddr4, AdcFDs);
+			HandleNewAdcClients(AdcSocket, AdcAddrSize,  &AdcAddr4);
 	}
 	AdcClients.clear();
 	return nullptr;
@@ -470,18 +468,18 @@ void SendControlHello(int Socket)
 	TPayload Payload;
 	TBytes data{};
 	for (uint byt = 0; byt < sizeof(Socket); byt++)
-		data.push_back((Socket >> (8 * byt)) & 0x000000FF);
+		data.push_back(static_cast<__u8>((Socket >> (8 * byt)) & 0x000000FF));
 	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::TCP_ConnectionID, data));
 	Payload.push_back(d2);
 
 	//__u32 dacRangeDefault = 0x3031E142;
 	//__u32 dacRangeDefault = 0x35303055;
-	for (int channel = 0; channel < 4; channel++)
+	for (__u8 channel = 0; channel < 4; channel++)
 	{
 		data.clear();
 		data.push_back(channel);
 		for (uint byt = 0; byt < sizeof(Config.dacRanges[channel]); byt++)
-			data.push_back((Config.dacRanges[channel] >> (8 * byt)) & 0x000000FF);
+			data.push_back(static_cast<__u8>((Config.dacRanges[channel] >> (8 * byt)) & 0x000000FF));
 		d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::DAC_Range1, data));
 		Payload.push_back(d2);
 	}
@@ -565,12 +563,12 @@ ssize_t ReceiveFromSocket(int controlSocket, std::vector<char>& buffer) {
     return bytesRead;
 }
 
-int CheckDisconnect(int bytesRead, int controlSocket) {
+int CheckDisconnect(ssize_t bytesRead, int controlSocket) {
     if (bytesRead == 0) {
         struct sockaddr_in addr;
         socklen_t addrSize = sizeof(addr);
         getpeername(controlSocket, (struct sockaddr *)&addr, &addrSize);
-        Log(std::string("Host disconnected Control connection " + std::to_string(controlSocket) + ", ip: ") + inet_ntoa(addr.sin_addr) + ", listen_port " + std::to_string(ntohs(addr.sin_port)));
+        Log("Host disconnected Control connection " + std::to_string(controlSocket) + ", ip: " + inet_ntoa(addr.sin_addr) + ", listen_port " + std::to_string(ntohs(addr.sin_port)));
         close(controlSocket);
 		return true;
 	}
@@ -600,7 +598,7 @@ void ProcessMessage(std::vector<char>& buffer, int controlSocket) {
 
 void *threadReceiver(void *arg) // J2H: In progress
 {
-	int controlSocket = (__u64)arg;
+	int controlSocket = static_cast<int>((__u64)arg);
 	Log("New Control connection thread, socket fd is: " + std::to_string(controlSocket));
 	SendControlHello(controlSocket);
 
@@ -628,7 +626,7 @@ void *threadReceiver(void *arg) // J2H: In progress
 	return nullptr;
 }
 
-void HandleNewControlClients(int ControlListenSocket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in &addr, fd_set &ReadFDs)
+void HandleNewControlClients(int ControlListenSocket, int addrSize, struct sockaddr_in &addr)
 {
 	int new_socket;
 	Log("Accept for Control");
@@ -656,6 +654,7 @@ bool RunMessage(TMessage &aMessage)
 		{
 			//Debug("About to execute " + anItem->AsString(true)+": ", anItem->AsBytes(true));
 			anItem->Go();
+			// if an error happens what do we do? This is a "run-time" error
 		}
 		aMessage.setMId('R'); // FIX: should be performed based on anItem.getResultCode() indicating no errors
 	}
@@ -689,7 +688,7 @@ void *ActionThread(TActionQueue *Q)
 {
 	for (;;)
 	{
-		TActionQueueItem *anAction = ActionQueue.dequeue();
+		TActionQueueItem *anAction = Q->dequeue();
 		Log("---DEQUEUED---");
 		RunMessage(anAction->theMessage);
 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
@@ -711,3 +710,5 @@ void *ActionThread(TActionQueue *Q)
 // 	}
 // }
 // //---------------------End signal -----------------------
+
+

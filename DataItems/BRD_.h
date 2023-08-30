@@ -20,7 +20,7 @@ class TReadOnlyConfig : public TDataItem {
 				return DIdDict.find(this->Id)->second.desc;
 		}
 		virtual TReadOnlyConfig &Go() {
-			config = in(m_offset);
+			config = static_cast<T>(in(m_offset));
 			return *this;
 		}
 };

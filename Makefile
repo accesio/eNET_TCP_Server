@@ -10,8 +10,6 @@ WHITE=\033[0;37m
 RESET_COLOR=\033[0m
 
 
-
-
 # Set CXX variable for AARCH64 architecture
 ifneq ($(shell uname -m),aarch64)
     CXX = aarch64-linux-gnu-g++
@@ -21,9 +19,11 @@ endif
 
 # Set CXXFLAGS and LDLIBS
 # CXXFLAGS_DEEBUG = -fsanitize=address,undefined,leak -g -Wall -Wshadow -Wnon-virtual-dtor -Wcast-align -Wunused -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unused-parameter -std=gnu++2a
+
 CXXFLAGS_RELEASE = -Wfatal-errors -std=gnu++2a
-# CXXFLAGS_RELEASE = -fsanitize=address,undefined,leak -g -Wall -Wextra -Wnon-virtual-dtor -Wcast-align -Wunused -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unknown-pragmas -Wno-conversion -Wno-unused-parameter -std=gnu++2a
+# CXXFLAGS_RELEASE = -fsanitize=address,undefined,leak -g -Wall -Wextra -Wnon-virtual-dtor -Wcast-align -Wunused -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unknown-pragmas -Wconversion -Wno-unused-parameter -std=gnu++2a
 CXXFLAGS = $(CXXFLAGS_RELEASE)
+
 LDLIBS = -lm -lpthread -latomic -ldl -lfmt
 
 # Define object directory

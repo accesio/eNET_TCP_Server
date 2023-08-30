@@ -115,8 +115,8 @@ void stuff(TBytes &buf, const T v)
 	auto value = v;
 	for (uint i = 0; i < sizeof(T); i++)
 	{
-		buf.push_back(value & 0xFF);
-		value >>= 8;
+		buf.push_back(static_cast<__u8>(value & 0xFF));
+		value = static_cast<T>(value>>8);
 	}
 }
 

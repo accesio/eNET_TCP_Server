@@ -28,7 +28,7 @@ std::string TBRD_DeviceID::AsString(bool bAsReply) {
 		return "BRD_DeviceID()";
 }
 TBRD_DeviceID &TBRD_DeviceID::Go() {
-	this->deviceID = in(ofsDeviceID);
+	this->deviceID = static_cast<__u16>(in(ofsDeviceID));
 	Log("Offset = "+to_hex<__u8>(ofsDeviceID)+" > " + to_hex<__u16>(this->deviceID));
 	return *this;
 }
@@ -46,7 +46,7 @@ std::string TBRD_Features::AsString(bool bAsReply) {
 		return "BRD_Features()";
 }
 TBRD_Features &TBRD_Features::Go() {
-	this->features = in(ofsFeatures);
+	this->features = static_cast<__u8>(in(ofsFeatures));
     Log("Offset = "+to_hex<__u8>(ofsFeatures)+" > " + to_hex<__u8>(this->features));
 	return *this;
 }

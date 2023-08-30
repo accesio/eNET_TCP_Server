@@ -265,7 +265,7 @@ int TDataItem::validateDataItemPayload(DataItemIds DId, TBytes bytes)
 {
 	Trace("ENTER, DId: " + to_hex<TDataId>(DId) + ": ", bytes);
 	int result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
-	TDataItemLength len = bytes.size();
+	TDataItemLength len = static_cast<TDataItemLength>(bytes.size());
 	Trace(std::to_string(getMinLength(DId)) + " <= " + std::to_string(len) + " <= " + std::to_string(getMaxLength(DId)));
 	if ((TDataItem::getMinLength(DId) <= len) && (len <= TDataItem::getMaxLength(DId)))
 	{
@@ -284,7 +284,7 @@ int TDataItem::getDIdIndex(DataItemIds DId)
 	auto item = DIdDict.find(DId);
 	if (item != DIdDict.end())
 	{
-		return std::distance(DIdDict.begin(), item);
+		return static_cast<int>(std::distance(DIdDict.begin(), item));
 	}
 	throw std::logic_error("DId not found in list");
 }
@@ -362,7 +362,7 @@ PTDataItem TDataItem::fromBytes(TBytes bytes, TError &result)
 	result = ERR_SUCCESS;
 	//Debug("Received = ", bytes);
 
-	GUARD((bytes.size() >= sizeof(TDataItemHeader)), ERR_MSG_DATAITEM_TOO_SHORT, bytes.size());
+	GUARD((bytes.size() >= sizeof(TDataItemHeader)), ERR_MSG_DATAITEM_TOO_SHORT, static_cast<int>(bytes.size()));
 
 	TDataItemHeader *head = (TDataItemHeader *)bytes.data();
 	GUARD(isValidDataItemID(head->DId), ERR_DId_INVALID, static_cast<__u16>(head->DId));
@@ -421,7 +421,7 @@ bool TDataItem::isValidDataLength()
 {
 	bool result = false;
 	DataItemIds DId = this->getDId();
-	TDataItemLength len = this->Data.size();
+	TDataItemLength len = static_cast<TDataItemLength>(this->Data.size());
 	if ((this->getMinLength(DId) <= len) && (this->getMaxLength(DId) >= len))
 	{
 		result = true;
@@ -434,7 +434,7 @@ TBytes TDataItem::AsBytes(bool bAsReply)
 	TBytes bytes;
 	stuff<TDataId>(bytes, static_cast<__u16>(this->Id));
 	this->Data = this->calcPayload(bAsReply);
-	stuff<TDataItemLength>(bytes, this->Data.size());
+	stuff<TDataItemLength>(bytes, static_cast<TDataItemLength>(this->Data.size()));
 
 	bytes.insert(end(bytes), begin(Data), end(Data));
 	return bytes;
