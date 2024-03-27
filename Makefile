@@ -12,9 +12,9 @@ RESET_COLOR=\033[0m
 
 # Set CXX variable for AARCH64 architecture
 ifneq ($(shell uname -m),aarch64)
-    CXX = aarch64-linux-gnu-g++
+    CXX ?= aarch64-linux-gnu-g++
 else
-    CXX = g++
+    CXX ?= g++
 endif
 
 # Set CXXFLAGS and LDLIBS
