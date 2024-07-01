@@ -209,8 +209,9 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/REG_.h"
 #include "DataItems/TDataItem.h"
 #include "aioenetd.h"
+#include "mongoose.h"
 
-#define VersionString "0.6.1"
+#define VersionString "0.6.2"
 
 int apci = -1;
 bool done = false;

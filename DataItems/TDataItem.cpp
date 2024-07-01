@@ -47,6 +47,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	{
 		//{INVALID, { 9, 9, 9,( [](DataItemIds x, TBytes bytes) { return construct<TDataItem>(x, bytes); }), "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", nullptr}},
 		DATA_ITEM(DataItemIds::INVALID, TDataItem, 0, 0, 0, "Invalid DId -1", nullptr),
+//---------------------------------------------------------------------------------------------------------------------------------
+// B R D
 		DATA_ITEM(DataItemIds::BRD_, TDataItem, 0, 0, 0, "Invalid DID 0", nullptr),
 		DATA_ITEM(DataItemIds::BRD_Reset, TDataItem, 0, 0, 0, "BRD_Reset()", nullptr),
 		DATA_ITEM(DataItemIds::BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32", nullptr),
@@ -58,6 +60,11 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		 			double token = *(double *)args;
 		 			if (token == M_PI)
 		 				done = true; })),
+//---------------------------------------------------------------------------------------------------------------------------------
+// R E G
+	// the registers on the eNET are only accessible as 8- or 32-bits, depending on the specific register.
+	// the "in()" and "out()" functions deal with this
+
 		DATA_ITEM(DataItemIds::REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]", nullptr),
 		// DIdNYI(REG_ReadBuf),
 		DATA_ITEM(DataItemIds::REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)", nullptr),
@@ -99,24 +106,20 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 				__u32 bits = 0;
 				bits = regextract(pargs, ofs);
 				__u32 data = 0;
-				// switch(widthFromOffset(ofs))
-				// {
-				// 	case 8: bits = *(__u8 *)(pargs);
-				// 	break;
-				// 	case 16:bits = *(__u16 *)(pargs);
-				// 	break;
-				// 	case 32:bits = *(__u32 *)(pargs);
-				// 	break;
-				// }
 				data = in(ofs);
 				data |= bits;
 				out(ofs,data); })),
-
+//---------------------------------------------------------------------------------------------------------------------------------
+// D A C
 		// {DAC_, {0, 0, 0, construct<TDataItem>, "TDataItemBase (DAC_)"}},
+	// There are four DAC outputs on this board, driven by a pair of dual-DAC chips on an SPI bus (distinct from the DIO SPI)
+	// The range of each DAC is factory-set, per-dac, with ±10, ±5, 0-10, and 0-5 "standard"
+	// aioenetd is configured at the factory for the DAC range, so customers can output in Voltage
+
 		DATA_ITEM(DataItemIds::DAC_Output1, TDAC_Output, 5, 5, 5, "DAC_Output1(u8 iDAC, single Volts)", nullptr),
 		DATA_ITEM(DataItemIds::DAC_Range1, TDAC_Range1, 5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)", nullptr),
-		// DIdNYI(DAC_Configure1),
-		// DIdNYI(DAC_ConfigAndOutput1),
+		// DIdNYI(DataItemIds::DAC_Configure1),
+		// DIdNYI(DataItemIds::DAC_ConfigAndOutput1),
 		DATA_ITEM(DataItemIds::DAC_Calibrate1, TDataItem, 9, 9, 9, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 														   {
@@ -178,61 +181,97 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 					printf("....Config.scale[%hhx]=%3.3f\n", dacnum, Config.dacScaleCoefficients[dacnum]);
 					Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]);
 					} })),
+//---------------------------------------------------------------------------------------------------------------------------------
+// D I O
+		// DIdNYI(DataItemIds::DIO_),
+	// there are 16 digital bits.  All of them are individually configured as input vs output.  1 = input, 0 = output // CHECK // FIX // TODO:
+	// this function sets the direction of all 16 bits, and the initial output level (high/low) of any bits configured for output.  Data is passed
+	// as a 16-bit word
+	// DATA
+	// bytes:       1                 0
+	// bits: F E D C B A 9 8   7 6 5 4 3 2 1 0
+	// Notes:@ * * *           + + + + + + + +
 
-		// DIdNYI(DIO_),
-		// DIdNYI(DIO_Configure1),
-		// DIdNYI(DIO_Input1),
-		// DIdNYI(DIO_InputBuf1),
-		// DIdNYI(DIO_Output1),
-		// DIdNYI(DIO_OutputBuf),
-		// DIdNYI(DIO_ConfigureReadWriteReadSome),
-		// DIdNYI(DIO_Clear1),
-		// DIdNYI(DIO_Set1),
-		// DIdNYI(DIO_Toggle1),
-		// DIdNYI(DIO_Pulse1),
+	// DIRECTION CONTROL
+	// bytes:       1                 0
+	// bits: F E D C B A 9 8   7 6 5 4 3 2 1 0
+	// Notes:@ * * *           + + + + + + + +
 
-		// DIdNYI(PWM_),
-		// DIdNYI(PWM_Configure1),
-		// DIdNYI(PWM_Input1),
-		// DIdNYI(PWM_Output1),
 
-		// DIdNYI(ADC_),
-		// DIdNYI(ADC_Claim),
-		// DIdNYI(ADC_Release),
+	// @ this bit is available for use as PWM output or input
+	// * 3 bits are consumed when a submux is attached. They are forced to output and are under FPGA control; writes are ignored
+	// + these 8 bits are SPI-driven thus slower
+
+		// DIdNYI(DataItemIds::DIO_Configure1),
+		// DIdNYI(DataItemIds::DIO_Input1),
+		// DIdNYI(DataItemIds::DIO_InputBuf1),
+		// DIdNYI(DataItemIds::DIO_Output1),
+		// DIdNYI(DataItemIds::DIO_OutputBuf),
+		// DIdNYI(DataItemIds::DIO_ConfigureReadWriteReadSome),
+		// DIdNYI(DataItemIds::DIO_Clear1),
+		// DIdNYI(DataItemIds::DIO_Set1),
+		// DIdNYI(DataItemIds::DIO_Toggle1),
+		// DIdNYI(DataItemIds::DIO_Pulse1),
+//---------------------------------------------------------------------------------------------------------------------------------
+// P W M
+		// DIdNYI(DataItemIds::PWM_),
+		// DIdNYI(DataItemIds::PWM_Configure1),
+		// DIdNYI(DataItemIds::PWM_Input1),
+		// DIdNYI(DataItemIds::PWM_Output1),
+//---------------------------------------------------------------------------------------------------------------------------------
+// A D C
+		// DIdNYI(DataItemIds::ADC_),
+		// DIdNYI(DataItemIds::ADC_Claim),
+		// DIdNYI(DataItemIds::ADC_Release),
 		DATA_ITEM(DataItemIds::ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32", nullptr),
 		DATA_ITEM(DataItemIds::ADC_StartHz, TDataItem, 4, 4, 4, "ADC_StartHz(f32)", nullptr),
 		DATA_ITEM(DataItemIds::ADC_StartDivisor, TDataItem, 4, 4, 4, "ADC_StartDivisor(u32)", nullptr),
-		// DIdNYI(ADC_ConfigurationOfEverything),
-		// DIdNYI(ADC_Differential1),
-		// DIdNYI(ADC_DifferentialAll),
-		// DIdNYI(ADC_Range1),
-		// DIdNYI(ADC_RangeAll),
-		// DIdNYI(ADC_Span1),
-		// DIdNYI(ADC_SpanAll),
-		// DIdNYI(ADC_Offset1),
-		// DIdNYI(ADC_OffsetAll),
-		// DIdNYI(ADC_Calibration1),
-		// DIdNYI(ADC_CalibrationAll),
-		// DIdNYI(ADC_Volts1),
-		// DIdNYI(ADC_VoltsAll), // ADC_GetScanV
-		// DIdNYI(ADC_Counts1),
-		// DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
-		// DIdNYI(ADC_Raw1),
-		// DIdNYI(ADC_RawAll),   // ADC_GetScanRaw
+		// DIdNYI(DataItemIds::ADC_ConfigurationOfEverything),
+		// DIdNYI(DataItemIds::ADC_Differential1),
+		// DIdNYI(DataItemIds::ADC_DifferentialAll),
+		// DIdNYI(DataItemIds::ADC_Range1),
+		// DIdNYI(DataItemIds::ADC_RangeAll),
+		// DIdNYI(DataItemIds::ADC_Span1),
+		// DIdNYI(DataItemIds::ADC_SpanAll),
+		// DIdNYI(DataItemIds::ADC_Offset1),
+		// DIdNYI(DataItemIds::ADC_OffsetAll),
+		// DIdNYI(DataItemIds::ADC_Calibration1),
+		// DIdNYI(DataItemIds::ADC_CalibrationAll),
+		// DIdNYI(DataItemIds::ADC_Volts1),
+		// DIdNYI(DataItemIds::ADC_VoltsAll), // ADC_GetScanV
+		// DIdNYI(DataItemIds::ADC_Counts1),
+		// DIdNYI(DataItemIds::ADC_CountsAll), // ADC_GetScanCounts
+		// DIdNYI(DataItemIds::ADC_Raw1),
+		// DIdNYI(DataItemIds::ADC_RawAll),   // ADC_GetScanRaw
 		DATA_ITEM(DataItemIds::ADC_StreamStart, TDataItem, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
 		DATA_ITEM(DataItemIds::ADC_StreamStop, TDataItem, 0, 0, 0, "ADC_StreamStop()", nullptr),
 
-		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
-
-		// DIdNYI(SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
-		// DIdNYI(WDG_),
-		// DIdNYI(DEF_),
-		// DIdNYI(SERVICE_),
-		// DIdNYI(TCP_),
+		// DIdNYI(DataItemIds::ADC_Streaming_stuff_including_Hz_config),
+//---------------------------------------------------------------------------------------------------------------------------------
+// S C R I P T
+		// DIdNYI(DataItemIds::SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
+//---------------------------------------------------------------------------------------------------------------------------------
+// W D G
+		// DIdNYI(DataItemIds::WDG_),
+//---------------------------------------------------------------------------------------------------------------------------------
+// D E F
+		// DIdNYI(DataItemIds::DEF_),
+//---------------------------------------------------------------------------------------------------------------------------------
+// S E R V I C E
+		// DIdNYI(DataItemIds::SERVICE_),
+//---------------------------------------------------------------------------------------------------------------------------------
+// T C P
+		// DIdNYI(DataItemIds::TCP_),
 		DATA_ITEM(DataItemIds::TCP_ConnectionID, TDataItem, 0, 0, 255, "TCP_ConnectionID() → u32", nullptr),
-		// DIdNYI(PNP_),
-		// DIdNYI(CFG_),
+//---------------------------------------------------------------------------------------------------------------------------------
+// P N P
+		// DIdNYI(DataItemIds::PNP_),
+//---------------------------------------------------------------------------------------------------------------------------------
+// C F G
+		// DIdNYI(DataItemIds::CFG_),
 		DATA_ITEM(DataItemIds::CFG_Hostname, TDataItem, 1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
+//---------------------------------------------------------------------------------------------------------------------------------
+// S Y S
 		DATA_ITEM(DataItemIds::SYS_UploadFileName, TSYS_UploadFileName, 1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
 		DATA_ITEM(DataItemIds::SYS_UploadFileData, TSYS_UploadFileData, 1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
 /*
