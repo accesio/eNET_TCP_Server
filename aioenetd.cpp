@@ -209,7 +209,10 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/REG_.h"
 #include "DataItems/TDataItem.h"
 #include "aioenetd.h"
+#define MG_ARCH MG_ARCH_NEWLIB
+extern "C" {
 #include "mongoose.h"
+}
 
 #define VersionString "0.6.2"
 
@@ -225,6 +228,45 @@ pthread_t controlListener_thread;
 pthread_t adcListener_thread;
 pthread_t controlListener6_thread;
 pthread_t adcListener6_thread;
+
+// Function to serve static files
+static void serve_static(struct mg_connection *nc, struct mg_http_message *hm) {
+    struct mg_http_serve_opts opts = { .root_dir = "/home/acces/www" };
+	Log(std::string(hm->uri.buf, hm->uri.len));
+    mg_http_serve_dir(nc, hm, &opts);
+}
+
+// Function to handle API requests
+static void handle_api(struct mg_connection *nc, struct mg_http_message *hm) {
+	Log(std::string(hm->uri.buf, hm->uri.len));
+	if (mg_match(hm->uri, mg_str("/api/data*"), NULL) )
+	{
+		// Example response with dynamic data
+        mg_http_reply(nc, 200, "Content-Type: application/json\r\n", "{\"adc\": [1.23, 2.34, 3.45]}");
+	}
+	else
+	{
+		mg_http_reply(nc, 404, "Content-Type: text/plain\r\n", "Not Found!");
+	}
+}
+
+// Event handler for Mongoose
+static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
+    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+
+    switch (ev) {
+        case MG_EV_HTTP_MSG:
+		    Log(std::string(hm->uri.buf, hm->uri.len));
+            if (mg_match(hm->uri, mg_str("/api/*"), NULL) ) {
+                handle_api(nc, hm);
+            } else {
+                serve_static(nc, hm);
+            }
+            break;
+        default:
+            break;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -246,11 +288,26 @@ int main(int argc, char *argv[])
 	pthread_create(&controlListener6_thread, NULL, ControlListenerThread, (void *)AF_INET6);
 	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void *)AF_INET6);
 
+    struct mg_mgr mgr;
+    struct mg_connection *nc;
+
+    mg_mgr_init(&mgr);
+	nc = mg_http_listen(&mgr, "http://0.0.0.0:8080", ev_handler, &mgr);
+
+    if (nc == NULL) {
+        printf("Failed to create listener\n");
+        return 1;
+    }
+
+    printf("Starting server on port 8080\n");
+
 	do
 	{
-		usleep(100000);
+		//usleep(10000);
+		mg_mgr_poll(&mgr, 1000);
 	} while (!done);
 
+	mg_mgr_free(&mgr);
 	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga and upgrader
 
 	abort_handler(0);
