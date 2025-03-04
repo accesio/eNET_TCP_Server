@@ -151,7 +151,7 @@ int main(void) // "TEST"
         Trace("9) bytes == ", bytes);
         TError res;
         item = TDataItem::fromBytes(bytes, res);
-        item->setDId(DAC_Calibrate1);
+        item->setDId(DataItemIds::DAC_Calibrate1);
 
         // std::shared_ptr<TConfigField<__u8, float, float>>
         //     item2(new TConfigField<__u8, float, float>(dacNum, scale, offset));
@@ -296,7 +296,7 @@ void SendControlHello()
 	TPayload Payload;
 	TBytes data{4,3,2,1};
 
-	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(TCP_ConnectionID, data));
+	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::TCP_ConnectionID, data));
 	Payload.push_back(d2);
 
 	//__u32 dacRangeDefault = 0x3031E142;
@@ -307,7 +307,7 @@ void SendControlHello()
 		data.push_back(channel);
 		for (int byt = 0; byt < sizeof(Config.dacRanges[channel]); byt++)
 			data.push_back((Config.dacRanges[channel] >> (8 * byt)) & 0x000000FF);
-		d2 = std::unique_ptr<TDataItem>(new TDataItem(DAC_Range1, data));
+		d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::DAC_Range1, data));
 		Payload.push_back(d2);
 	}
 

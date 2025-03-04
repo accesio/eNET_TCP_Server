@@ -232,13 +232,11 @@ pthread_t adcListener6_thread;
 // Function to serve static files
 static void serve_static(struct mg_connection *nc, struct mg_http_message *hm) {
     struct mg_http_serve_opts opts = { .root_dir = "/home/acces/www" };
-	Log(std::string(hm->uri.buf, hm->uri.len));
     mg_http_serve_dir(nc, hm, &opts);
 }
 
 // Function to handle API requests
 static void handle_api(struct mg_connection *nc, struct mg_http_message *hm) {
-	Log(std::string(hm->uri.buf, hm->uri.len));
 	if (mg_match(hm->uri, mg_str("/api/data*"), NULL) )
 	{
 		// Example response with dynamic data
@@ -292,14 +290,14 @@ int main(int argc, char *argv[])
     struct mg_connection *nc;
 
     mg_mgr_init(&mgr);
-	nc = mg_http_listen(&mgr, "http://0.0.0.0:8080", ev_handler, &mgr);
+	nc = mg_http_listen(&mgr, "http://0.0.0.0:80", ev_handler, &mgr);
 
     if (nc == NULL) {
         printf("Failed to create listener\n");
         return 1;
     }
 
-    printf("Starting server on port 8080\n");
+    printf("Starting server on port 80\n");
 
 	do
 	{
