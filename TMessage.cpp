@@ -77,7 +77,7 @@ TError TMessage::validatePayload(TBytes Payload)
 	else
 	{
 		TBytes DataItem = slicing(Payload, 0, DataItemSize);
-		result = TDataItem::validateDataItem(DataItem);
+		result = TDataItemBase::validateDataItem(DataItem);
 		if (result == 0) // if the Data Item is well-formed, check the next one
 		{
 			Payload.erase(Payload.cbegin(), Payload.cbegin() + DataItemSize);
@@ -154,7 +154,7 @@ TPayload TMessage::parsePayload(TBytes Payload, __u32 payload_length, TError &re
 			break;
 		}
 
-		PTDataItem item = TDataItem::fromBytes(DataItemBytes, result);
+		PTDataItem item = TDataItemBase::fromBytes(DataItemBytes, result);
 		if (result != ERR_SUCCESS)
 		{
 			Error("TMessage::parsePayload: DIAG::fromBytes returned error " + std::to_string(result) + ", " + err_msg[-result]);
@@ -295,7 +295,7 @@ void TMessage::appendPayloadLengthAndItems(TBytes& bytes, bool bAsReply)
 
     for (auto item : this->DataItems)
     {
-        TBytes itemBytes = item->AsBytes(bAsReply);
+        TBytes itemBytes = item->TDataItemBase::AsBytes(bAsReply);
         payloadBytes.insert(end(payloadBytes), begin(itemBytes), end(itemBytes));
         payloadLength = static_cast<TMessagePayloadSize>(payloadLength + itemBytes.size());
     }

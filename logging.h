@@ -4,11 +4,11 @@ using namespace std::experimental;
 
 #include "utilities.h"
 
-#define LOG_DISABLE_TRACE
+//#define LOG_DISABLE_TRACE
 //#define LOG_DISABLE_INFO
 // #define LOG_DISABLE_DEBUG
 // #define LOG_DISABLE_ERROR
-#define LOG_DISABLE_FUNCTION_TRACE
+//#define LOG_DISABLE_FUNCTION_TRACE
 
 extern int FUNCTION_DEPTH;
 

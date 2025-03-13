@@ -124,7 +124,7 @@ std::error_code Revert() {
 std::ofstream ofs;
 std::string filename;
         // Data = {};
-void UploadFilesByDataItem(TDataItem& item)
+void UploadFilesByDataItem(TDataItemBase& item)
 {
     if (item.getDId() == DataItemIds::SYS_UploadFileName) {
         Debug("SYS_UploadFileName()");
@@ -200,7 +200,7 @@ void UploadFilesByDataItem(TDataItem& item)
 }
 
 
-TSYS_UploadFileName::TSYS_UploadFileName(DataItemIds DId, TBytes buf) : TDataItem(DId)
+TSYS_UploadFileName::TSYS_UploadFileName(DataItemIds DId, TBytes buf) : TDataItemBase(DId)
 {
     std::string str = std::string(buf.begin(), buf.end());
     if (sanitizePath(str))
@@ -225,7 +225,7 @@ TBytes TSYS_UploadFileName::calcPayload(bool bAsReply)
 
 std::string TSYS_UploadFileName::AsString(bool bAsReply)
 {
-    return DIdDict.find(this->Id)->second.desc;
+    return DIdDict.find(this->DId)->second.desc;
 }
 
 TSYS_UploadFileName & TSYS_UploadFileName::Go()
@@ -242,7 +242,7 @@ TSYS_UploadFileName & TSYS_UploadFileName::Go()
 }
 
 
-TSYS_UploadFileData::TSYS_UploadFileData(DataItemIds DId, TBytes buf) : TDataItem(DId)
+TSYS_UploadFileData::TSYS_UploadFileData(DataItemIds DId, TBytes buf) : TDataItemBase(DId)
 {
     Data = buf;
     //Debug("Buffer received: ", buf);
@@ -257,7 +257,7 @@ TBytes TSYS_UploadFileData::calcPayload(bool bAsReply)
 
 std::string TSYS_UploadFileData::AsString(bool bAsReply)
 {
-    return DIdDict.find(this->Id)->second.desc;
+    return DIdDict.find(this->DId)->second.desc;
 }
 
 TSYS_UploadFileData & TSYS_UploadFileData::Go()

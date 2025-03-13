@@ -18,7 +18,7 @@ else
 endif
 
 # Set CXXFLAGS and LDLIBS
-# CXXFLAGS_DEEBUG = -fsanitize=address,undefined,leak -g -Wall -Wshadow -Wnon-virtual-dtor -Wcast-align -Wunused -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unused-parameter -std=gnu++2a
+# CXXFLAGS_DEEBUG = -fsanitize=address,undefined,leak -fno-omit-frame-pointer -g -Wall -Wshadow -Wnon-virtual-dtor -Wcast-align -Wunused -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unused-parameter -std=gnu++2a
 
 CXXFLAGS_RELEASE = -Wfatal-errors -std=gnu++2a
 # CXXFLAGS_RELEASE = -fsanitize=address,undefined,leak -g -Wall -Wextra -Wnon-virtual-dtor -Wcast-align -Wunused -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unknown-pragmas -Wconversion -Wno-unused-parameter -std=gnu++2a

@@ -3,39 +3,58 @@
 #include <exception>
 
 #include "CFG_.h"
+#include "../logging.h"
+#include "../eNET-AIO16-16F.h"
 
-TCFG_Hostname::TCFG_Hostname(TBytes buf) : TDataItem(DataItemIds::CFG_Hostname)
+
+TCFG_Hostname::TCFG_Hostname(DataItemIds dId, const TBytes &buf)
+    : TDataItem<HostnameParams>(dId, buf)
 {
-	if (buf.size() >= 64) throw std::logic_error("invalid hostname");
-	std::string name(buf.begin(), buf.end());
-	// TODO: Write to /etc/hostname AND Config.Hostname
-	// if > 0
-	// 	convert to lowercase
-	// 	confirm buf is a valid hostname string; a-z and 0-9 plus "-" only; cannot start with -, cannot be >63 characters
-	// 	save to this->hostname
+    Debug("TCFG_Hostname ctor: Received ", buf);
+
+    // 1) Zero out the hostname array
+    std::memset(this->params.hostname, 0, sizeof(this->params.hostname));
+
+    // 2) Copy as many bytes as fit into hostname[] (minus 1 for null terminator)
+    if (!buf.empty())
+    {
+        size_t copyLen = std::min(buf.size(), sizeof(this->params.hostname) - 1);
+        std::memcpy(this->params.hostname, buf.data(), copyLen);
+        // The array is guaranteed null-terminated now
+    }
+
+    // 3) For debugging, convert to std::string
+    //    You can't do operator+ on a raw char*, so wrap it:
+    Debug("Parsed hostname: '" + std::string(this->params.hostname) + "'");
 }
 
 TBytes TCFG_Hostname::calcPayload(bool bAsReply)
 {
-	TBytes bytes;
-	stuff(bytes, this->hostname);
-	return bytes;
+    // Return the raw hostname as bytes. Possibly including the null terminator or not, up to you.
+    TBytes out;
+    // Example: copy until null terminator
+    size_t len = strnlen(this->params.hostname, sizeof(this->params.hostname));
+    out.insert(out.end(),
+               reinterpret_cast<const __u8*>(this->params.hostname),
+               reinterpret_cast<const __u8*>(this->params.hostname) + len);
+    // If you want the null terminator included:
+    // out.push_back(0);
+
+    return out;
 }
 
 std::string TCFG_Hostname::AsString(bool bAsReply)
 {
-	return "CFG_Hostname() = "+this->hostname;
+    // For debug/log display:
+    return "TCFG_Hostname(\"" + std::string(this->params.hostname) + "\")";
 }
-
 
 TCFG_Hostname &TCFG_Hostname::Go()
 {
-        // exit if current /etc/hostname is the same as this->hostname
-        if (Config.Hostname != this->hostname)
-        {
-                // write this->hostname to /etc/hostname
-                std::ofstream out("/etc/hostname");
-                out << this->hostname;
-        }
-        return *this;
+    Debug("TCFG_Hostname::Go() storing config hostname to: '"
+          + std::string(this->params.hostname) + "'");
+
+    // For example: Config.hostname = this->params.hostname;
+    // or do something else
+    return *this;
 }

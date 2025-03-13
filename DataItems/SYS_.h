@@ -2,14 +2,14 @@
 
 #include "TDataItem.h"
 
-void UploadFilesByDataItem(const TDataItem& item);
+void UploadFilesByDataItem(const TDataItemBase& item);
 std::string generateBackupFilenameWithBuildTime(std::string base="aioenetd_");
 std::error_code update_symlink_atomic(const char *target, const char *linkpath);
 std::error_code Update(TBytes newfile);
 std::error_code Revert();
 
 
-class TSYS_UploadFileName : public TDataItem
+class TSYS_UploadFileName : public TDataItemBase
 {
 public:
 	explicit TSYS_UploadFileName(TBytes buf) : TSYS_UploadFileName(DataItemIds::SYS_UploadFileName, buf){};
@@ -26,7 +26,7 @@ public:
 // SYS_UploadFileName.Go will call UploadFilesByDataItem(*this).
 
 
-class TSYS_UploadFileData : public TDataItem
+class TSYS_UploadFileData : public TDataItemBase
 {
 public:
 	explicit TSYS_UploadFileData(TBytes buf) : TSYS_UploadFileData(DataItemIds::SYS_UploadFileName, buf){};

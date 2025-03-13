@@ -12,9 +12,13 @@ This file also has some other crap in it, like some utility stuff and the enum f
 TDataItem IDs, but that should change.
 
 */
+#include <algorithm>
+#include <cctype>
+#include <charconv>
 #include <cstring>
 #include <iomanip>
 #include <linux/types.h>
+#include <stdexcept>
 #include <vector>
 
 #include "eNET-AIO16-16F.h" // widthFromOffset()
@@ -52,41 +56,72 @@ std::vector<T> slicing(std::vector<T> const &v, int Start, int End)
 }
 
 // convert integer to hex, no '0x' prefixed
+
 template <typename T>
 inline std::string to_hex(T i)
 {
-	// Ensure this function is called with a template parameter that makes sense. Note: static_assert is only available in C++11 and higher.
-	static_assert(std::is_integral<T>::value, "Template argument 'T' must be a fundamental integer type (e.g. int, short, etc..).");
+    static_assert(std::is_integral<T>::value,
+                  "Template argument 'T' must be an integral type.");
 
-	std::stringstream stream;
-	stream << /*std::string("0x") <<*/ std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex;
+    // We want two’s-complement representation for negative values,
+    // so we must copy the *bit pattern* to an unsigned type of the same size.
+    // This ensures we get the “raw” bits, including sign bit for negative ints.
+    using U = std::make_unsigned_t<T>;
+    U bits;
+    static_assert(sizeof(U) == sizeof(T), "Size mismatch?!");
 
-	// If T is an 8-bit integer type (e.g. uint8_t or int8_t) it will be
-	// treated as an ASCII code, giving the wrong result. So we use C++17's
-	// "if constexpr" to have the compiler decides at compile-time if it's
-	// converting an 8-bit int or not.
-	if constexpr (std::is_same_v<std::uint8_t, T>)
-	{
-		// Unsigned 8-bit unsigned int type. Cast to int (thanks Lincoln) to
-		// avoid ASCII code interpretation of the int. The number of hex digits
-		// in the  returned string will still be two, which is correct for 8 bits,
-		// because of the 'sizeof(T)' above.
-		stream << static_cast<int>(i);
-	}
-	else if (std::is_same_v<std::int8_t, T>)
-	{
-		// For 8-bit signed int, same as above, except we must first cast to unsigned
-		// int, because values above 127d (0x7f) in the int will cause further issues.
-		// if we cast directly to int.
-		stream << static_cast<int>(static_cast<uint8_t>(i));
-	}
-	else
-	{
-		// No cast needed for ints wider than 8 bits.
-		stream << i;
-	}
+    // Copy the bytes directly (including sign bit).
+    std::memcpy(&bits, &i, sizeof(T));
 
-	return stream.str();
+    // We'll produce minimal hex into buffer, then zero-pad to 2×sizeof(T).
+    char buffer[2 * sizeof(T) + 1]; // +1 for the null terminator
+    auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), bits, 16);
+    if (ec != std::errc())
+    {
+        // Should never happen unless 'bits' is extremely large (it isn't).
+        throw std::runtime_error("std::to_chars failed in to_hex<T>.");
+    }
+
+    // 'ptr' points to the end of the written string (not null-terminated).
+    // Let's see how many chars we wrote.
+    int length = static_cast<int>(ptr - buffer);
+    // We want exactly 2×sizeof(T) hex digits, e.g. 2 for 8-bit, 4 for 16-bit, etc.
+    int needed = static_cast<int>(2 * sizeof(T));
+
+    // Build an output string with (needed - length) leading '0'.
+    // Then append the actual hex digits from buffer.
+    std::string out(std::max(0, needed - length), '0');
+    out.append(buffer, length);
+
+    // Convert to uppercase (since to_chars uses lowercase by default)
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c){ return static_cast<char>(std::toupper(c)); });
+
+    return out;
+}
+
+
+// Overload of to_hex() for TBytes
+inline std::string to_hex(const TBytes &bytes, bool spaced = true)
+{
+    if (bytes.empty()) return "";
+
+    std::stringstream stream;
+    stream << std::hex << std::setfill('0') << std::uppercase;
+
+    // Convert each byte to two-digit hex.
+    // Insert spaces if 'spaced' is true.
+    for (size_t i = 0; i < bytes.size(); i++)
+    {
+        // Print each byte as two hex digits
+        stream << std::setw(2) << static_cast<int>(bytes[i]);
+
+        // Optionally add a space except after the last byte
+        if (spaced && i + 1 < bytes.size())
+            stream << ' ';
+    }
+
+    return stream.str();
 }
 
 #define printBytes(dest, intro, buf, crlf)                                                                           \
@@ -150,3 +185,5 @@ GUARD(bool allGood, TError resultcode, int intInfo,
 		// throw std::logic_error("GUARD! "+  std::string(File) + ": " + std::string(Func) + "(" + std::to_string(Line) + "): -" + std::to_string(-resultcode) + " = " + to_hex<__u32>(intInfo));
 		throw std::logic_error("\nGUARD! " + std::string(File) + ": " + std::string(Func) + "(" + std::to_string(Line) + "): -" + std::to_string(-resultcode) + " " + std::string(err_msg[-resultcode]) + " = " + to_hex<__u32>(intInfo));
 }
+
+std::vector<std::string> split(const std::string &s, char delim);

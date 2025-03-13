@@ -3,86 +3,112 @@
 #include "../config.h"
 #include "TDataItem.h"
 
-class TCFG_Hostname : public TDataItem
-{
-public:
-	explicit TCFG_Hostname(TBytes buf);
-	TCFG_Hostname() = delete;//:  TDataItem(CFG_Hostname){}
-	virtual TBytes calcPayload(bool bAsReply=false);
-	virtual std::string AsString(bool bAsReply = false);
-	virtual TCFG_Hostname &Go();
-protected:
-	std::string hostname;
+
+// 1) Define a struct for TCFG_Hostname if you like, or leave empty
+struct HostnameParams {
+	char hostname[256]; // Or a known max size
 };
 
-#pragma region "class TConfigField" mezzanine
-
-#pragma region "class TConfigField" mezzanine declaration
-template <typename... Ts>
-class TConfigField : public TDataItem
+class TCFG_Hostname : public TDataItem<HostnameParams>
 {
 public:
-	TConfigField(void *ptr, size_t size) : ptr_(ptr), size_(size){};
-	TConfigField(DataItemIds DId, TBytes bytes);
-	TConfigField(Ts ... arguments);
-	virtual TBytes calcPayload(bool bAsReply=false);
-	virtual TConfigField &Go();
-	virtual std::string AsString(bool bAsReply = false);
+    explicit TCFG_Hostname(DataItemIds dId, const TBytes &buf);
+
+    TCFG_Hostname() = delete;
+
+    virtual TBytes calcPayload(bool bAsReply = false) override;
+    virtual std::string AsString(bool bAsReply = false) override;
+    virtual TCFG_Hostname &Go() override;
+};
+
+
+
+
+struct ConfigFieldParams {
+    // If you want to store additional data, you can add fields here.
+};
+
+template <typename... Ts>
+class TConfigField : public TDataItem<ConfigFieldParams>
+{
+public:
+    // 1) Provide your "pointer / size" constructor
+    TConfigField(void *ptr, size_t size)
+        : TDataItem<ConfigFieldParams>(DataItemIds::INVALID, {}),
+          ptr_(ptr),
+          size_(size)
+    {
+        // Possibly log or debug
+        LOG_IT;
+    }
+
+    // 2) Provide the (DataItemIds, TBytes) constructor, for when the factory calls it
+    TConfigField(DataItemIds DId, TBytes bytes)
+        : TDataItem<ConfigFieldParams>(DId, bytes),
+          ptr_(nullptr),
+          size_(0)
+    {
+        Trace("constructor(TBytes) for TConfigField received: ", bytes);
+        // The templated TDataItem constructor sets this->rawBytes = bytes
+    }
+
+    // 3) Variadic constructor
+    TConfigField(Ts... arguments)
+        : TDataItem<ConfigFieldParams>(DataItemIds::INVALID, {}),
+          ptr_(nullptr),
+          size_(0)
+    {
+        LOG_IT;
+        // Could do something with arguments...
+    }
+
+    // Overridden methods
+
+    virtual TBytes calcPayload(bool bAsReply=false) override
+    {
+        LOG_IT;
+        // If your old code said: TBytes result = Data;
+        // now do: TBytes result = this->rawBytes;
+        TBytes result = this->rawBytes;
+        return result;
+    }
+
+    virtual TConfigField &Go() override
+    {
+        LOG_IT;
+        // If your old code used this->getDId(), now use this->DId
+        auto item = DIdDict.find(this->DId);
+        if (item != DIdDict.end())
+        {
+            Trace(item->second.desc);
+            Trace("this->rawBytes = ", this->rawBytes);
+            // item->second.go expects a pointer to the data
+            item->second.go(this->rawBytes.data());
+        }
+        else
+        {
+            Trace("DId not found in DIdDict for TConfigField");
+        }
+        return *this;
+    }
+
+    virtual std::string AsString(bool bAsReply = false) override
+    {
+        LOG_IT;
+        // If your old code used this->Id, now use this->DId
+        auto it = DIdDict.find(this->DId);
+        if (it != DIdDict.end())
+        {
+            return it->second.desc;
+        }
+        return "Unknown TConfigField DId=" + std::to_string((int)this->DId);
+    }
 
 private:
     void* ptr_;
     size_t size_;
 };
-// // Use
-// ConfigField port_field(&config.port, sizeof(config.port));
-// ConfigField address_field(&config.address, sizeof(config.address));
-// int port = port_field.get<int>();
-// port_field.set<int>(8080);
-// std::string address = address_field.get<std::string>();
-// address_field.set<std::string>("127.0.0.1");
 
-
-template <typename... Ts>
-TConfigField<Ts...> :: TConfigField(DataItemIds DId, TBytes bytes) //: TDataItem(bytes)
-{
-	Trace("constructor(TBytes) for TConfigField received: ", bytes);
-	Data = bytes;
-	return;
-}
-
-template <typename... Ts>
-TConfigField<Ts...> :: TConfigField(Ts ... arguments)
-{
-	LOG_IT;
-	return;
-}
-
-template <typename... Ts>
-TBytes TConfigField<Ts...> :: calcPayload(bool bAsReply)
-{
-	LOG_IT;
-	TBytes result = Data;
-	return result;
-}
-
-template <typename... Ts>
-TConfigField<Ts...> &TConfigField<Ts...> :: Go()
-{
-	LOG_IT;
-	auto item = DIdDict.find(this->getDId());
-	Trace(item->second.desc);
-	Trace("this->Data = ", this->Data);
-	item->second.go(this->Data.data());
-	return *this;
-}
-
-template <typename... Ts>
-std::string TConfigField<Ts...> :: AsString(bool bAsReply)
-{
-	LOG_IT;
-	return DIdDict.find(this->Id)->second.desc;
-
-}
 
 #pragma endregion
 

@@ -44,9 +44,9 @@ TDataItemParent - virtual / interface
 #include "../TError.h"
 #include "../apci.h"
 
-class TDataItem;
+class TDataItemBase;
 
-using PTDataItem = std::shared_ptr<TDataItem>;
+using PTDataItem = std::shared_ptr<TDataItemBase>;
 using TPayload = std::vector<PTDataItem>;
 using TDataId = __u16;
 using TDataItemLength=__u16;
@@ -182,33 +182,67 @@ int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
 int widthFromOffset(int ofs);
 
 #pragma region inserting ancestor under TDataItem
-class TDataItemParent
+using PTDataItemBase = std::shared_ptr<class TDataItemBase>;
+class TDataItemBase
 {
 public:
-	explicit TDataItemParent(DataItemIds DId) : Id(DId){};
-	TDataItemParent(DataItemIds DId, TBytes data) : Id(DId), Data(data)
-	{
-		Debug("DataItemParent()");
-	};
-	TDataItemParent &setData(TBytes bytes)
-	{
-		Data = bytes;
-		return *this;
-	};
+    // ========== Common Fields ==========
+	TBytes Data;
+    DataItemIds DId;      // e.g., DAC_Output1, DAC_Range1
+    TError resultCode = ERR_SUCCESS;
+    bool bWrite = false;  // Used by many items to indicate write vs. read
+    int conn = 0;         // Connection ID or similar
+    // ========== Constructors ==========
+    explicit TDataItemBase(DataItemIds dId)
+        : DId(dId)
+    {
+        Debug("TDataItemBase(DId) constructor");
+    }
 
-	DataItemIds Id{DataItemIds(0)};
-	TBytes Data{};
+    virtual ~TDataItemBase() {}
+
+    // ========== Virtual Methods for Polymorphism ==========
+    // Called by the main worker thread to execute hardware logic
+    virtual TDataItemBase &Go() = 0;
+
+    // Serializes the data item to bytes (for sending over TCP)
+    virtual TBytes calcPayload(bool bAsReply = false) = 0;
+
+    // High-level string form for debugging/logging
+    virtual std::string AsString(bool bAsReply = false) = 0;
+
+    // ========== Static / Factory Methods ==========
+    static PTDataItemBase fromBytes(const TBytes &msg, TError &result);
+
+    static int validateDataItemPayload(DataItemIds DataItemID, const TBytes &Data);
+    static int isValidDataItemID(DataItemIds DataItemID);
+    static int validateDataItem(const TBytes &msg);
+    static __u16 getMinLength(DataItemIds DId);
+    static __u16 getTargetLength(DataItemIds DId);
+    static __u16 getMaxLength(DataItemIds DId);
+    static int getDIdIndex(DataItemIds DId);
+    TDataItemBase &addData(__u8 aByte);
+    TDataItemBase &setDId(DataItemIds newId);
+    DataItemIds getDId() const;
+    bool isValidDataLength() const;
+    TBytes AsBytes(bool bAsReply);
+    std::string getDIdDesc() const;
+    TError getResultCode();
+    std::shared_ptr<void> getResultValue();
+    // These might be used for name lookups, etc.
+    static std::string getDIdDesc(DataItemIds DId);
 };
-
 #pragma endregion
 
-typedef std::unique_ptr<TDataItem> DIdConstructor(DataItemIds DId, TBytes FromBytes);
+typedef std::shared_ptr<TDataItemBase> DIdConstructor(DataItemIds DId, TBytes FromBytes);
 
 template <class q>
-std::unique_ptr<TDataItem> construct(DataItemIds DId, TBytes FromBytes)
+std::shared_ptr<TDataItemBase> construct(DataItemIds DId, TBytes FromBytes)
 {
-	return std::unique_ptr<TDataItem>(new q(DId, FromBytes));
+    // q must inherit from TDataItemBase
+    return std::make_shared<q>(DId, FromBytes);
 }
+
 
 typedef struct
 {
@@ -236,89 +270,78 @@ extern const std::map<DataItemIds, TDIdDictEntry> DIdDict;
 
 
 // Base class for all TDataItems, descendants of which will handle payloads specific to the DId
-class TDataItem : public TDataItemParent
+template <typename ParamStruct>
+class TDataItem : public TDataItemBase
 {
-
 public:
-	// 1) Deserialization: methods used when converting byte vectors into objects
+    ParamStruct params;  // e.g., DAC_OutputParams
 
-	// factory fromBytes() instantiates appropriate (sub-)class of TDataItem via DIdList[]
-	// .fromBytes() would typically be called by TMessage::fromBytes();
-	static PTDataItem fromBytes(TBytes msg, TError &result);
+    // We keep a reference to the raw bytes, too, if you need them
+    // (In case you want to parse in a custom way.)
+    TBytes rawBytes;
 
-	// this block of methods are typically used by ::fromBytes() to syntax-check the byte vector
-	static int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
-	static int isValidDataItemID(DataItemIds DataItemID);
-	static int validateDataItem(TBytes msg);
-	static TDataItemLength getMinLength(DataItemIds DId);
-	static TDataItemLength getTargetLength(DataItemIds DId);
-	static TDataItemLength getMaxLength(DataItemIds DId);
+    // Constructor
+    TDataItem(DataItemIds dId, const TBytes &bytes)
+        : TDataItemBase(dId),
+          rawBytes(bytes)
+    {
+        Debug("TDataItem<ParamStruct>(dId, bytes) constructor");
 
-	// index into DIdList; TODO: kinda belongs in a DIdList class method...
-	static int getDIdIndex(DataItemIds DId);
-	// serialize the Payload portion of the Data Item; calling this->calcPayload is done by TDataItem.AsBytes(), only
-	virtual TBytes calcPayload(bool bAsReply = false) { return Data; }
-	// serialize for sending via TCP; calling TDataItem.AsBytes() is normally done by TMessage::AsBytes()
-	virtual TBytes AsBytes(bool bAsReply = false);
+        // By default, copy entire `bytes` into `params` if it fits
+        if (bytes.size() >= sizeof(ParamStruct)) {
+            std::memcpy(&params, bytes.data(), sizeof(ParamStruct));
+        }
+        else {
+            // We'll let the derived class handle partial or custom parsing if it wants
+            Debug("ParamStruct is bigger than rawBytes; derived constructor may fix this.");
+        }
+    }
 
-	// 2) Serialization: methods for source to generate TDataItems, typically for "Response Messages"
+    virtual ~TDataItem() {}
 
-	// zero-"Data" data item constructor
-	explicit TDataItem(DataItemIds DId);
-	// some-"Data" constructor for specific DId; *RARE*, *DEBUG mainly, to test round-trip conversion implementation*
-	// any DId that is supposed to have data would use its own constructor that takes the correct data types, not a
-	// simple TBytes, for the Data Payload
-	TDataItem(DataItemIds DId, TBytes bytes) : TDataItemParent(DId, bytes)
-	{
-		Debug("TDataItem(DId,bytes) constructor");
-	};
+    // By default, we serialize `params` back to bytes
+    virtual TBytes calcPayload(bool bAsReply = false) override
+    {
+        TBytes out;
+        out.insert(out.end(),
+                   reinterpret_cast<const __u8*>(&params),
+                   reinterpret_cast<const __u8*>(&params) + sizeof(ParamStruct));
+        return out;
+    }
 
-	// TDataItem anItem(DId_Read1).addData(offset) kind of thing.  no idea if it will be useful other than debugging
-	virtual TDataItem &addData(__u8 aByte);
-	// TDataItem anItem().setDId(DId_Read1) kind of thing.  no idea why it exists
-	virtual TDataItem &setDId(DataItemIds DId);
-	// encapsulates reading the Id for the DataItem
-	virtual DataItemIds getDId();
-
-	virtual bool isValidDataLength();
-
-	// parse byte array into TDataItem; *RARE*, *DEBUG mainly, to test round-trip conversion implementation*
-	// this is an explicit class-specific .fromBytes(), which the class method .fromBytes() will invoke for NYI DIds etc
-	explicit TDataItem(TBytes bytes);
-
-	// 3) Verbs -- things used when *executing* the TDataItem Object
-public:
-	// intended to be overriden by descendants it performs the query/config operation and sets instance state as appropriate
-	virtual TDataItem &Go();
-	// encapsulates the result code of .Go()'s operation
-	virtual TError getResultCode();
-	// encapsulates the Value that results from .Go()'s operation; DIO_Read1() might have a bool Value;
-	// ADC_GetImmediateScanV() might be an array of single precision floating point Volts
-	virtual std::shared_ptr<void> getResultValue(); // TODO: fix; think this through
-
-	// 4) Diagnostic / Debug - methods typically used for implementation debugging
-public:
-	// returns human-readable string representing the DataItem and its payload; normally used by TMessage.AsString(bAsReply)
-	virtual std::string AsString(bool bAsReply = false);
-	// used by .AsString(bAsReply) to fetch the human-readable name/description of the DId (from DIdList[].Description)
-	virtual std::string getDIdDesc();
-	// class method to get the human-readable name/description of any known DId; TODO: should maybe be a method of DIdList[]
-	static std::string getDIdDesc(DataItemIds DId);
-	virtual ~TDataItem(){}
-public:
-	TError resultCode;
-	int conn;
-
-protected:
-	bool bWrite = false;
+    // Must implement
+    virtual TDataItemBase &Go() override = 0;
+    virtual std::string AsString(bool bAsReply = false) override = 0;
 };
+
 #pragma endregion TDataItem declaration
 
 #pragma region "class TDataItemNYI" declaration
-class TDataItemNYI : public TDataItem
+struct NYIParams {
+    // no fields
+};
+
+class TDataItemNYI : public TDataItem<NYIParams>
 {
 public:
-	TDataItemNYI() = default;
-	explicit TDataItemNYI(TBytes buf) : TDataItem::TDataItem{buf} {};
+    // Must match the TDataItem<NYIParams>(DataItemIds dId, TBytes bytes) signature
+    TDataItemNYI(DataItemIds dId, TBytes bytes)
+        : TDataItem(dId, bytes)
+    {
+        // Possibly do debug logs
+        Debug("TDataItemNYI constructor: DId=" + std::to_string((int)DId));
+    }
+
+    // Implement pure virtuals from TDataItemBase
+    TDataItemBase &Go() override {
+        // do nothing or debug
+        Debug("NYI Go()");
+        return *this;
+    }
+
+    std::string AsString(bool bAsReply = false) override {
+        return "NYI DataItem(DId=" + std::to_string((int)DId) + ")";
+    }
 };
+
 #pragma endregion

@@ -37,6 +37,7 @@ RangeCode 5 = ±2 V
 RangeCode 6 = 0-1 V
 RangeCode 7 = ±1 V
 */
+#pragma pack(push,1)
 using TConfig = struct TConfigStruct {
 	std::string Hostname;
 	std::string Model;
@@ -56,6 +57,8 @@ using TConfig = struct TConfigStruct {
 	float dacScaleCoefficients[4];
 	float dacOffsetCoefficients[4];
 };
+#pragma pack(pop)
+
 extern TConfig Config;
 
 void InitConfig(TConfig &config);

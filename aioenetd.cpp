@@ -209,10 +209,10 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/REG_.h"
 #include "DataItems/TDataItem.h"
 #include "aioenetd.h"
-#define MG_ARCH MG_ARCH_NEWLIB
-extern "C" {
-#include "mongoose.h"
-}
+// #define MG_ARCH MG_ARCH_NEWLIB
+// extern "C" {
+// #include "mongoose.h"
+// }
 
 #define VersionString "0.6.2"
 
@@ -229,46 +229,51 @@ pthread_t adcListener_thread;
 pthread_t controlListener6_thread;
 pthread_t adcListener6_thread;
 
-// Function to serve static files
-static void serve_static(struct mg_connection *nc, struct mg_http_message *hm) {
-    struct mg_http_serve_opts opts = { .root_dir = "/home/acces/www" };
-    mg_http_serve_dir(nc, hm, &opts);
-}
+// // Function to serve static files
+// static void serve_static(struct mg_connection *nc, struct mg_http_message *hm) {
+//     struct mg_http_serve_opts opts = { .root_dir = "/home/acces/www" };
+//     mg_http_serve_dir(nc, hm, &opts);
+// }
 
-// Function to handle API requests
-static void handle_api(struct mg_connection *nc, struct mg_http_message *hm) {
-	if (mg_match(hm->uri, mg_str("/api/data*"), NULL) )
-	{
-		// Example response with dynamic data
-        mg_http_reply(nc, 200, "Content-Type: application/json\r\n", "{\"adc\": [1.23, 2.34, 3.45]}");
-	}
-	else
-	{
-		mg_http_reply(nc, 404, "Content-Type: text/plain\r\n", "Not Found!");
-	}
-}
+// // Function to handle API requests
+// static void handle_api(struct mg_connection *nc, struct mg_http_message *hm) {
+// 	if (mg_match(hm->uri, mg_str("/api/data*"), NULL) )
+// 	{
+// 		// Example response with dynamic data
+//         mg_http_reply(nc, 200, "Content-Type: application/json\r\n", "{\"adc\": [1.23, 2.34, 3.45]}");
+// 	}
+// 	else
+// 	{
+// 		mg_http_reply(nc, 404, "Content-Type: text/plain\r\n", "Not Found!");
+// 	}
+// }
 
-// Event handler for Mongoose
-static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
-    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+// // Event handler for Mongoose
+// static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
+//     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
 
-    switch (ev) {
-        case MG_EV_HTTP_MSG:
-		    Log(std::string(hm->uri.buf, hm->uri.len));
-            if (mg_match(hm->uri, mg_str("/api/*"), NULL) ) {
-                handle_api(nc, hm);
-            } else {
-                serve_static(nc, hm);
-            }
-            break;
-        default:
-            break;
-    }
-}
+//     switch (ev) {
+//         case MG_EV_HTTP_MSG:
+// 		    Log(std::string(hm->uri.buf, hm->uri.len));
+//             if (mg_match(hm->uri, mg_str("/api/*"), NULL) ) {
+//                 handle_api(nc, hm);
+//             } else {
+//                 serve_static(nc, hm);
+//             }
+//             break;
+//         default:
+//             break;
+//     }
+// }
+
+
+
 
 int main(int argc, char *argv[])
 {
 	Intro(argc, argv);
+	Debug("main: &Config = " + to_hex<std::uintptr_t>(reinterpret_cast<std::uintptr_t>(&Config)));
+
 	InitConfig(Config);
 	try
 	{
@@ -278,7 +283,6 @@ int main(int argc, char *argv[])
 	{
 		Error(e.what());
 	};
-
 	ApplyConfig();
 	OpenDevFile(); // sets apci
 
@@ -286,31 +290,35 @@ int main(int argc, char *argv[])
 	pthread_create(&controlListener6_thread, NULL, ControlListenerThread, (void *)AF_INET6);
 	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void *)AF_INET6);
 
-    struct mg_mgr mgr;
-    struct mg_connection *nc;
+    // struct mg_mgr mgr;
+    // struct mg_connection *nc;
 
-    mg_mgr_init(&mgr);
-	nc = mg_http_listen(&mgr, "http://0.0.0.0:80", ev_handler, &mgr);
+    // mg_mgr_init(&mgr);
+	// nc = mg_http_listen(&mgr, "http://0.0.0.0:80", ev_handler, &mgr);
 
-    if (nc == NULL) {
-        printf("Failed to create listener\n");
-        return 1;
-    }
+    // if (nc == NULL) {
+    //     printf("Failed to create listener\n");
+    //     return 1;
+    // }
 
-    printf("Starting server on port 80\n");
+    // printf("Starting server on port 80\n");
 
 	do
 	{
-		//usleep(10000);
-		mg_mgr_poll(&mgr, 1000);
+		usleep(10000);
+		// mg_mgr_poll(&mgr, 1000);
 	} while (!done);
 
-	mg_mgr_free(&mgr);
+	// mg_mgr_free(&mgr);
+
 	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga and upgrader
 
 	abort_handler(0);
 	return 0;
 }
+
+
+
 
 void abort_handler(int s)
 {
@@ -434,26 +442,22 @@ void Listen(int &Socket, int num)
 void *ControlListenerThread(void *arg)
 {
 	__s64 iNET = (__s64)arg;
-	struct sockaddr_in ControlAddr4;
-	struct sockaddr_in6 ControlAddr6;
-	int ControlSocket, ControlAddrSize;
+	struct sockaddr_storage ControlAddr;
+	int ControlSocket;
+	socklen_t ControlAddrSize;
 	std::vector<int> ControlClients;
+	ControlAddrSize = sizeof(sockaddr_storage);
+	memset(&ControlAddr, 0, ControlAddrSize);
 
 	if (iNET == AF_INET6)
-	{
-		Bind(ControlSocket, ControlListenPort, &ControlAddr6, AF_INET6);
-		ControlAddrSize = sizeof(ControlAddr6);
-	}
+		Bind(ControlSocket, ControlListenPort, &ControlAddr, AF_INET6);
 	else
-	{
-		memset(&ControlAddr6, 0, sizeof(sockaddr_in6));
-		Bind(ControlSocket, ControlListenPort, &ControlAddr4, AF_INET);
-		ControlAddrSize = sizeof(ControlAddr4);
-	}
+		Bind(ControlSocket, ControlListenPort, &ControlAddr, AF_INET);
+
 	Log("Listen for Control Socket");
 	Listen(ControlSocket, 32);
 	for (;;)
-		HandleNewControlClients(ControlSocket, ControlAddrSize, ControlAddr4);
+		HandleNewControlClients(ControlSocket, ControlAddrSize, ControlAddr);
 	ControlClients.clear();
 	return nullptr;
 }
@@ -469,15 +473,15 @@ void SendAdcHello(int Socket)
 	}
 	else
 	{
-		Log("sent 'Hello' to new ADC Client# " + std::to_string(Socket) + ", the connection ID: " + std::to_string(Socket) + " (ORed with 0x80000000)");
+		Log("sent 'Hello' to new ADC Client# " + to_hex<__u16>(Socket) + ", (ORed with 0x80000000)");
 	}
 }
 
-void HandleNewAdcClients(int Socket, int addrSize, struct sockaddr_in *addr)
+void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage *addr)
 {
 	int new_socket;
 	Log("accept ADC");
-	if ((new_socket = accept(Socket, (struct sockaddr *)&addr, (socklen_t *)&addrSize)) < 0)
+	if ((new_socket = accept(Socket, (struct sockaddr *)addr, (socklen_t *)&addrSize)) < 0)
 	{
 		Error("accept failed");
 		perror("accept failed");
@@ -489,31 +493,19 @@ void HandleNewAdcClients(int Socket, int addrSize, struct sockaddr_in *addr)
 void *AdcListenerThread(void *arg)
 {
 	int iNET = static_cast<int>((__s64)arg);
-	struct sockaddr_in AdcAddr4;
-	struct sockaddr_in6 AdcAddr6;
-	int AdcSocket, AdcAddrSize;
-	//char buffer[sizeof(DataItemIds) + sizeof(TDataItemLength) + 1]; // data buffer of 1K // TODO: FIX: there shouldn't be both a byte array and a vector; resolve
+	struct sockaddr_storage AdcAddr;
+	int AdcSocket;
+	socklen_t AdcAddrSize;
 	std::vector<int> AdcClients;
+	AdcAddrSize = sizeof(sockaddr_storage);
 
 	if (iNET == AF_INET6)
-	{
-		Log("Binding ADC for IPv6");
-		Bind(AdcSocket, AdcListenPort, &AdcAddr6, iNET);
-		AdcAddrSize = sizeof(AdcAddr6);
-		Listen(AdcSocket, 1);
-		for (;;)
-			HandleNewAdcClients(AdcSocket, AdcAddrSize, (sockaddr_in *)&AdcAddr6);
-	}
+		Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
 	else
-	{
-		Log("Binding ADC for IPv4");
-		Bind(AdcSocket, AdcListenPort, &AdcAddr4, iNET);
-		AdcAddrSize = sizeof(AdcAddr4);
-		Log("Listen ADC for on IPv6");
-		Listen(AdcSocket, 1);
-		for (;;)
-			HandleNewAdcClients(AdcSocket, AdcAddrSize,  &AdcAddr4);
-	}
+		Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
+	Listen(AdcSocket, 1);
+	for (;;)
+		HandleNewAdcClients(AdcSocket, AdcAddrSize,  (sockaddr_storage *)&AdcAddr);
 	AdcClients.clear();
 	return nullptr;
 }
@@ -523,9 +515,14 @@ void SendControlHello(int Socket)
 	TMessageId MId_Hello = 'H';
 	TPayload Payload;
 	TBytes data{};
+	TBytes bytes{};
+	TError result;
 	for (uint byt = 0; byt < sizeof(Socket); byt++)
 		data.push_back(static_cast<__u8>((Socket >> (8 * byt)) & 0x000000FF));
-	PTDataItem d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::TCP_ConnectionID, data));
+	stuff<__u16>(bytes, static_cast<__u16>(DataItemIds::TCP_ConnectionID));
+	stuff<__u16>(bytes, data.size());
+	bytes.insert(bytes.end(), data.begin(), data.end());
+	PTDataItem d2 = TDataItemBase::fromBytes(bytes, result);
 	Payload.push_back(d2);
 
 	//__u32 dacRangeDefault = 0x3031E142;
@@ -536,7 +533,12 @@ void SendControlHello(int Socket)
 		data.push_back(channel);
 		for (uint byt = 0; byt < sizeof(Config.dacRanges[channel]); byt++)
 			data.push_back(static_cast<__u8>((Config.dacRanges[channel] >> (8 * byt)) & 0x000000FF));
-		d2 = std::unique_ptr<TDataItem>(new TDataItem(DataItemIds::DAC_Range1, data));
+		bytes.clear();
+		stuff<__u16>(bytes, static_cast<__u16>(DataItemIds::DAC_Range1));
+		bytes.push_back(5);
+		bytes.push_back(0);
+		bytes.insert(bytes.end(), data.begin(), data.end());
+		d2 = TDataItemBase::fromBytes(bytes, result);
 		Payload.push_back(d2);
 	}
 
@@ -572,26 +574,54 @@ void SendControlHello(int Socket)
 	}
 	else
 	{
-		Log("Sent 'Hello' to Control Client#:\n		  " + HelloControl.AsString());
+		Log("Sent 'Hello' to Control Client# "+to_hex<__u16>(Socket)+":\n		  " + HelloControl.AsString());
 	}
 }
 
-void Disconnect(int aClient, std::vector<int> &ClientList)
+
+void Disconnect(int aClient)
 {
-	struct sockaddr_in addr;
-	int addrSize = sizeof(addr);
-	getpeername(aClient, (struct sockaddr *)&addr, (socklen_t *)&addrSize);
-	Log(std::string("Host disconnected Control connection, ip: ") + inet_ntoa(addr.sin_addr) + ", listen_port " + std::to_string(ntohs(addr.sin_port)));
-	close(aClient);
-	auto index = find(ClientList.begin(), ClientList.end(), aClient);
-	if (index != ClientList.end())
-		ClientList.erase(index);
-	else
-	{
-		Error("INTERNAL ERROR: for-each connection didn't find connection in itself?!?");
-		// handle bad error: the for-each determined aClient can't be found???
-	}
+    struct sockaddr_storage addr;   // Can hold IPv4 or IPv6
+    socklen_t addrSize = sizeof(addr);
+
+    if (getpeername(aClient, reinterpret_cast<struct sockaddr*>(&addr), &addrSize) == -1)
+        Error("getpeername() failed");
+    else
+    {
+        char ipStr[INET6_ADDRSTRLEN] = {0};  // Enough space for IPv6 text
+        uint16_t port = 0;
+
+        if (addr.ss_family == AF_INET)            // IPv4
+        {
+            auto *v4 = reinterpret_cast<struct sockaddr_in*>(&addr);
+            inet_ntop(AF_INET, &(v4->sin_addr), ipStr, sizeof(ipStr));
+            port = ntohs(v4->sin_port);
+        }
+        else if (addr.ss_family == AF_INET6)            // IPv6
+        {
+            auto *v6 = reinterpret_cast<struct sockaddr_in6*>(&addr);
+            inet_ntop(AF_INET6, &(v6->sin6_addr), ipStr, sizeof(ipStr));
+            port = ntohs(v6->sin6_port);
+        }
+        else
+        {
+            // Some other address family?
+            strncpy(ipStr, "UnknownAF", sizeof(ipStr));
+            port = 0;
+        }
+
+        Log(std::string("Host "+to_hex<__u16>(aClient)+" disconnected; IP: ") + ipStr + ", Port " + std::to_string(port));
+    }
+    close(aClient);
+
+    // // Remove from list
+    // auto it = std::find(ClientList.begin(), ClientList.end(), aClient);
+    // if (it != ClientList.end())
+    //     ClientList.erase(it);
+    // else
+    //     Error("INTERNAL ERROR: Attempted to remove socket not in ClientList");
 }
+
 
 bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 {
@@ -620,14 +650,8 @@ ssize_t ReceiveFromSocket(int controlSocket, std::vector<char>& buffer) {
 }
 
 int CheckDisconnect(ssize_t bytesRead, int controlSocket) {
-    if (bytesRead == 0) {
-        struct sockaddr_in addr;
-        socklen_t addrSize = sizeof(addr);
-        getpeername(controlSocket, (struct sockaddr *)&addr, &addrSize);
-        Log("Host disconnected Control connection " + std::to_string(controlSocket) + ", ip: " + inet_ntoa(addr.sin_addr) + ", listen_port " + std::to_string(ntohs(addr.sin_port)));
-        close(controlSocket);
-		return true;
-	}
+    if (bytesRead == 0)
+ 		return true;
 	return false;
 }
 
@@ -652,10 +676,40 @@ void ProcessMessage(std::vector<char>& buffer, int controlSocket) {
     }
 }
 
-void *threadReceiver(void *arg) // J2H: In progress
+ // J2H: In progress
+void *threadReceiver(void *arg)
 {
 	int controlSocket = static_cast<int>((__u64)arg);
-	Log("New Control connection thread, socket fd is: " + std::to_string(controlSocket));
+	struct sockaddr_storage addr;   // Can hold IPv4 or IPv6
+    socklen_t addrSize = sizeof(addr);
+
+    if (getpeername(controlSocket, reinterpret_cast<struct sockaddr*>(&addr), &addrSize) == -1)
+        Error("getpeername() failed");
+    else
+    {
+        char ipStr[INET6_ADDRSTRLEN] = {0};  // Enough space for IPv6 text
+        uint16_t port = 0;
+
+        if (addr.ss_family == AF_INET)            // IPv4
+        {
+            auto *v4 = reinterpret_cast<struct sockaddr_in*>(&addr);
+            inet_ntop(AF_INET, &(v4->sin_addr), ipStr, sizeof(ipStr));
+            port = ntohs(v4->sin_port);
+        }
+        else if (addr.ss_family == AF_INET6)            // IPv6
+        {
+            auto *v6 = reinterpret_cast<struct sockaddr_in6*>(&addr);
+            inet_ntop(AF_INET6, &(v6->sin6_addr), ipStr, sizeof(ipStr));
+            port = ntohs(v6->sin6_port);
+        }
+        else
+        {
+            // Some other address family?
+            strncpy(ipStr, "UnknownAF", sizeof(ipStr));
+            port = 0;
+        }
+		Log("New Control connection thread, socket fd is: " + std::to_string(controlSocket) + " IP: " + ipStr + ", Port " + std::to_string(port));
+	}
 	SendControlHello(controlSocket);
 
 	std::vector<char> buffer;
@@ -667,7 +721,8 @@ void *threadReceiver(void *arg) // J2H: In progress
 			break;// error handling? frex "connection closed" or EAGAIN or EINTR?
 		}
 		if (CheckDisconnect(bytesRead, controlSocket))
-			break;
+			Disconnect(controlSocket);
+		break;
 
 		try {
 			Debug("control receiver got "+std::to_string(bytesRead)+ " bytes");
@@ -678,22 +733,22 @@ void *threadReceiver(void *arg) // J2H: In progress
 			Error(e.what());
 		}
 	};
-	Log("Closing threadReceiver for connection " + std::to_string(controlSocket));
+	Log("Closing threadReceiver for connection " + to_hex<__u16>(controlSocket));
 	return nullptr;
 }
 
-void HandleNewControlClients(int ControlListenSocket, int addrSize, struct sockaddr_in &addr)
+void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockaddr_storage &addr)
 {
 	int new_socket;
 	Log("Accept for Control");
-	if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&addr, (socklen_t *)&addrSize)) < 0)
+	if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&addr, &addrSize)) < 0)
 	{
 		Error("accept failed");
 		perror("accept failed");
 		exit(EXIT_FAILURE);
 	}
 	pthread_t receive_thread;
-	Log("New Control connection, socket fd is: " + std::to_string(new_socket));
+	Log("New Control connection, socket fd is: " + to_hex<__u16>(new_socket));
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 	pthread_create(&receive_thread, NULL, &threadReceiver, (void *)new_socket); // spawn Control Read thread here, pass in new_socket

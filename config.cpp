@@ -35,7 +35,7 @@ void InitConfig(TConfig &config) {
 				config.submuxScaleFactors[i][submux] = 1.0;
 				config.submuxOffsets[i][submux] = 0.0;
 			}
-			config.dacRanges[i] = 1;
+			config.dacRanges[i] = 0x00000001;
 			config.dacScaleCoefficients[i] = 1.00000000;
 			config.dacOffsetCoefficients[i] = 0.0;
 		}
@@ -48,7 +48,6 @@ void InitConfig(TConfig &config) {
 			config.adcRangeCodes[i]=1;
 		}
 	}
-	std::cout << "Config.dacScaleCoefficients[0] configured with "<< Config.dacScaleCoefficients[0]<<" during InitConfig"<<'\n';
 }
 
 int ReadConfigString(std::string key, std::string &value, std::string which )
@@ -75,9 +74,7 @@ int ReadConfigString(std::string key, std::string &value, std::string which )
 	buf[bytesRead] = 0;
 
 	value = std::string((char *)buf);
-	// std::cout << '\n'
-			//   << "ReadConfigString(" << key << ") got " << value << '\n'
-			//   << '\n';
+	//std::cout << "ReadConfigString(" << key << ") got " << value << '\n';
 	return static_cast<int>(bytesRead);
 }
 
@@ -86,7 +83,7 @@ int ReadConfigU8(std::string key, __u8 &value, std::string which )
 	std::string v;
 	ssize_t bytesRead = ReadConfigString(key, v);
 	if (bytesRead == 2){
-		// std::cout << "ReadConfigU8 got " << v << " bytes read == " << bytesRead << '\n'<< '\n';
+		//std::cout << "ReadConfigU8 got " << v << " bytes read == " << bytesRead << '\n'<< '\n';
 
 		value = static_cast<__u8>(std::stoi(v, nullptr, 16));
 		}
@@ -99,6 +96,7 @@ int ReadConfigU32(std::string key, __u32 &value, std::string which )
 	ssize_t bytesRead = ReadConfigString(key, v);
 	if (bytesRead == 8)
 		value = std::stoi(v, nullptr, 16);
+	//Debug("ReadConfig32(" + key + ") got " + to_hex<__u32>(value));
 	return static_cast<int>(bytesRead);
 }
 

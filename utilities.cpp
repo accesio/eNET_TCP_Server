@@ -51,3 +51,21 @@ std::string GetTempFileName()
     Debug( "Created temp file: " + std::string(filenameTemplate));
     return filenameTemplate;
 }
+
+// -----------------------------------------------------------------------------
+// A helper function to split a string by a given delimiter (e.g. '-').
+// -----------------------------------------------------------------------------
+std::vector<std::string> split(const std::string &s, char delim)
+{
+    std::vector<std::string> tokens;
+    std::istringstream iss(s);
+    std::string token;
+    while (std::getline(iss, token, delim)) {
+        if (!token.empty()) {
+            tokens.push_back(token);
+        }
+    }
+    return tokens;
+}
+
+
