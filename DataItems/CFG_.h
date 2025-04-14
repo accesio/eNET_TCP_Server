@@ -64,15 +64,6 @@ public:
 
     // Overridden methods
 
-    virtual TBytes calcPayload(bool bAsReply=false) override
-    {
-        LOG_IT;
-        // If your old code said: TBytes result = Data;
-        // now do: TBytes result = this->rawBytes;
-        TBytes result = this->rawBytes;
-        return result;
-    }
-
     virtual TConfigField &Go() override
     {
         LOG_IT;
@@ -90,18 +81,6 @@ public:
             Trace("DId not found in DIdDict for TConfigField");
         }
         return *this;
-    }
-
-    virtual std::string AsString(bool bAsReply = false) override
-    {
-        LOG_IT;
-        // If your old code used this->Id, now use this->DId
-        auto it = DIdDict.find(this->DId);
-        if (it != DIdDict.end())
-        {
-            return it->second.desc;
-        }
-        return "Unknown TConfigField DId=" + std::to_string((int)this->DId);
     }
 
 private:

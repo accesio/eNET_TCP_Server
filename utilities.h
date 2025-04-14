@@ -133,6 +133,8 @@ inline std::string to_hex(const TBytes &bytes, bool spaced = true)
 			dest << '\n';                                                                                       \
 	}
 
+// return the 8-, 16-, or 32-bit value pointed to by buf based on the register offset
+// note: 16- is unused in the ETH-AIO Family
 inline __u32 regextract(__u8 * buf, int regofs)
 {
 	switch(widthFromOffset(regofs))

@@ -30,16 +30,11 @@ TCFG_Hostname::TCFG_Hostname(DataItemIds dId, const TBytes &buf)
 
 TBytes TCFG_Hostname::calcPayload(bool bAsReply)
 {
-    // Return the raw hostname as bytes. Possibly including the null terminator or not, up to you.
     TBytes out;
-    // Example: copy until null terminator
     size_t len = strnlen(this->params.hostname, sizeof(this->params.hostname));
     out.insert(out.end(),
                reinterpret_cast<const __u8*>(this->params.hostname),
                reinterpret_cast<const __u8*>(this->params.hostname) + len);
-    // If you want the null terminator included:
-    // out.push_back(0);
-
     return out;
 }
 

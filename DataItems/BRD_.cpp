@@ -208,6 +208,6 @@ TBytes TBRD_Features::calcPayload(bool bAsReply)
     TBytes bytes;
     // If your code previously stuffed 4 bytes, do stuff<__u32>.
     // Otherwise, do 1 byte:
-    stuff<__u8>(bytes, this->params.config);
+    stuff<__u32>(bytes, this->params.config);
     return bytes;
 }

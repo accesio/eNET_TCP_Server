@@ -45,7 +45,7 @@ using TConfig = struct TConfigStruct {
 	std::string SerialNumber;
 	__u32 FpgaVersionCode;
 	__u8 numberOfSubmuxes;
-	std::string submuxBarcodes[4];
+	std::string submuxBarcodes[maxSubmuxes];
 	std::string submuxTypes[maxSubmuxes];
 	float submuxScaleFactors[maxSubmuxes][gainGroupsPerSubmux];
 	float submuxOffsets[maxSubmuxes][gainGroupsPerSubmux];
@@ -53,9 +53,9 @@ using TConfig = struct TConfigStruct {
 	__u32 adcRangeCodes[16];
 	float adcScaleCoefficients[8];
 	float adcOffsetCoefficients[8];
-	__u32 dacRanges[4];
-	float dacScaleCoefficients[4];
-	float dacOffsetCoefficients[4];
+	__u32 dacRanges[NUM_DACS];
+	float dacScaleCoefficients[NUM_DACS];
+	float dacOffsetCoefficients[NUM_DACS];
 };
 #pragma pack(pop)
 

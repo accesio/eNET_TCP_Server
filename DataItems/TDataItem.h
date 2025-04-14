@@ -53,7 +53,7 @@ using TDataItemLength=__u16;
 
 #pragma region TDataItem DId enum
 
-#define _INVALID_DATAITEMID_ ((TDataId)-1)
+#define _INVALID_DATAITEMID_ ((TDataId)-2)
 
 enum class DataItemIds : TDataId
 {
@@ -86,6 +86,12 @@ enum class DataItemIds : TDataId
 	REG_SetBits = 0x0109,
 	REG_ToggleBits = 0x010A,
 
+	REG_ReadBit = 0x121,
+	REG_WriteBit,
+	REG_ClearBit,
+	REG_SetBit,
+	REG_ToggleBit,
+
 	DAC_ = 0x200, // Query Only. *1
 	DAC_Output1 = 0x201,
 	DAC_OutputAll,
@@ -96,26 +102,28 @@ enum class DataItemIds : TDataId
 	DAC_OffsetAll = 0x20F,
 	DAC_Scale1 = 0x210,
 	DAC_ScaleAll = 0x211,
+	DAC_Configure1 = 0x2C0,
+	DAC_ConfigAndOutput1 = 0x2C1,
 
 	DIO_ = 0x300, // Query Only. *1
-	DIO_Configure1,
-	DIO_ConfigureAll,
-	DIO_Input1,
-	DIO_InputAll = 0x0305,
+	DIO_ConfigureBit,
+	DIO_Configure,
+	DIO_InputBit,
+	DIO_Input = 0x0305,
 	DIO_InputBuf1,
 	DIO_InputBufAll,
-	DIO_Output1,
-	DIO_OutputAll,
+	DIO_OutputBit,
+	DIO_Output,
 	DIO_OutputBuf, // like unpaced waveform output; NOTE: not sure this is useful
 	DIO_ConfigureReadWriteReadSome,
-	DIO_Clear1,
+	DIO_ClearBit,
 	DIO_ClearAll,
-	DIO_Set1,
+	DIO_SetBit,
 	DIO_SetAll,
 	DIO_SetSome,
-	DIO_Toggle1,
+	DIO_ToggleBit,
 	DIO_ToggleAll,
-	DIO_Pulse1,
+	DIO_PulseBit,
 	DIO_PulseAll,
 
 	PWM_ = 0x400, // Query Only. *1
@@ -169,8 +177,9 @@ enum class DataItemIds : TDataId
 	PNP_,		   // distinct from BRD_?
 	CFG_ = 0x9000, // "Other" Configuration stuff; Linux, IIoT protocol selection, etc?
 	CFG_Hostname,
-	SYS_UploadFileName=0xEF01,
-	SYS_UploadFileData=0xEF02,
+	SYS_UploadFileName = 0xEF01,
+	SYS_UploadFileData = 0xEF02,
+	DOC_Get = 0xFFFF,
 };
 #pragma endregion
 
@@ -181,7 +190,8 @@ int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
 // returns 0 if offset is invalid
 int widthFromOffset(int ofs);
 
-#pragma region inserting ancestor under TDataItem
+#pragma region TDataItemBase
+
 using PTDataItemBase = std::shared_ptr<class TDataItemBase>;
 class TDataItemBase
 {
@@ -201,6 +211,8 @@ public:
 
     virtual ~TDataItemBase() {}
 
+	std::string AsStringBase(bool bAsReply) const;
+
     // ========== Virtual Methods for Polymorphism ==========
     // Called by the main worker thread to execute hardware logic
     virtual TDataItemBase &Go() = 0;
@@ -209,9 +221,9 @@ public:
     virtual TBytes calcPayload(bool bAsReply = false) = 0;
 
     // High-level string form for debugging/logging
-    virtual std::string AsString(bool bAsReply = false) = 0;
+	virtual std::string AsString(bool bAsReply = false) = 0;
 
-    // ========== Static / Factory Methods ==========
+	// ========== Static / Factory Methods ==========
     static PTDataItemBase fromBytes(const TBytes &msg, TError &result);
 
     static int validateDataItemPayload(DataItemIds DataItemID, const TBytes &Data);
@@ -268,7 +280,6 @@ extern const std::map<DataItemIds, TDIdDictEntry> DIdDict;
 
 #pragma region "class TDataItem" declaration
 
-
 // Base class for all TDataItems, descendants of which will handle payloads specific to the DId
 template <typename ParamStruct>
 class TDataItem : public TDataItemBase
@@ -278,7 +289,15 @@ public:
 
     // We keep a reference to the raw bytes, too, if you need them
     // (In case you want to parse in a custom way.)
-    TBytes rawBytes;
+	TBytes rawBytes;
+
+	TBytes calcPayload(bool bAsReply = false) override {
+        TBytes bytes;
+        bytes.resize(sizeof(ParamStruct));
+        std::memcpy(bytes.data(), &params, sizeof(ParamStruct));
+        return rawBytes;
+		//return bytes;
+    }
 
     // Constructor
     TDataItem(DataItemIds dId, const TBytes &bytes)
@@ -293,21 +312,11 @@ public:
         }
         else {
             // We'll let the derived class handle partial or custom parsing if it wants
-            Debug("ParamStruct is bigger than rawBytes; derived constructor may fix this.");
+            Debug("ParamStruct is bigger than rawBytes; derived constructor may fix this." + to_hex<size_t>(bytes.size()) + " > " + to_hex<size_t>(sizeof(ParamStruct)));
         }
     }
 
     virtual ~TDataItem() {}
-
-    // By default, we serialize `params` back to bytes
-    virtual TBytes calcPayload(bool bAsReply = false) override
-    {
-        TBytes out;
-        out.insert(out.end(),
-                   reinterpret_cast<const __u8*>(&params),
-                   reinterpret_cast<const __u8*>(&params) + sizeof(ParamStruct));
-        return out;
-    }
 
     // Must implement
     virtual TDataItemBase &Go() override = 0;
@@ -315,8 +324,39 @@ public:
 };
 
 #pragma endregion TDataItem declaration
+#pragma region TDataItemDoc
+struct DOC_Params { };
 
-#pragma region "class TDataItemNYI" declaration
+class TDataItemDoc : public TDataItem<DOC_Params> {
+public:
+    // Constructors: the incoming TBytes payload is ignored.
+    TDataItemDoc(DataItemIds DId, const TBytes &data);
+    TDataItemDoc(DataItemIds DId);
+
+    // Assemble documentation payload into this->Data.
+    virtual TDataItemBase &Go() override;
+    // Simply return the assembled payload.
+    virtual TBytes calcPayload(bool bAsReply = false) override;
+    virtual std::string AsString(bool bAsReply = false) override;
+};
+
+#pragma region TDataItemDocGet
+struct DOC_Get_Params { };
+
+class TDataItemDocGet : public TDataItem<DOC_Get_Params> {
+public:
+    // Constructors – incoming payload is ignored.
+    TDataItemDocGet(DataItemIds DId, const TBytes &data);
+    TDataItemDocGet(DataItemIds DId);
+
+    // In Go() we assemble the documentation payload into this->Data.
+    virtual TDataItemBase &Go() override;
+    virtual TBytes calcPayload(bool bAsReply = false) override;
+    virtual std::string AsString(bool bAsReply = false) override;
+};
+#pragma endregion
+
+#pragma region TDataItemNYI declaration
 struct NYIParams {
     // no fields
 };
@@ -339,9 +379,9 @@ public:
         return *this;
     }
 
-    std::string AsString(bool bAsReply = false) override {
-        return "NYI DataItem(DId=" + std::to_string((int)DId) + ")";
-    }
+	std::string AsString(bool bAsReply) {
+		return "TDataItemNYI: Not Yet Implemented";
+	}
 };
 
 #pragma endregion

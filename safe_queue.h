@@ -4,7 +4,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-
+extern volatile sig_atomic_t done;
 // A threadsafe-queue.
 template <class T>
 class SafeQueue
@@ -32,12 +32,14 @@ public:
   T dequeue(void)
   {
     std::unique_lock<std::mutex> lock(m);
-    while(q.empty())
+    while(q.empty() && !done)
     {
       // release lock as long as the wait and reaquire it afterwards.
       c.wait(lock);
       if (stop) return nullptr;
     }
+    if (done)
+      return nullptr;
     T val = q.front();
     q.pop();
     return val;

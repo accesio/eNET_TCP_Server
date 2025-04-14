@@ -12,286 +12,297 @@
 #include "BRD_.h"
 #include "CFG_.h"
 #include "DAC_.h"
+#include "DIO_.h"
 #include "REG_.h"
 #include "SYS_.h"
 #include "../eNET-AIO16-16F.h"
 extern bool done;
 
-#define DIdNYI(d)                                         \
-	{                                                     \
-		d,                                                \
-		{                                                 \
-			0, 0, 0, construct<TDataItemNYI>, #d " (NYI)" \
-		}                                                 \
-	}
+#define DIdNYI(d) { DataItemIds::d, { 0, 0, 0, construct<TDataItemNYI>, #d " (NYI)" } }
 
 #define DATA_ITEM_IMPL_2(x, aclass, a, b, c, y, z)                                                 \
 	{                                                                                              \
-		x,                                                                                         \
+		DataItemIds::x,                                                                                         \
 		{                                                                                          \
-			a, b, c, [](DataItemIds q, TBytes bytes) { return construct<aclass>(x, bytes); }, y, z \
+			a, b, c, [](DataItemIds q, TBytes bytes) { return construct<aclass>(DataItemIds::x, bytes); }, y, z \
 		}                                                                                          \
 	}
 #define DATA_ITEM_IMPL_1(x, aclass, a, b, c, y)                                                 \
 	{                                                                                           \
-		x,                                                                                      \
+		DataItemIds::x,                                                                                      \
 		{                                                                                       \
-			a, b, c, [](DataItemIds q, TBytes bytes) { return construct<aclass>(x, bytes); }, y \
+			a, b, c, [](DataItemIds q, TBytes bytes) { return construct<aclass>(DataItemIds::x, bytes); }, y \
 		}                                                                                       \
 	}
 #define DATA_ITEM_GET_MACRO(_1, _2, _3, _4, _5, _6, _7, NAME, ...) NAME
 #define DATA_ITEM(...) DATA_ITEM_GET_MACRO(__VA_ARGS__, DATA_ITEM_IMPL_2, DATA_ITEM_IMPL_1)(__VA_ARGS__)
 
+#pragma region TDataItemRaw
 struct GenericParams {};
-class TDataItemRaw : public TDataItem<GenericParams>
-{
+// stores raw bytes as parameters instead of struct-style
+class TDataItemRaw : public TDataItem<GenericParams> {
 public:
-    TDataItemRaw(DataItemIds dId, const TBytes &bytes)
-      : TDataItem(dId, bytes) {}
+	TDataItemRaw(DataItemIds dId, const TBytes &bytes)
+		: TDataItem<GenericParams>(dId, bytes)
+	{}
 
-    TDataItemBase &Go() override {
-        // do nothing
-        return *this;
-    }
+	// No hardware action
+	virtual TDataItemBase &Go() override {
+		return *this;
+	}
 
-    std::string AsString(bool bAsReply=false) override {
-        return "TDataItemRaw, DId=" + to_hex<__u16>((int)this->DId) + " " + getDIdDesc() +
-               ", size=" + std::to_string(this->rawBytes.size())+": "+to_hex(this->rawBytes);
-    }
+	virtual std::string AsString(bool bAsReply=false) override {
+		return "TDataItemRaw, DId=" + to_hex<__u16>((__u16)this->DId)
+				+ " " + getDIdDesc()
+				+ ", size=" + std::to_string(this->rawBytes.size())
+				+ ": " + to_hex(this->rawBytes);
+	}
 };
+
 #pragma region DIdDict definition
 const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	{
 		//{INVALID, { 9, 9, 9,( [](DataItemIds x, TBytes bytes) { return construct<TDataItem>(x, bytes); }), "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", nullptr}},
-		DATA_ITEM(DataItemIds::INVALID, TDataItemRaw, 0, 0, 0, "Invalid DId -1", nullptr),
+		DATA_ITEM(INVALID, TDataItemRaw, 0, 0, 0, "Invalid DId -1", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region BRD_
-		DATA_ITEM(DataItemIds::BRD_, TDataItemRaw, 0, 0, 0, "Invalid DID 0", nullptr),
-		DATA_ITEM(DataItemIds::BRD_Reset, TDataItemRaw, 0, 0, 0, "BRD_Reset()", nullptr),
-		DATA_ITEM(DataItemIds::BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32", nullptr),
-		DATA_ITEM(DataItemIds::BRD_Features, TBRD_Features, 0, 4, 255, "BRD_Features() → u8", nullptr),
-		DATA_ITEM(DataItemIds::BRD_FpgaID, TBRD_FpgaId, 0, 4, 255, "BRD_FpgaID() → u32", nullptr),
-		DATA_ITEM(DataItemIds::BRD_REBOOT, TDataItemRaw, 8, 8, 8, "BRD_REBOOT(double)",
+		DATA_ITEM(BRD_,         TDataItemDoc,  0, 0, 0,   "Documentation: list of BRD_ DataItems", nullptr),
+		DATA_ITEM(BRD_Reset,    TDataItemRaw,  0, 0, 0,   "BRD_Reset()", nullptr),
+		DATA_ITEM(BRD_DeviceID, TBRD_DeviceID, 0, 0, 0,   "BRD_DeviceID() → u32", nullptr),
+		DATA_ITEM(BRD_Features, TBRD_Features, 0, 4, 255, "BRD_Features() → u8"),
+		DATA_ITEM(BRD_FpgaID,   TBRD_FpgaId,   0, 4, 255, "BRD_FpgaID() → u32"),
+		DATA_ITEM(BRD_REBOOT,   TDataItemRaw,  8, 8, 8,   "BRD_REBOOT(double)",
 				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-		 			double token = *(double *)args;
-		 			if (token == M_PI)
-		 				done = true; })),
+					{
+						double token = *(double *)args;
+						if (token == M_PI)
+							done = true;
+					})),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region REG_
-	// the registers on the eNET are only accessible as 8- or 32-bits, depending on the specific register.
-	// the "in()" and "out()" functions deal with this
+		// the registers on the eNET are only accessible as 8- or 32-bits, depending on the specific register.
+		// the "in()" and "out()" functions deal with this
+		DATA_ITEM(REG_,       TDataItemDoc,  0, 0, 0,   "Documentation: list of REG_ DataItems", nullptr),
 
-		DATA_ITEM(DataItemIds::REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]", nullptr),
-		// DIdNYI(REG_ReadBuf),
-		DATA_ITEM(DataItemIds::REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)", nullptr),
-		// DIdNYI(REG_WriteBuf),
+		DATA_ITEM(REG_Read1,  TREG_Read1,  1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]",   nullptr),
+		DIdNYI(REG_ReadBuf),
+		DATA_ITEM(REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)", nullptr),
+		DIdNYI(REG_WriteBuf),
 
-		DATA_ITEM(DataItemIds::REG_ClearBits, TDataItemRaw, 2, 5, 5,
+		DATA_ITEM(REG_ClearBits, TDataItemRaw, 2, 5, 5,
 				  "REG_ClearBits(u8 ofs, u8|u32 bitsToClear)",
 				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
+					{
 						__u8 * pargs = (__u8 *)args;
-						__u8 ofs = *pargs;
-						pargs++;
-						__u32 data = 0;
-						__u32 bits = 0;
-						bits = regextract(pargs, ofs);
+						__u8 ofs = *pargs++;
+						__u32 bitsToClear = regextract(pargs, ofs);
 
-						data = in(ofs);
-						data &= ~ bits;
-						out(ofs,data); })),
-		DATA_ITEM(DataItemIds::REG_ToggleBits, TDataItemRaw, 2, 5, 5,
-				  "REG_SetBits(u8 ofs, u8|u32 bitsToToggle)",
+						__u32 regValue = in(ofs);
+						regValue &= ~ bitsToClear;
+						out(ofs, regValue);
+					})),
+		DATA_ITEM(REG_ToggleBits, TDataItemRaw, 2, 5, 5,
+				  "REG_ToggleBits(u8 ofs, u8|u32 bitsToToggle)",
 				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-				__u8 * pargs = (__u8 *)args;
-				__u8 ofs = *pargs;
-				pargs++;
-				__u32 data = 0;
-				__u32 bits = 0;
-				bits = regextract(pargs, ofs);
-				data = in(ofs);
-				data ^= bits;
-				out(ofs,data); })),
-		DATA_ITEM(DataItemIds::REG_SetBits, TDataItemRaw, 2, 5, 5, "REG_SetBits(u8 ofs, u8|u32 bitsToSet)",
+					{
+						__u8 * pargs = (__u8 *)args;
+						__u8 ofs = *pargs++;
+						__u32 bitsToToggle = regextract(pargs, ofs);
+
+						__u32 regValue = in(ofs);
+						regValue ^= bitsToToggle;
+						out(ofs,regValue);
+					})),
+		DATA_ITEM(REG_SetBits, TDataItemRaw, 2, 5, 5, "REG_SetBits(u8 ofs, u8|u32 bitsToSet)",
 				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-				__u8 * pargs = (__u8 *)args;
-				__u8 ofs = *((__u8 *)args) ;
-				pargs++;
-				__u32 bits = 0;
-				bits = regextract(pargs, ofs);
-				__u32 data = 0;
-				data = in(ofs);
-				data |= bits;
-				out(ofs,data); })),
+					{
+						__u8 * pargs = (__u8 *)args;
+						__u8 ofs = *pargs++;
+						__u32 bitsToSet = regextract(pargs, ofs);
+
+						__u32 regValue = in(ofs);
+						regValue |= bitsToSet;
+						out(ofs,regValue);
+					})),
+		DATA_ITEM(REG_ReadBit,   TREG_ReadBit,               2, 2, 2, "TREG_ReadBit(u8 offset, u8 bitIndex) → [u8]",           nullptr),
+		DATA_ITEM(REG_WriteBit,  TREG_WriteBit,              3, 3, 3, "TREG_WriteBit(u8 offset, u8 bitIndex, u8 one_or_zero)", nullptr),
+		DATA_ITEM(REG_ClearBit,  TREG_ClearBit,              2, 2, 2, "TREG_ClearBit(u8 offset, u8 bitIndex)",                 nullptr),
+		DATA_ITEM(REG_SetBit,    TREG_SetBit,                2, 2, 2, "TREG_SetBit(u8 offset, u8 bitIndex)",                   nullptr),
+		DATA_ITEM(REG_ToggleBit, TREG_ToggleBit,             2, 2, 2, "TREG_ToggleBit(u8 offset, u8 bitIndex)",                nullptr),
+
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region DAC_
-		// {DAC_, {0, 0, 0, construct<TDataItem>, "TDataItemRaw (DAC_)"}},
-	// There are four DAC outputs on this board, driven by a pair of dual-DAC chips on an SPI bus (distinct from the DIO SPI)
-	// The range of each DAC is factory-set, per-dac, with ±10, ±5, 0-10, and 0-5 "standard"
-	// aioenetd is configured at the factory for the DAC range, so customers can output in Voltage
-
-		DATA_ITEM(DataItemIds::DAC_Output1, TDAC_Output, 5, 5, 5, "DAC_Output1(u8 iDAC, single Volts)", nullptr),
-		DATA_ITEM(DataItemIds::DAC_Range1, TDAC_Range1, 5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)", nullptr),
-		// DIdNYI(DataItemIds::DAC_Configure1),
-		// DIdNYI(DataItemIds::DAC_ConfigAndOutput1),
-		DATA_ITEM(DataItemIds::DAC_Calibrate1, TDataItemRaw, 9, 9, 9, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)",
+		// There are four DAC outputs on this board, driven by a pair of dual-DAC chips on an SPI bus (distinct from the DIO SPI)
+		// The range of each DAC is factory-set, per-dac, with ±10, ±5, 0-10, and 0-5 "standard"
+		// aioenetd is configured at the factory for the DAC range, so customers can output in Voltage
+		DATA_ITEM(DAC_,          TDataItemDoc,               0, 0, 0, "Documentation: list of DAC_ DataItems", nullptr),
+		DATA_ITEM(DAC_Output1,   TDAC_Output,                5, 5, 5, "DAC_Output1(u8 iDAC, single Volts)", nullptr),
+		DATA_ITEM(DAC_Range1,    TDAC_Range1,                5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)", nullptr),
+		DIdNYI(DAC_Configure1),
+		DIdNYI(DAC_ConfigAndOutput1),
+		DATA_ITEM(DAC_Calibrate1, TDataItemRaw,              9, 9, 9, "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)",
 				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-					float offset;
-					float scale;
-					__u8 dacnum;
-					dacnum = *(((__u8 *)args) + 0);
-					offset = *(float *)(((__u8 *)args) + 5);
-					scale = *(float *)(((__u8 *)args) + 1);
-					printf("....DAC %hhx scale=%3.3f offset=%3.3f\n", dacnum, scale, offset);
-					Config.dacScaleCoefficients[dacnum] = scale;
-					Config.dacOffsetCoefficients[dacnum] = offset;
-					printf("....Config.scale[%hhx]=%3.3f Config.offset[%hhx]=%3.3f\n", dacnum, Config.dacScaleCoefficients[dacnum], dacnum, Config.dacOffsetCoefficients[dacnum]);
-					Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]); })),
-
-		DATA_ITEM(DataItemIds::DAC_Offset1, TDataItemRaw, 5, 5, 5, "DAC_Offset1(u8 iDac, single Offset)",
-				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-		 			float offset;
-		 			__u8 dacnum;
-		 			dacnum = *(((__u8 *)args) + 0);
-		 			offset = *(float *)(((__u8 *)args) + 1);
-		 			printf("....DAC %hhx offset=%3.3f\n", dacnum, offset);
-		 			Config.dacOffsetCoefficients[dacnum] = offset;
-		 			printf("....Config.offset[%hhx]=%3.3f\n", dacnum, Config.dacOffsetCoefficients[dacnum]);
-		 			Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]); })),
-
-		DATA_ITEM(DataItemIds::DAC_OffsetAll, TDataItemRaw, 16, 16, 16, "DAC_OffsetAll(single offset0, offset1, offset2, offset3)",
-				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-					for (__u8 dacnum=0; dacnum < 4; ++dacnum)
 					{
-					float offset = *(float *)(((__u8 *)args) + dacnum*4);
-					printf("....DAC %hhx offset=%3.3f\n", dacnum, offset);
-					Config.dacOffsetCoefficients[dacnum] = offset;
-					printf("....Config.offset[%hhx]=%3.3f\n", dacnum, Config.dacOffsetCoefficients[dacnum]);
-					Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", offset = " + std::to_string(Config.dacOffsetCoefficients[dacnum]);
-					} })),
-		DATA_ITEM(DataItemIds::DAC_Scale1, TDataItemRaw, 5, 5, 5, "DAC_Scale1(u8 iDac, single Scale)",
-				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-					float scale;
-					__u8 dacnum;
-					dacnum = *(((__u8 *)args) + 0);
-					scale = *(float *)(((__u8 *)args) + 1);
-					printf("....DAC %hhx scale=%3.3f \n", dacnum, scale);
-					Config.dacScaleCoefficients[dacnum] = scale;
-					printf("....Config.scale[%hhx]=%3.3f \n", dacnum, Config.dacScaleCoefficients[dacnum]);
-					Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]); })),
+						__u8 dacnum = *(((__u8 *)args) + 0);
+						GUARD(dacnum < 4, ERR_DId_BAD_PARAM, dacnum);
+						float offset = *(float *)(((__u8 *)args) + 1);
+						float scale = *(float *)(((__u8 *)args) + 5);
+						Config.dacScaleCoefficients[dacnum] = scale;
+						Config.dacOffsetCoefficients[dacnum] = offset;
+						Debug("inside lambda: DAC " + std::to_string(dacnum) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum])
+						    + ", offset = " + std::to_string(Config.dacOffsetCoefficients[dacnum]));
+					})),
 
-		DATA_ITEM(DataItemIds::DAC_ScaleAll, TDataItemRaw, 16, 16, 16, "DAC_OffsetAll(single scale0, scale1, scale2, scale3)",
+		DATA_ITEM(DAC_Offset1, TDataItemRaw,                 5, 5, 5, "DAC_Offset1(u8 iDac, single Offset)",
 				  static_cast<std::function<void(void *)>>([](void *args)
-														   {
-					for (__u8 dacnum=0;dacnum<4;++dacnum)
 					{
-					float scale = *(float *)(((__u8 *)args) + dacnum*4);
-					printf("....DAC %hhx scale=%3.3f\n", dacnum, scale);
-					Config.dacScaleCoefficients[dacnum] = scale;
-					printf("....Config.scale[%hhx]=%3.3f\n", dacnum, Config.dacScaleCoefficients[dacnum]);
-					Debug("inside lambda: DAC " + std::to_string(dacnum)) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]);
-					} })),
+						__u8 dacnum = *(((__u8 *)args) + 0);
+						GUARD(dacnum < 4, ERR_DId_BAD_PARAM, dacnum);
+						float offset = *(float *)(((__u8 *)args) + 1);
+						Config.dacOffsetCoefficients[dacnum] = offset;
+						Debug("inside lambda: DAC " + std::to_string(dacnum) + ", offset = " + std::to_string(Config.dacOffsetCoefficients[dacnum]));
+					})),
+
+		DATA_ITEM(DAC_OffsetAll, TDataItemRaw,               16, 16, 16, "DAC_OffsetAll(single offset0, offset1, offset2, offset3)",
+				  static_cast<std::function<void(void *)>>([](void *args)
+					{
+						for (__u8 dacnum = 0; dacnum < NUM_DACS; ++dacnum)
+						{
+							float offset = *(float *)(((__u8 *)args) + dacnum*4);
+							Config.dacOffsetCoefficients[dacnum] = offset;
+							Debug("inside lambda: DAC " + std::to_string(dacnum) + ", offset = " + std::to_string(Config.dacOffsetCoefficients[dacnum]));
+						}
+					})),
+		DATA_ITEM(DAC_Scale1, TDataItemRaw,                  5, 5, 5, "DAC_Scale1(u8 iDac, single Scale)",
+				  static_cast<std::function<void(void *)>>([](void *args)
+					{
+						__u8 dacnum = *(((__u8 *)args) + 0);
+						GUARD(dacnum < 4, ERR_DId_BAD_PARAM, dacnum);
+						float scale = *(float *)(((__u8 *)args) + 1);
+						Config.dacScaleCoefficients[dacnum] = scale;
+						Debug("inside lambda: DAC " + std::to_string(dacnum) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]));
+					})),
+
+		DATA_ITEM(DAC_ScaleAll, TDataItemRaw,                16, 16, 16, "DAC_ScaleAll(single scale0, scale1, scale2, scale3)",
+				  static_cast<std::function<void(void *)>>([](void *args)
+					{
+						for (__u8 dacnum = 0; dacnum < NUM_DACS; ++dacnum)
+						{
+							float scale = *(float *)(((__u8 *)args) + dacnum*4);
+							Config.dacScaleCoefficients[dacnum] = scale;
+							Debug("inside lambda: DAC " + std::to_string(dacnum) + ", scale = " + std::to_string(Config.dacScaleCoefficients[dacnum]));
+						}
+					})),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region DIO_
-		// DIdNYI(DataItemIds::DIO_),
+		DATA_ITEM(DIO_,             TDataItemDoc,               0, 0, 0,   "Documentation: list of DIO_ DataItems", nullptr),
+
 	// there are 16 digital bits.  All of them are individually configured as input vs output.  1 = input, 0 = output // CHECK // FIX // TODO:
 	// this function sets the direction of all 16 bits, and the initial output level (high/low) of any bits configured for output.  Data is passed
 	// as a 16-bit word
-	// DATA
+	// DATA @ ofsDioOutputs for writes and @ ofsDioInputs for reads
 	// bytes:       1                 0
 	// bits: F E D C B A 9 8   7 6 5 4 3 2 1 0
 	// Notes:@ * * *           + + + + + + + +
 
-	// DIRECTION CONTROL
+	// DIRECTION CONTROL @ ofsDioDirections
 	// bytes:       1                 0
 	// bits: F E D C B A 9 8   7 6 5 4 3 2 1 0
 	// Notes:@ * * *           + + + + + + + +
-
 
 	// @ this bit is available for use as PWM output or input
 	// * 3 bits are consumed when a submux is attached. They are forced to output and are under FPGA control; writes are ignored
 	// + these 8 bits are SPI-driven thus slower
+		DATA_ITEM(DIO_Configure,    TDIO_Configure,          2, 2, 2, "TDIO_Configure(u16 value) - each bit: 1=input, 0=output", nullptr),
+		DATA_ITEM(DIO_Input,        TDIO_Input,              0, 0, 0, "TDIO_Input() → returns u16 value", nullptr),
+		DATA_ITEM(DIO_Output,       TDIO_Output,             2, 2, 2, "TDIO_Output(u16 value) - sets digital outputs", nullptr),
+		DATA_ITEM(DIO_ConfigureBit, TDIO_ConfigureBit,       2, 2, 2, "DIO_ConfigureBit(u8 bitNumber, u8 direction)", nullptr),
+		DATA_ITEM(DIO_InputBit,     TDIO_InputBit,           1, 1, 1, "DIO_InputBit(u8 bitNumber) → [u8]", nullptr),
+		DATA_ITEM(DIO_OutputBit,    TDIO_OutputBit,          2, 2, 2, "DIO_OutputBit(u8 bitNumber, u8 value)", nullptr),
+		DATA_ITEM(DIO_ClearBit,     TDIO_ClearBit,           1, 1, 1, "DIO_ClearBit(u8 bitNumber)", nullptr),
+		DATA_ITEM(DIO_SetBit,       TDIO_SetBit,             1, 1, 1, "DIO_SetBit(u8 bitNumber)", nullptr),
+		DATA_ITEM(DIO_ToggleBit,    TDIO_ToggleBit,          1, 1, 1, "DIO_ToggleBit(u8 bitNumber)", nullptr),
 
-		// DIdNYI(DataItemIds::DIO_Configure1),
-		// DIdNYI(DataItemIds::DIO_Input1),
-		// DIdNYI(DataItemIds::DIO_InputBuf1),
-		// DIdNYI(DataItemIds::DIO_Output1),
-
-		// DIdNYI(DataItemIds::DIO_OutputBuf),
-		// DIdNYI(DataItemIds::DIO_ConfigureReadWriteReadSome),
-		// DIdNYI(DataItemIds::DIO_Clear1),
-		// DIdNYI(DataItemIds::DIO_Set1),
-		// DIdNYI(DataItemIds::DIO_Toggle1),
-		// DIdNYI(DataItemIds::DIO_Pulse1),
+		DIdNYI(DIO_PulseBit),
+		DIdNYI(DIO_ConfigureReadWriteReadSome),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region ADC_
-		// DIdNYI(DataItemIds::ADC_),
-		// DIdNYI(DataItemIds::ADC_Claim),
-		// DIdNYI(DataItemIds::ADC_Release),
-		DATA_ITEM(DataItemIds::ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32", nullptr),
-		DATA_ITEM(DataItemIds::ADC_StartHz, TDataItemRaw, 4, 4, 4, "ADC_StartHz(f32)", nullptr),
-		DATA_ITEM(DataItemIds::ADC_StartDivisor, TDataItemRaw, 4, 4, 4, "ADC_StartDivisor(u32)", nullptr),
-		// DIdNYI(DataItemIds::ADC_ConfigurationOfEverything),
-		// DIdNYI(DataItemIds::ADC_Differential1),
-		// DIdNYI(DataItemIds::ADC_DifferentialAll),
-		// DIdNYI(DataItemIds::ADC_Range1),
-		// DIdNYI(DataItemIds::ADC_RangeAll),
-		// DIdNYI(DataItemIds::ADC_Span1),
-		// DIdNYI(DataItemIds::ADC_SpanAll),
-		// DIdNYI(DataItemIds::ADC_Offset1),
-		// DIdNYI(DataItemIds::ADC_OffsetAll),
-		// DIdNYI(DataItemIds::ADC_Calibration1),
-		// DIdNYI(DataItemIds::ADC_CalibrationAll),
-		// DIdNYI(DataItemIds::ADC_Volts1),
-		// DIdNYI(DataItemIds::ADC_VoltsAll), // ADC_GetScanV
-		// DIdNYI(DataItemIds::ADC_Counts1),
-		// DIdNYI(DataItemIds::ADC_CountsAll), // ADC_GetScanCounts
-		// DIdNYI(DataItemIds::ADC_Raw1),
-		// DIdNYI(DataItemIds::ADC_RawAll),   // ADC_GetScanRaw
-		DATA_ITEM(DataItemIds::ADC_StreamStart, TDataItemRaw, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
-		DATA_ITEM(DataItemIds::ADC_StreamStop, TDataItemRaw, 0, 0, 0, "ADC_StreamStop()", nullptr),
+		DATA_ITEM(ADC_,               TDataItemDoc,          0, 0, 0,   "Documentation: list of ADC_ DataItems", nullptr),
 
-		// DIdNYI(DataItemIds::ADC_Streaming_stuff_including_Hz_config),
+		DIdNYI(ADC_Claim),
+		DIdNYI(ADC_Release),
+		DATA_ITEM(ADC_BaseClock,      TADC_BaseClock,        0, 0, 4, "ADC_BaseClock() → u32", nullptr),
+		DATA_ITEM(ADC_StartHz,        TDataItemRaw,          4, 4, 4, "ADC_StartHz(f32)", nullptr),
+		DATA_ITEM(ADC_StartDivisor,   TDataItemRaw,          4, 4, 4, "ADC_StartDivisor(u32)", nullptr),
+		DIdNYI(ADC_ConfigurationOfEverything),
+
+		DATA_ITEM(ADC_Differential1,   TADC_Differential1,   2, 2, 2, "ADC_Differential1(u8 channelGroup, u8 singleEnded)", nullptr),
+		DATA_ITEM(ADC_DifferentialAll, TADC_DifferentialAll, 8, 8, 8, "ADC_DifferentialAll(8 bytes: one per channelGroup)", nullptr),
+
+		DATA_ITEM(ADC_Range1,          TADC_Range1,          2, 2, 2, "ADC_Range1(u8 channelGroup, u8 range)", nullptr),
+		DATA_ITEM(ADC_RangeAll,        TADC_RangeAll,        8, 8, 8, "ADC_RangeAll(8 bytes: range for each channelGroup)", nullptr),
+
+		DATA_ITEM(ADC_Scale1,          TADC_Scale1,          5, 5, 5, "ADC_Scale1(u8 rangeIndex, float scale)", nullptr),
+		DATA_ITEM(ADC_ScaleAll,        TADC_ScaleAll,        8*sizeof(float), 8*sizeof(float), 8*sizeof(float), "ADC_ScaleAll(8 floats for scale calibration)", nullptr),
+
+		DATA_ITEM(ADC_Offset1,         TADC_Offset1,         5, 5, 5, "ADC_Offset1(u8 rangeIndex, float offset)", nullptr),
+		DATA_ITEM(ADC_OffsetAll,       TADC_OffsetAll,       8*sizeof(float), 8*sizeof(float), 8*sizeof(float), "ADC_OffsetAll(8 floats for offset calibration)", nullptr),
+
+		DATA_ITEM(ADC_Calibration1,    TADC_Calibration1,    9, 9, 9, "ADC_Calibration1(u8 rangeIndex, float scale, float offset)", nullptr),
+		DATA_ITEM(ADC_CalibrationAll,  TADC_CalibrationAll,  16*sizeof(float), 16*sizeof(float), 16*sizeof(float), "ADC_CalibrationAll(8 scales followed by 8 offsets)", nullptr),
+
+		DIdNYI(ADC_Volts1),
+		DIdNYI(ADC_VoltsAll), // ADC_GetScanV
+		DIdNYI(ADC_Counts1),
+		DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
+		DIdNYI(ADC_Raw1),
+		DIdNYI(ADC_RawAll),   // ADC_GetScanRaw
+		DATA_ITEM(ADC_StreamStart,     TDataItemRaw,         4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
+		DATA_ITEM(ADC_StreamStop,      TDataItemRaw,         0, 0, 0, "ADC_StreamStop()", nullptr),
+
+		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region SCRIPT_
-		// DIdNYI(DataItemIds::SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
+		DIdNYI(SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region WDG_
-		// DIdNYI(DataItemIds::WDG_),
+		DATA_ITEM(WDG_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of WDG_ DataItems", nullptr),
+
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region DEF_
-		// DIdNYI(DataItemIds::DEF_),
+		DATA_ITEM(DEF_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of DEF_ DataItems", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region SERVICE_
-		// DIdNYI(DataItemIds::SERVICE_),
+		DATA_ITEM(SERVICE_,      TDataItemDoc,               0, 0, 0,   "Documentation: list of SERVICE_ DataItems", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region PNP_
-		// DIdNYI(DataItemIds::PNP_),
+		DATA_ITEM(PNP_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of PNP_ DataItems", nullptr),
+
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region CFG_
-		// DIdNYI(DataItemIds::CFG_),
-		DATA_ITEM(DataItemIds::CFG_Hostname, TDataItemRaw, 1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
+		DATA_ITEM(CFG_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of CFG_ DataItems", nullptr),
+		DATA_ITEM(CFG_Hostname,  TDataItemRaw,               1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region SYS_
-		DATA_ITEM(DataItemIds::SYS_UploadFileName, TSYS_UploadFileName, 1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
-		DATA_ITEM(DataItemIds::SYS_UploadFileData, TSYS_UploadFileData, 1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
+		DATA_ITEM(SYS_UploadFileName, TSYS_UploadFileName,   1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
+		DATA_ITEM(SYS_UploadFileData, TSYS_UploadFileData,   1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region PWM_
-		// DIdNYI(DataItemIds::PWM_),
-		// DIdNYI(DataItemIds::PWM_Configure1),
-		// DIdNYI(DataItemIds::PWM_Input1),
-		// DIdNYI(DataItemIds::PWM_Output1),
+		DATA_ITEM(PWM_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of PWM_ DataItems", nullptr),
+
+		DIdNYI(PWM_Configure1),
+		DIdNYI(PWM_Input1),
+		DIdNYI(PWM_Output1),
 #pragma region TCP_
-		// DIdNYI(DataItemIds::TCP_),
-		DATA_ITEM(DataItemIds::TCP_ConnectionID, TDataItemRaw, 4, 4, 4, "TCP_ConnectionID() → u32", nullptr),
+		DATA_ITEM(TCP_,             TDataItemDoc,            0, 0, 0, "Documentation: list of TCP_ DataItems", nullptr),
+		DATA_ITEM(TCP_ConnectionID, TDataItemRaw,            4, 4, 4, "TCP_ConnectionID() → u32", nullptr),
+#pragma region DOC_
+		DATA_ITEM(DOC_Get,          TDataItemDocGet,         0, 0, 0, "Documentation: list of All top-level DataItem groups", nullptr),
 };
+
+#pragma endregion
+
+
 
 #pragma region TDataItem implementation
 /*	TDataItem
@@ -305,7 +316,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	NOTE:
 		I suspect I need more ABCs: TWriteableData() and TReadOnlyData(), perhaps...
 */
-#pragma region TDataItem Class Methods(static)
+#pragma region TDataItemBase Class Methods(static)
 // NYI - validate the payload of a Data Item based on the Data Item ID
 // e.g, if the Message is equivalent to ADC_SetRangeAll(__u8 ranges[16]) then the Data
 //	  should be 16 bytes, each of which is a valid Range Code
@@ -331,6 +342,12 @@ int TDataItemBase::validateDataItemPayload(DataItemIds DId, const TBytes &bytes)
 		Error("INVALID");
 	}
 	return result;
+}
+
+std::string TDataItemBase::AsStringBase(bool bAsReply) const {
+    auto it = DIdDict.find(DId);
+    std::string desc = (it != DIdDict.end()) ? it->second.desc : "Unknown DId";
+    return desc + " (DId=" + std::to_string(static_cast<__u16>(DId)) + ")";
 }
 
 int TDataItemBase::getDIdIndex(DataItemIds DId)
@@ -423,7 +440,7 @@ PTDataItem TDataItemBase::fromBytes(const TBytes &bytes, TError &result)
 
 	// PTDataItem anItem;
 	TDataItemLength DataSize = head->dataLength; // MessageLength
-	TBytes data;
+	TBytes data{};
 	if (DataSize == 0)
 	{
 	}
@@ -442,7 +459,7 @@ PTDataItem TDataItemBase::fromBytes(const TBytes &bytes, TError &result)
 	//Debug("TDataItem::fromBytes sending to constructor: ", data);
 	// auto item = DIdDict.find(head->DId)->second.Construct(head->DId, data); // TODO: FIX: WARN: FIX: WARN: ASfdafasdfasdfasdfasdfasdfas dfasd fasdf asd fasd fased f
 	auto item = DIdDict.find(head->DId)->second.Construct(head->DId, data); // TODO: FIX: WARN: FIX: WARN: ASfdafasdfasdfasdfasdfasdfas dfasd fasdf asd fasd fased f
-	Debug("Constructed Item as string:" + item->AsString());
+	Log("Constructed Item as string:" + item->AsString(), item->Data);
 	return item;
 }
 
@@ -547,6 +564,96 @@ std::shared_ptr<void> TDataItemBase::getResultValue()
 
 #pragma endregion
 #pragma endregion TDataItem implementation
+
+#pragma region TDataItemDoc
+static inline __u8 GetMSB(DataItemIds id) {
+    return static_cast<__u8>(static_cast<unsigned>(id) >> 8);
+}
+
+TDataItemDoc::TDataItemDoc(DataItemIds DId, const TBytes &data)
+    : TDataItem<DOC_Params>(DId, data)
+{
+    // Ignore incoming payload.
+}
+
+TDataItemDoc::TDataItemDoc(DataItemIds DId)
+    : TDataItem<DOC_Params>(DId, {})
+{
+}
+
+TDataItemBase &TDataItemDoc::Go() {
+    // The group is the MSB of our own DataItemId.
+    __u8 group = GetMSB(this->DId);
+    std::stringstream ss;
+    // Iterate over all entries in the global DIdDict.
+    for (const auto &entry : DIdDict) {
+        DataItemIds id = entry.first;
+        __u8 msb = GetMSB(id);
+        __u8 lsb = static_cast<__u8>(static_cast<unsigned>(id) & 0xFF);
+        // Only include items from the same group (MSB equals) and with LSB != 0.
+        if (msb == group && lsb != 0) {
+            ss << entry.second.desc << "\n";
+        }
+    }
+    std::string payload = ss.str();
+    // Store the assembled string into our Data vector.
+    this->Data.assign(payload.begin(), payload.end());
+    return *this;
+}
+
+TBytes TDataItemDoc::calcPayload(bool /*bAsReply*/) {
+    return this->Data;
+}
+
+std::string TDataItemDoc::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TDataItemDoc(group=0x" << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(GetMSB(this->DId)) << ")";
+    return ss.str();
+}
+
+#pragma endregion
+
+#pragma region TDataItemDocGet
+TDataItemDocGet::TDataItemDocGet(DataItemIds DId, const TBytes &data)
+    : TDataItem<DOC_Get_Params>(DId, data)
+{
+    // No parameters expected.
+}
+
+TDataItemDocGet::TDataItemDocGet(DataItemIds DId)
+    : TDataItem<DOC_Get_Params>(DId, {})
+{
+}
+
+TDataItemBase &TDataItemDocGet::Go() {
+    std::stringstream ss;
+    // Iterate through the global dictionary.
+    for (const auto &entry : DIdDict) {
+        // The low byte of the DataItemId:
+        __u8 lsb = static_cast<__u8>(static_cast<unsigned>(entry.first) & 0xFF);
+        // Only include items where LSB is 0.
+        if (lsb == 0) {
+            ss << entry.second.desc << "\n";
+        }
+    }
+    std::string docPayload = ss.str();
+    // Store the assembled documentation into the Data field.
+    this->Data.assign(docPayload.begin(), docPayload.end());
+    return *this;
+}
+
+TBytes TDataItemDocGet::calcPayload(bool /*bAsReply*/) {
+    return this->Data;
+}
+
+std::string TDataItemDocGet::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TDataItemDocGet(DId=0x" << std::hex << std::setw(4) << std::setfill('0')
+       << static_cast<unsigned>(this->DId) << ")";
+    return ss.str();
+}
+#pragma endregion
 
 #pragma region TDataItemNYI implementation
 // NYI (lol)

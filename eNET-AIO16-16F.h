@@ -15,17 +15,17 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
       or whatever
 */
 
-#define maxSubmuxes 4
-#define gainGroupsPerSubmux 4
+constexpr __u8 maxSubmuxes = 4;
+constexpr __u8 gainGroupsPerSubmux = 4;
 
-#define BAR_REGISTER 1
+constexpr __u8 NUM_DACS = 4;
+constexpr int BAR_REGISTER = 1;
 
 #define FIFO_SIZE 0x800  /* FIFO Almost Full IRQ Threshold value (0 < FAF <= 0xFFF */
 #define SAMPLES_PER_FIFO_ENTRY   2
 #define BYTES_PER_FIFO_ENTRY     (4 * SAMPLES_PER_FIFO_ENTRY)
 #define BYTES_PER_TRANSFER       (FIFO_SIZE * BYTES_PER_FIFO_ENTRY)
 #define SAMPLES_PER_TRANSFER     (FIFO_SIZE * SAMPLES_PER_FIFO_ENTRY)
-//#define AdcBaseClock 10000000
 
 /* Hardware registers */
 #define ofsReset                0x00
@@ -80,7 +80,7 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
     #define bmAdcDataInvalid        (1 << 31)
     #define bmAdcDataChannelMask    (0x7F << 20)
     #define bmAdcDataGainMask       (0xF << 27)
-    #define bmAdcDataMask           (0xFFFF)
+    #define bmAdcDataMask           (0x0000FFFF)
 
 #define ofsAdcFifoIrqThreshold  0x20
 #define ofsAdcFifoCount         0x24
@@ -99,22 +99,20 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
     #define bmDacSpiBusy        (1 << 31)
 #define ofsDacSleep             0x34
 
-#define ofsDioDirections        0x3C
+#define ofsDioDirections        0x3C // DIO Direction control
     #define bmDioInput              (1) // bit 0 is DIO#0, 1 is DIO#1 etc
     #define bmDioOutput             (0)
+#define ofsDioSpiBusy           0x3C
+    #define bmDioSpiBusy        (1 << 31) // SPI busy flag (overlaps with directions)
+
 #define ofsDioOutputs           0x40
 #define ofsDioInputs            0x44
-#define ofsDioSpiBusy           0x3C
-    #define bmDioSpiBusy        (1 << 31)
 
 #define ofsSubMuxSelect         0x9C    // used to override autodetect
     #define bmNoSubMux              0x03
     #define bmAIMUX64M              0x00
     #define bmAIMUX32               0x01
 
-#define ofsFPGARevision         0xA0    // FPGA revision reports as 0xMMMMmmmm where M is major, and m is minor revision
-#define ofsAutodetectPattern    0xA4
-#define ofsDeviceID             0xA8
 
 /* Flash is currently factory-use only and can out-of-warranty brick your unit */
 #define ofsFlashAddress         0x70
@@ -126,12 +124,12 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
 #define ofsDeviceID             0xA8
 
 #define ofsAdcBaseClock         0xAC
-#define ofsAdcCalScale         0xC0
+#define ofsAdcCalScale          0xC0
     #define ofsAdcCalScaleStride    8
-#define ofsAdcCalOffset        0xC4
+#define ofsAdcCalOffset         0xC4
     #define ofsAdcCalOffsetStride   8
 
-#define BAR_DMA 0
+constexpr int BAR_DMA = 0;
 
 #define ofsDmaAddr32            0x0
 #define ofsDmaAddr64            0x4
@@ -142,6 +140,7 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
     #define DmaEnableSctrGthr   0x10
 
 
-int widthFromOffset(int offset);
-#define RING_BUFFER_SLOTS 255
+int widthFromOffset(int offset); // Defined in eNET-AIO16-16F.cpp
+constexpr int RING_BUFFER_SLOTS = 255;
+
 #define DMA_BUFF_SIZE (BYTES_PER_TRANSFER * RING_BUFFER_SLOTS)

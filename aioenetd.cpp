@@ -186,6 +186,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 	Logs should be retrievable via Protocol 2 Messages.
  */
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <chrono>
 #include <fcntl.h>
@@ -193,7 +194,6 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <netinet/in.h>
 #include <signal.h>
 #include <unistd.h>
-#include <algorithm>
 
 #define LOGGING_DISABLE
 
@@ -217,7 +217,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 #define VersionString "0.6.2"
 
 int apci = -1;
-bool done = false;
+volatile sig_atomic_t done = 0;
 bool bTERMINATE = false;
 
 int ControlListenPort = 18767; // 0x494f, ASCII for "IO"
@@ -226,8 +226,6 @@ int AdcListenPort = ControlListenPort + 1;
 pthread_t action_thread;
 pthread_t controlListener_thread;
 pthread_t adcListener_thread;
-pthread_t controlListener6_thread;
-pthread_t adcListener6_thread;
 
 // // Function to serve static files
 // static void serve_static(struct mg_connection *nc, struct mg_http_message *hm) {
@@ -272,7 +270,6 @@ pthread_t adcListener6_thread;
 int main(int argc, char *argv[])
 {
 	Intro(argc, argv);
-	Debug("main: &Config = " + to_hex<std::uintptr_t>(reinterpret_cast<std::uintptr_t>(&Config)));
 
 	InitConfig(Config);
 	try
@@ -287,8 +284,8 @@ int main(int argc, char *argv[])
 	OpenDevFile(); // sets apci
 
 	pthread_create(&action_thread, NULL, (void *(*)(void *)) & ActionThread, &ActionQueue);
-	pthread_create(&controlListener6_thread, NULL, ControlListenerThread, (void *)AF_INET6);
-	pthread_create(&adcListener6_thread, NULL, AdcListenerThread, (void *)AF_INET6);
+	pthread_create(&controlListener_thread, NULL, ControlListenerThread, (void *)AF_INET6);
+	pthread_create(&adcListener_thread, NULL, AdcListenerThread, (void *)AF_INET6);
 
     // struct mg_mgr mgr;
     // struct mg_connection *nc;
@@ -313,28 +310,34 @@ int main(int argc, char *argv[])
 
 	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga and upgrader
 
-	abort_handler(0);
+	exit_handler(0);
 	return 0;
 }
 
-
-
-
 void abort_handler(int s)
 {
-	done = true;
+	done = 1;
+}
+
+void exit_handler(int s)
+{
+	Log("exit process starting");
+	sleep(1);
 	// note __attribute__((unused)) is to silence an incorrect compiler warning
 	std::time_t end_time __attribute__((unused))= std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	pthread_cancel(controlListener_thread);
 	pthread_cancel(adcListener_thread);
 	pthread_cancel(action_thread);
+
+	pthread_join(adcListener_thread, NULL);
+	pthread_join(controlListener_thread, NULL);
+	pthread_join(action_thread, NULL);
 	close(apci);
 	SaveConfig();
 	Log(std::string("AIOeNET Daemon " VersionString " CLOSING, it is now: ") + std::string(std::ctime(&end_time)));
 	/* put the card back in the power-up state */
 	out(ofsReset, bmResetEverything);
-	pthread_join(logger_thread, NULL);
-	exit(s);
+	pthread_join(AdcLogger_thread, NULL);
 }
 
 void Intro(int argc, char **argv)
@@ -397,6 +400,8 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 		perror("setsockopt failed");
 		exit(EXIT_FAILURE);
 	}
+	int yes = 1;
+	setsockopt(Socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
 	if (iNET == AF_INET)
 	{
@@ -454,9 +459,9 @@ void *ControlListenerThread(void *arg)
 	else
 		Bind(ControlSocket, ControlListenPort, &ControlAddr, AF_INET);
 
-	Log("Listen for Control Socket");
+	Trace("Listen for Control Socket");
 	Listen(ControlSocket, 32);
-	for (;;)
+	for (;done == 0;)
 		HandleNewControlClients(ControlSocket, ControlAddrSize, ControlAddr);
 	ControlClients.clear();
 	return nullptr;
@@ -473,21 +478,66 @@ void SendAdcHello(int Socket)
 	}
 	else
 	{
-		Log("sent 'Hello' to new ADC Client# " + to_hex<__u16>(Socket) + ", (ORed with 0x80000000)");
+		Log("sent 'Hello' to new ADC Client# " + to_hex<__u16>(Socket) + ", (ORed with 0x80000000) ["+to_hex<__u32>(HelloAdc)+"]");
 	}
 }
 
-void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage *addr)
+void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage &addr)
 {
 	int new_socket;
-	Log("accept ADC");
-	if ((new_socket = accept(Socket, (struct sockaddr *)addr, (socklen_t *)&addrSize)) < 0)
-	{
-		Error("accept failed");
-		perror("accept failed");
-		exit(EXIT_FAILURE);
+	Trace("accept ADC");
+
+    while (!done)
+    {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(Socket, &readfds);
+
+        // select() needs the highest fd + 1
+        int nfds = Socket + 1;
+
+        // Set a 1-second timeout (adjust to taste)
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        int ret = select(nfds, &readfds, nullptr, nullptr, &tv);
+        if (ret < 0)
+        {
+            if (errno == EINTR)
+            {
+                // Interrupted by signal—check if we should exit
+                if (done) break;
+                continue; // otherwise just keep going
+            }
+            // Some real error
+            perror("select() failed");
+            break;
+        }
+        else if (ret == 0)
+        {
+            // Timeout expired, no sockets ready
+            if (done) break;  // see if we should exit
+            // else just continue polling
+            continue;
+        }
+
+        // If we get here, ret > 0, meaning 'listenSock' is readable
+        // => accept() should not block
+        if (FD_ISSET(Socket, &readfds))
+        {
+            // There's at least one pending connection
+            struct sockaddr_storage addr;
+            socklen_t addrLen = sizeof(addr);
+			if ((new_socket = accept(Socket, (struct sockaddr *)&addr, (socklen_t *)&addrSize)) < 0)
+			{
+				Error("accept failed");
+				perror("accept failed");
+				exit(EXIT_FAILURE);
+			}
+			SendAdcHello(new_socket);
+		}
 	}
-	SendAdcHello(new_socket);
 }
 
 void *AdcListenerThread(void *arg)
@@ -504,8 +554,8 @@ void *AdcListenerThread(void *arg)
 	else
 		Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
 	Listen(AdcSocket, 1);
-	for (;;)
-		HandleNewAdcClients(AdcSocket, AdcAddrSize,  (sockaddr_storage *)&AdcAddr);
+	for (;done == 0;)
+		HandleNewAdcClients(AdcSocket, AdcAddrSize,  AdcAddr);
 	AdcClients.clear();
 	return nullptr;
 }
@@ -522,8 +572,13 @@ void SendControlHello(int Socket)
 	stuff<__u16>(bytes, static_cast<__u16>(DataItemIds::TCP_ConnectionID));
 	stuff<__u16>(bytes, data.size());
 	bytes.insert(bytes.end(), data.begin(), data.end());
+
+
+
 	PTDataItem d2 = TDataItemBase::fromBytes(bytes, result);
 	Payload.push_back(d2);
+	Log("DID[TCP_ConnectionID] = ", d2->AsBytes(true));
+
 
 	//__u32 dacRangeDefault = 0x3031E142;
 	//__u32 dacRangeDefault = 0x35303055;
@@ -574,15 +629,15 @@ void SendControlHello(int Socket)
 	}
 	else
 	{
-		Log("Sent 'Hello' to Control Client# "+to_hex<__u16>(Socket)+":\n		  " + HelloControl.AsString());
+		Log("Sent 'Hello' to Control Client# "+to_hex<__u16>(Socket)+":\n		  " + HelloControl.AsString()+", bytes=",rbuf);
 	}
 }
 
 
 void Disconnect(int aClient)
 {
-    struct sockaddr_storage addr;   // Can hold IPv4 or IPv6
-    socklen_t addrSize = sizeof(addr);
+	struct sockaddr_storage addr; // Can hold IPv4 or IPv6
+	socklen_t addrSize = sizeof(addr);
 
     if (getpeername(aClient, reinterpret_cast<struct sockaddr*>(&addr), &addrSize) == -1)
         Error("getpeername() failed");
@@ -708,21 +763,23 @@ void *threadReceiver(void *arg)
             strncpy(ipStr, "UnknownAF", sizeof(ipStr));
             port = 0;
         }
-		Log("New Control connection thread, socket fd is: " + std::to_string(controlSocket) + " IP: " + ipStr + ", Port " + std::to_string(port));
+		Log("New Control connection thread, socket fd is: " + to_hex<__u16>(controlSocket) + " IP: " + ipStr + ", Port " + std::to_string(port));
 	}
 	SendControlHello(controlSocket);
 
 	std::vector<char> buffer;
 
-	while (!done) {
+	while (done == 0) {
 		ssize_t bytesRead = ReceiveFromSocket(controlSocket, buffer);
 		if (bytesRead < 0) {
 			Error("error on Control recv(): " + std::to_string(errno));
 			break;// error handling? frex "connection closed" or EAGAIN or EINTR?
 		}
 		if (CheckDisconnect(bytesRead, controlSocket))
+		{
 			Disconnect(controlSocket);
-		break;
+			break;
+		}
 
 		try {
 			Debug("control receiver got "+std::to_string(bytesRead)+ " bytes");
@@ -734,25 +791,69 @@ void *threadReceiver(void *arg)
 		}
 	};
 	Log("Closing threadReceiver for connection " + to_hex<__u16>(controlSocket));
+	Disconnect(controlSocket);
 	return nullptr;
 }
 
 void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockaddr_storage &addr)
 {
 	int new_socket;
-	Log("Accept for Control");
-	if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&addr, &addrSize)) < 0)
-	{
-		Error("accept failed");
-		perror("accept failed");
-		exit(EXIT_FAILURE);
+	Trace("Accept for Control");
+
+    while (!done)
+    {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(ControlListenSocket, &readfds);
+
+        // select() needs the highest fd + 1
+        int nfds = ControlListenSocket + 1;
+
+        // Set a 1-second timeout (adjust to taste)
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        int ret = select(nfds, &readfds, nullptr, nullptr, &tv);
+        if (ret < 0)
+        {
+            if (errno == EINTR)
+            {
+                if (done) break;
+                continue; // otherwise just keep going
+            }
+            perror("select() failed");
+            break;
+        }
+        else if (ret == 0)
+        {
+            // Timeout expired, no sockets ready
+            if (done) break;  // see if we should exit
+            // else just continue polling
+            continue;
+        }
+
+        // If we get here, ret > 0, meaning 'listenSock' is readable
+        // => accept() should not block
+        if (FD_ISSET(ControlListenSocket, &readfds))
+        {
+            struct sockaddr_storage addr;
+            socklen_t addrLen = sizeof(addr);
+			if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&addr, &addrSize)) < 0)
+			{
+				Error("accept failed");
+				perror("accept failed");
+				continue;
+			}
+			pthread_t receive_thread;
+			Log("New Control connection, socket fd is: " + to_hex<__u16>(new_socket));
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+			pthread_create(&receive_thread, NULL, &threadReceiver, (void *)new_socket); // spawn Control Read thread here, pass in new_socket
+			pthread_detach(receive_thread);
+		#pragma GCC diagnostic pop
+		}
 	}
-	pthread_t receive_thread;
-	Log("New Control connection, socket fd is: " + to_hex<__u16>(new_socket));
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
-	pthread_create(&receive_thread, NULL, &threadReceiver, (void *)new_socket); // spawn Control Read thread here, pass in new_socket
-#pragma GCC diagnostic pop
 	// ReceiverThreadQueue.enqueue(receive_thread);
 }
 
@@ -797,7 +898,7 @@ void SendResponse(int Client, TMessage &aMessage)
 
 void *ActionThread(TActionQueue *Q)
 {
-	for (;;)
+	for (;done == 0;)
 	{
 		TActionQueueItem *anAction = Q->dequeue();
 		Log("---DEQUEUED---");
@@ -805,6 +906,7 @@ void *ActionThread(TActionQueue *Q)
 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
 		//free(anAction);
 	}
+	return nullptr;
 }
 
 // //------------------- Signal---------------------------

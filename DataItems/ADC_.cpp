@@ -3,6 +3,7 @@
 #include "../logging.h"
 #include "../eNET-AIO16-16F.h"
 #include "../adc.h"
+#include "../config.h"
 
 extern int apci;
 
@@ -40,14 +41,9 @@ TADC_BaseClock &TADC_BaseClock::Go()
 std::string TADC_BaseClock::AsString(bool bAsReply)
 {
     std::stringstream dest;
-    dest << "ADC_BaseClock()";
-    if (bAsReply)
-        dest << " → " << this->params.baseClock;
-    else
-    dest << " ? " << this->params.baseClock;
+    dest << "ADC_BaseClock()" << " ? " << this->params.baseClock;
     return dest.str();
 }
-
 
 // -------------------- TADC_StreamStart --------------------
 
@@ -68,15 +64,6 @@ TADC_StreamStart::TADC_StreamStart(DataItemIds dId, const TBytes &FromBytes)
         }
         Trace("AdcStreamingConnection: " + std::to_string(AdcStreamingConnection));
     }
-}
-
-TBytes TADC_StreamStart::calcPayload(bool bAsReply)
-{
-    TBytes bytes;
-    // stuff() your argConnectionID from params
-    stuff(bytes, this->params.argConnectionID);
-    Trace("TADC_StreamStart::calcPayload built: ", bytes);
-    return bytes;
 }
 
 TADC_StreamStart &TADC_StreamStart::Go()
@@ -102,24 +89,18 @@ TADC_StreamStart &TADC_StreamStart::Go()
     return *this;
 }
 
-std::string TADC_StreamStart::AsString(bool bAsReply)
-{
-    std::string msg = this->getDIdDesc(this->DId);
-    if (bAsReply)
-    {
-        msg += ", ConnectionID = " + to_hex<int>(this->params.argConnectionID);
-    }
-    return msg;
-}
+// std::string TADC_StreamStart::AsString(bool bAsReply)
+// {
+//     std::string msg = this->getDIdDesc(this->DId);
+//     if (bAsReply)
+//     {
+//         msg += ", ConnectionID = " + to_hex<int>(this->params.argConnectionID);
+//     }
+//     return msg;
+// }
 
 
 // -------------------- TADC_StreamStop --------------------
-
-TBytes TADC_StreamStop::calcPayload(bool bAsReply)
-{
-    // No fields to serialize, so return an empty vector
-    return {};
-}
 
 TADC_StreamStop &TADC_StreamStop::Go()
 {
@@ -133,10 +114,469 @@ TADC_StreamStop &TADC_StreamStop::Go()
     return *this;
 }
 
-std::string TADC_StreamStop::AsString(bool bAsReply)
+
+// --------------------------------------------------------------------------
+// TADC_Differential1 Implementation
+// --------------------------------------------------------------------------
+TADC_Differential1::TADC_Differential1(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_Differential1Params>(DId, data)
 {
-    return this->getDIdDesc(this->DId); // for example
+    if(data.size() >= 2) {
+        this->params.channelGroup = data[0];
+        this->params.singleEnded = data[1];
+    }
 }
+TADC_Differential1::TADC_Differential1(DataItemIds DId, __u8 channelGroup, __u8 singleEnded)
+    : TDataItem<ADC_Differential1Params>(DId, {})
+{
+    this->params.channelGroup = channelGroup;
+    this->params.singleEnded = singleEnded;
+}
+TDataItemBase &TADC_Differential1::Go() {
+    // Read current ADC range register for the channel group.
+    __u8 reg = in(ofsAdcRange + this->params.channelGroup);
+    // Bit 3 determines single-ended (1) vs differential (0)
+    if (this->params.singleEnded)
+        reg |= (1 << 3);
+    else
+        reg &= ~(1 << 3);
+    out(ofsAdcRange + this->params.channelGroup, reg);
+    return *this;
+}
+TBytes TADC_Differential1::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    bytes.push_back(this->params.channelGroup);
+    bytes.push_back(this->params.singleEnded);
+    return bytes;
+}
+std::string TADC_Differential1::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_Differential1(channelGroup=" << std::dec << static_cast<int>(this->params.channelGroup)
+       << ", " << (this->params.singleEnded ? "single-ended" : "differential") << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_DifferentialAll Implementation
+// --------------------------------------------------------------------------
+TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_DifferentialAllParams>(DId, data)
+{
+    if(data.size() >= 8) {
+        for (int i = 0; i < 8; i++)
+            this->params.settings[i] = data[i];
+    }
+}
+TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds DId, const __u8 settings[8])
+    : TDataItem<ADC_DifferentialAllParams>(DId, {})
+{
+    for (int i = 0; i < 8; i++)
+        this->params.settings[i] = settings[i];
+}
+TDataItemBase &TADC_DifferentialAll::Go() {
+    for (int grp = 0; grp < 8; grp++) {
+        __u8 reg = in(ofsAdcRange + grp);
+        if (this->params.settings[grp])
+            reg |= (1 << 3);
+        else
+            reg &= ~(1 << 3);
+        out(ofsAdcRange + grp, reg);
+    }
+    return *this;
+}
+TBytes TADC_DifferentialAll::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    for (int i = 0; i < 8; i++)
+        bytes.push_back(this->params.settings[i]);
+    return bytes;
+}
+std::string TADC_DifferentialAll::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_DifferentialAll(settings=[";
+    for (int i = 0; i < 8; i++) {
+        ss << static_cast<int>(this->params.settings[i]);
+        if (i < 7)
+            ss << ", ";
+    }
+    ss << "])";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_Range1 Implementation
+// --------------------------------------------------------------------------
+TADC_Range1::TADC_Range1(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_Range1Params>(DId, data)
+{
+    if(data.size() >= 2) {
+        this->params.channelGroup = data[0];
+        this->params.range = data[1];
+    }
+}
+TADC_Range1::TADC_Range1(DataItemIds DId, __u8 channelGroup, __u8 range)
+    : TDataItem<ADC_Range1Params>(DId, {})
+{
+    this->params.channelGroup = channelGroup;
+    this->params.range = range;
+}
+TDataItemBase &TADC_Range1::Go() {
+    out(ofsAdcRange + this->params.channelGroup, this->params.range);
+    return *this;
+}
+TBytes TADC_Range1::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    bytes.push_back(this->params.channelGroup);
+    bytes.push_back(this->params.range);
+    return bytes;
+}
+std::string TADC_Range1::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_Range1(channelGroup=" << std::dec << static_cast<int>(this->params.channelGroup)
+       << ", range=0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(this->params.range) << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_RangeAll Implementation
+// --------------------------------------------------------------------------
+TADC_RangeAll::TADC_RangeAll(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_RangeAllParams>(DId, data)
+{
+    if(data.size() >= 8) {
+        for (int i = 0; i < 8; i++)
+            this->params.ranges[i] = data[i];
+    }
+}
+TADC_RangeAll::TADC_RangeAll(DataItemIds DId, const __u8 ranges[8])
+    : TDataItem<ADC_RangeAllParams>(DId, {})
+{
+    for (int i = 0; i < 8; i++)
+        this->params.ranges[i] = ranges[i];
+}
+TDataItemBase &TADC_RangeAll::Go() {
+    for (int grp = 0; grp < 8; grp++) {
+        out(ofsAdcRange + grp, this->params.ranges[grp]);
+    }
+    return *this;
+}
+TBytes TADC_RangeAll::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    for (int i = 0; i < 8; i++)
+        bytes.push_back(this->params.ranges[i]);
+    return bytes;
+}
+std::string TADC_RangeAll::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_RangeAll(ranges=[";
+    for (int i = 0; i < 8; i++) {
+        ss << "0x" << std::hex << static_cast<int>(this->params.ranges[i]);
+        if(i < 7)
+            ss << ", ";
+    }
+    ss << "])";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_Span1 Implementation (Scale calibration for one range)
+// --------------------------------------------------------------------------
+TADC_Scale1::TADC_Scale1(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_Span1Params>(DId, data)
+{
+    if(data.size() >= 5) {
+        this->params.rangeIndex = data[0];
+        // Next 4 bytes: float scale
+        this->params.scale = *(reinterpret_cast<const float*>(&data[1]));
+    }
+}
+TADC_Scale1::TADC_Scale1(DataItemIds DId, __u8 rangeIndex, float scale)
+    : TDataItem<ADC_Span1Params>(DId, {})
+{
+    this->params.rangeIndex = rangeIndex;
+    this->params.scale = scale;
+}
+TDataItemBase &TADC_Scale1::Go() {
+    // Write the scale to the appropriate calibration register.
+    int addr = ofsAdcCalScale + (this->params.rangeIndex * ofsAdcCalScaleStride);
+    out(addr, *reinterpret_cast<__u32*>(&this->params.scale));
+    // Update global configuration.
+    Config.adcScaleCoefficients[this->params.rangeIndex] = this->params.scale;
+    return *this;
+}
+TBytes TADC_Scale1::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    bytes.push_back(this->params.rangeIndex);
+    const __u8* p = reinterpret_cast<const __u8*>(&this->params.scale);
+    for (size_t i = 0; i < sizeof(float); i++)
+        bytes.push_back(p[i]);
+    return bytes;
+}
+std::string TADC_Scale1::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_Scale1(rangeIndex=" << std::dec << static_cast<int>(this->params.rangeIndex)
+       << ", scale=" << this->params.scale << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_ScaleAll Implementation
+// --------------------------------------------------------------------------
+TADC_ScaleAll::TADC_ScaleAll(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_SpanAllParams>(DId, data)
+{
+    if(data.size() >= 8 * sizeof(float)) {
+        for (int i = 0; i < 8; i++) {
+            this->params.scales[i] = *(reinterpret_cast<const float*>(&data[i*sizeof(float)]));
+        }
+    }
+}
+TADC_ScaleAll::TADC_ScaleAll(DataItemIds DId, const float scales[8])
+    : TDataItem<ADC_SpanAllParams>(DId, {})
+{
+    for (int i = 0; i < 8; i++)
+        this->params.scales[i] = scales[i];
+}
+TDataItemBase &TADC_ScaleAll::Go() {
+    for (int i = 0; i < 8; i++) {
+        int addr = ofsAdcCalScale + (i * ofsAdcCalScaleStride);
+        out(addr, *reinterpret_cast<__u32*>(&this->params.scales[i]));
+        Config.adcScaleCoefficients[i] = this->params.scales[i];
+    }
+    return *this;
+}
+TBytes TADC_ScaleAll::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    for (int i = 0; i < 8; i++) {
+        const __u8* p = reinterpret_cast<const __u8*>(&this->params.scales[i]);
+        for (size_t j = 0; j < sizeof(float); j++)
+            bytes.push_back(p[j]);
+    }
+    return bytes;
+}
+std::string TADC_ScaleAll::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_ScaleAll(scales=[";
+    for (int i = 0; i < 8; i++) {
+        ss << this->params.scales[i];
+        if(i < 7)
+            ss << ", ";
+    }
+    ss << "])";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_Offset1 Implementation (Offset calibration for one range)
+// --------------------------------------------------------------------------
+TADC_Offset1::TADC_Offset1(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_Offset1Params>(DId, data)
+{
+    if(data.size() >= 5) {
+        this->params.rangeIndex = data[0];
+        this->params.offset = *(reinterpret_cast<const float*>(&data[1]));
+    }
+}
+TADC_Offset1::TADC_Offset1(DataItemIds DId, __u8 rangeIndex, float offset)
+    : TDataItem<ADC_Offset1Params>(DId, {})
+{
+    this->params.rangeIndex = rangeIndex;
+    this->params.offset = offset;
+}
+TDataItemBase &TADC_Offset1::Go() {
+    int addr = ofsAdcCalOffset + (this->params.rangeIndex * ofsAdcCalOffsetStride);
+    out(addr, *reinterpret_cast<__u32*>(&this->params.offset));
+    Config.adcOffsetCoefficients[this->params.rangeIndex] = this->params.offset;
+    return *this;
+}
+TBytes TADC_Offset1::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    bytes.push_back(this->params.rangeIndex);
+    const __u8* p = reinterpret_cast<const __u8*>(&this->params.offset);
+    for(size_t i=0; i < sizeof(float); i++)
+        bytes.push_back(p[i]);
+    return bytes;
+}
+std::string TADC_Offset1::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_Offset1(rangeIndex=" << std::dec << static_cast<int>(this->params.rangeIndex)
+       << ", offset=" << this->params.offset << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_OffsetAll Implementation
+// --------------------------------------------------------------------------
+TADC_OffsetAll::TADC_OffsetAll(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_OffsetAllParams>(DId, data)
+{
+    if(data.size() >= 8 * sizeof(float)) {
+        for(int i=0; i<8; i++) {
+            this->params.offsets[i] = *(reinterpret_cast<const float*>(&data[i*sizeof(float)]));
+        }
+    }
+}
+TADC_OffsetAll::TADC_OffsetAll(DataItemIds DId, const float offsets[8])
+    : TDataItem<ADC_OffsetAllParams>(DId, {})
+{
+    for(int i=0; i<8; i++)
+        this->params.offsets[i] = offsets[i];
+}
+TDataItemBase &TADC_OffsetAll::Go() {
+    for(int i=0; i<8; i++){
+        int addr = ofsAdcCalOffset + (i * ofsAdcCalOffsetStride);
+        out(addr, *reinterpret_cast<__u32*>(&this->params.offsets[i]));
+        Config.adcOffsetCoefficients[i] = this->params.offsets[i];
+    }
+    return *this;
+}
+TBytes TADC_OffsetAll::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    for(int i=0; i<8; i++){
+        const __u8* p = reinterpret_cast<const __u8*>(&this->params.offsets[i]);
+        for(size_t j=0; j<sizeof(float); j++)
+            bytes.push_back(p[j]);
+    }
+    return bytes;
+}
+std::string TADC_OffsetAll::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_OffsetAll(offsets=[";
+    for(int i=0; i<8; i++){
+        ss << this->params.offsets[i];
+        if(i < 7)
+            ss << ", ";
+    }
+    ss << "])";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_Calibration1 Implementation (both scale and offset for one range)
+// --------------------------------------------------------------------------
+TADC_Calibration1::TADC_Calibration1(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_Calibration1Params>(DId, data)
+{
+    if(data.size() >= 9) {
+        this->params.rangeIndex = data[0];
+        this->params.scale  = *(reinterpret_cast<const float*>(&data[1]));
+        this->params.offset = *(reinterpret_cast<const float*>(&data[5]));
+    }
+}
+TADC_Calibration1::TADC_Calibration1(DataItemIds DId, __u8 rangeIndex, float scale, float offset)
+    : TDataItem<ADC_Calibration1Params>(DId, {})
+{
+    this->params.rangeIndex = rangeIndex;
+    this->params.scale = scale;
+    this->params.offset = offset;
+}
+TDataItemBase &TADC_Calibration1::Go() {
+    int addrScale = ofsAdcCalScale + (this->params.rangeIndex * ofsAdcCalScaleStride);
+    int addrOffset = ofsAdcCalOffset + (this->params.rangeIndex * ofsAdcCalOffsetStride);
+    out(addrScale, *reinterpret_cast<__u32*>(&this->params.scale));
+    out(addrOffset, *reinterpret_cast<__u32*>(&this->params.offset));
+    Config.adcScaleCoefficients[this->params.rangeIndex] = this->params.scale;
+    Config.adcOffsetCoefficients[this->params.rangeIndex] = this->params.offset;
+    return *this;
+}
+TBytes TADC_Calibration1::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    bytes.push_back(this->params.rangeIndex);
+    const __u8* pScale = reinterpret_cast<const __u8*>(&this->params.scale);
+    for(size_t i=0; i<sizeof(float); i++)
+        bytes.push_back(pScale[i]);
+    const __u8* pOffset = reinterpret_cast<const __u8*>(&this->params.offset);
+    for(size_t i=0; i<sizeof(float); i++)
+        bytes.push_back(pOffset[i]);
+    return bytes;
+}
+std::string TADC_Calibration1::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TADC_Calibration1(rangeIndex=" << std::dec << static_cast<int>(this->params.rangeIndex)
+       << ", scale=" << this->params.scale
+       << ", offset=" << this->params.offset << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TADC_CalibrationAll Implementation
+// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// TADC_CalibrationAll Constructor (from interleaved TBytes)
+// --------------------------------------------------------------------------
+TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds DId, const TBytes &data)
+    : TDataItem<ADC_CalibrationAllParams>(DId, data)
+{
+    // Expect interleaved scale/offset pairs: 16 floats = 16 * sizeof(float) bytes.
+    if (data.size() >= 16 * sizeof(float)) {
+        const __u8* base = data.data();
+        for (int i = 0; i < 8; i++) {
+            // Scale is at even index.
+            this->params.scales[i] = *(reinterpret_cast<const float*>(base + (2 * i) * sizeof(float)));
+            // Offset is at odd index.
+            this->params.offsets[i] = *(reinterpret_cast<const float*>(base + (2 * i + 1) * sizeof(float)));
+        }
+    }
+}
+
+TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds DId, const float scales[8], const float offsets[8])
+    : TDataItem<ADC_CalibrationAllParams>(DId, {})
+{
+    for (int i = 0; i < 8; i++) {
+        this->params.scales[i] = scales[i];
+        this->params.offsets[i] = offsets[i];
+    }
+}
+
+// --------------------------------------------------------------------------
+// Go(): Write calibration values for all 8 ranges
+// --------------------------------------------------------------------------
+TDataItemBase &TADC_CalibrationAll::Go() {
+    for (int i = 0; i < 8; i++) {
+        int addrScale = ofsAdcCalScale + (i * ofsAdcCalScaleStride);
+        int addrOffset = ofsAdcCalOffset + (i * ofsAdcCalOffsetStride);
+        out(addrScale, *reinterpret_cast<__u32*>(&this->params.scales[i]));
+        out(addrOffset, *reinterpret_cast<__u32*>(&this->params.offsets[i]));
+        Config.adcScaleCoefficients[i] = this->params.scales[i];
+        Config.adcOffsetCoefficients[i] = this->params.offsets[i];
+    }
+    return *this;
+}
+
+// --------------------------------------------------------------------------
+// calcPayload(): Return the interleaved scale/offset pairs as bytes
+// --------------------------------------------------------------------------
+TBytes TADC_CalibrationAll::calcPayload(bool bAsReply) {
+    TBytes bytes;
+    for (int i = 0; i < 8; i++) {
+        const __u8* pScale = reinterpret_cast<const __u8*>(&this->params.scales[i]);
+        for (size_t j = 0; j < sizeof(float); j++) {
+            bytes.push_back(pScale[j]);
+        }
+        const __u8* pOffset = reinterpret_cast<const __u8*>(&this->params.offsets[i]);
+        for (size_t j = 0; j < sizeof(float); j++) {
+            bytes.push_back(pOffset[j]);
+        }
+    }
+    return bytes;
+}
+
+// --------------------------------------------------------------------------
+// AsString(): Provide an explicit string representation per range
+// --------------------------------------------------------------------------
+std::string TADC_CalibrationAll::AsString(bool bAsReply) {
+    std::stringstream ss;
+    ss << "TADC_CalibrationAll(";
+    for (int i = 0; i < 8; i++) {
+        ss << "range " << i << ": scale=" << this->params.scales[i]
+           << ", offset=" << this->params.offsets[i];
+        if (i < 7)
+            ss << "; ";
+    }
+    ss << ")";
+    return ss.str();
+}
+
 
 
 // #include "ADC_.h"

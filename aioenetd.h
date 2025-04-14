@@ -35,9 +35,10 @@ using TActionQueue = SafeQueue<TActionQueueItem *>;
 TActionQueue ActionQueue; // NOTE: This instantiates, but this is a header file! bad bad should be extern, no?
 
 void OpenDevFile();
+void exit_handler(int s);
 void abort_handler(int s);
 void Intro(int argc, char **argv);
-void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_in &addr);
+void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_storage &addr);
 void HandleNewControlClients(int Socket, socklen_t addrSize, struct sockaddr_storage &addr );
 void *ActionThread(TActionQueue *Q);
 void *ControlListenerThread(void *arg);

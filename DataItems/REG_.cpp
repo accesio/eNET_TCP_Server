@@ -310,3 +310,248 @@ TBytes TREG_Write1::calcPayload(bool bAsReply)
     }
     return bytes;
 }
+
+
+TREG_ReadBit::TREG_ReadBit(DataItemIds DId, const TBytes &data)
+    : TDataItem<REG_ReadBitParams>(DId, data)
+{
+    // Expect at least 2 bytes: offset and bitIndex.
+    if(data.size() >= 2) {
+        this->params.offset = data[0];
+        this->params.bitIndex = data[1];
+    }
+}
+
+TREG_ReadBit::TREG_ReadBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_ReadBitParams>(DId, {})
+{
+    this->params.offset = offset;
+    this->params.bitIndex = bitIndex;
+}
+
+TDataItemBase &TREG_ReadBit::Go() {
+    // Read the full register value.
+    __u32 regValue = in(this->params.offset);
+    // Extract the desired bit.
+    this->params.bitValue = (regValue >> this->params.bitIndex) & 1;
+    return *this;
+}
+
+TBytes TREG_ReadBit::calcPayload(bool bAsReply) {
+    TBytes bytes;
+    // Always include offset and bitIndex.
+    bytes.push_back(this->params.offset);
+    bytes.push_back(this->params.bitIndex);
+    if (bAsReply) {
+        // Append the result bit.
+        bytes.push_back(this->params.bitValue);
+    }
+    return bytes;
+}
+
+std::string TREG_ReadBit::AsString(bool bAsReply) {
+    std::stringstream ss;
+    ss << "TREG_ReadBit(offset=0x" << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(this->params.offset) << ", bitIndex=" << std::dec
+       << static_cast<int>(this->params.bitIndex);
+    if(bAsReply) {
+        ss << ", value=" << static_cast<int>(this->params.bitValue);
+    }
+    ss << ")";
+    return ss.str();
+}
+
+std::shared_ptr<void> TREG_ReadBit::getResultValue() {
+    // Return the single bit result as __u8.
+    return std::make_shared<__u8>(this->params.bitValue);
+}
+
+// --------------------------------------------------------------------------
+// TREG_WriteBit Implementation
+// --------------------------------------------------------------------------
+
+TREG_WriteBit::TREG_WriteBit(DataItemIds DId, const TBytes &data)
+    : TDataItem<REG_WriteBitParams>(DId, data)
+{
+    // Expect at least 3 bytes: offset, bitIndex, value.
+    if(data.size() >= 3) {
+        this->params.offset = data[0];
+        this->params.bitIndex = data[1];
+        this->params.value = data[2];
+    }
+}
+
+TREG_WriteBit::TREG_WriteBit(DataItemIds DId, __u8 offset, __u8 bitIndex, __u8 value)
+    : TDataItem<REG_WriteBitParams>(DId, {})
+{
+    this->params.offset = offset;
+    this->params.bitIndex = bitIndex;
+    this->params.value = value;
+}
+
+TDataItemBase &TREG_WriteBit::Go() {
+    __u32 regValue = in(this->params.offset);
+    // Clear the target bit.
+    regValue &= ~(1 << this->params.bitIndex);
+    // Set the bit if value is 1.
+    if(this->params.value) {
+        regValue |= (1 << this->params.bitIndex);
+    }
+    out(this->params.offset, regValue);
+    return *this;
+}
+
+TBytes TREG_WriteBit::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    // Serialize the command: offset, bitIndex, value.
+    bytes.push_back(this->params.offset);
+    bytes.push_back(this->params.bitIndex);
+    bytes.push_back(this->params.value);
+    return bytes;
+}
+
+std::string TREG_WriteBit::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TREG_WriteBit(offset=0x" << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(this->params.offset)
+       << ", bitIndex=" << std::dec << static_cast<int>(this->params.bitIndex)
+       << ", value=" << static_cast<int>(this->params.value) << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TREG_ClearBit Implementation
+// --------------------------------------------------------------------------
+
+TREG_ClearBit::TREG_ClearBit(DataItemIds DId, const TBytes &data)
+    : TDataItem<REG_ClearBitParams>(DId, data)
+{
+    // Expect at least 2 bytes: offset and bitIndex.
+    if(data.size() >= 2) {
+        this->params.offset = data[0];
+        this->params.bitIndex = data[1];
+    }
+}
+
+TREG_ClearBit::TREG_ClearBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_ClearBitParams>(DId, {})
+{
+    this->params.offset = offset;
+    this->params.bitIndex = bitIndex;
+}
+
+TDataItemBase &TREG_ClearBit::Go() {
+    // Read the full register value.
+    __u32 regValue = in(this->params.offset);
+    // Clear the target bit.
+    regValue &= ~(1 << this->params.bitIndex);
+    // Write the updated value back.
+    out(this->params.offset, regValue);
+    return *this;
+}
+
+TBytes TREG_ClearBit::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    // Serialize the command: offset and bitIndex.
+    bytes.push_back(this->params.offset);
+    bytes.push_back(this->params.bitIndex);
+    return bytes;
+}
+
+std::string TREG_ClearBit::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TREG_ClearBit(offset=0x" << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(this->params.offset)
+       << ", bitIndex=" << std::dec << static_cast<int>(this->params.bitIndex) << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TREG_SetBit Implementation
+// --------------------------------------------------------------------------
+
+TREG_SetBit::TREG_SetBit(DataItemIds DId, const TBytes &data)
+    : TDataItem<REG_SetBitParams>(DId, data)
+{
+    // Expect at least 2 bytes: offset and bitIndex.
+    if(data.size() >= 2) {
+        this->params.offset = data[0];
+        this->params.bitIndex = data[1];
+    }
+}
+
+TREG_SetBit::TREG_SetBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_SetBitParams>(DId, {})
+{
+    this->params.offset = offset;
+    this->params.bitIndex = bitIndex;
+}
+
+TDataItemBase &TREG_SetBit::Go() {
+    __u32 regValue = in(this->params.offset);
+    // Set the target bit.
+    regValue |= (1 << this->params.bitIndex);
+    out(this->params.offset, regValue);
+    return *this;
+}
+
+TBytes TREG_SetBit::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    // Serialize the command: offset and bitIndex.
+    bytes.push_back(this->params.offset);
+    bytes.push_back(this->params.bitIndex);
+    return bytes;
+}
+
+std::string TREG_SetBit::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TREG_SetBit(offset=0x" << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(this->params.offset)
+       << ", bitIndex=" << std::dec << static_cast<int>(this->params.bitIndex) << ")";
+    return ss.str();
+}
+
+// --------------------------------------------------------------------------
+// TREG_ToggleBit Implementation
+// --------------------------------------------------------------------------
+
+TREG_ToggleBit::TREG_ToggleBit(DataItemIds DId, const TBytes &data)
+    : TDataItem<REG_ToggleBitParams>(DId, data)
+{
+    // Expect at least 2 bytes: offset and bitIndex.
+    if(data.size() >= 2) {
+        this->params.offset = data[0];
+        this->params.bitIndex = data[1];
+    }
+}
+
+TREG_ToggleBit::TREG_ToggleBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_ToggleBitParams>(DId, {})
+{
+    this->params.offset = offset;
+    this->params.bitIndex = bitIndex;
+}
+
+TDataItemBase &TREG_ToggleBit::Go() {
+    __u32 regValue = in(this->params.offset);
+    // Toggle the designated bit.
+    regValue ^= (1 << this->params.bitIndex);
+    out(this->params.offset, regValue);
+    return *this;
+}
+
+TBytes TREG_ToggleBit::calcPayload(bool /*bAsReply*/) {
+    TBytes bytes;
+    // Serialize offset and bitIndex.
+    bytes.push_back(this->params.offset);
+    bytes.push_back(this->params.bitIndex);
+    return bytes;
+}
+
+std::string TREG_ToggleBit::AsString(bool /*bAsReply*/) {
+    std::stringstream ss;
+    ss << "TREG_ToggleBit(offset=0x" << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(this->params.offset)
+       << ", bitIndex=" << std::dec << static_cast<int>(this->params.bitIndex) << ")";
+    return ss.str();
+}
