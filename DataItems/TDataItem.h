@@ -62,9 +62,19 @@ enum class DataItemIds : TDataId
 	//         return human-readable text of all TLA_ category DIds and what they do & why
 	BRD_ = 0x0000, // Query Only.
 	BRD_Reset = 0x0001,
-	BRD_DeviceID,
-	BRD_Features,
-	BRD_FpgaID,
+	BRD_DeviceID = 0x0002,
+	BRD_Features = 0x0003,
+	BRD_FpgaID = 0x0004,
+	BRD_Model = 0x0008,
+	BRD_GetModel = 0x0009,
+	BRD_SerialNumber = 0x10,
+	BRD_GetSerialNumber = 0x11,
+	BRD_NumberOfSubmuxes = 0x21,
+	BRD_SubmuxScale = 0x23,
+	BRD_SubmuxOffset = 0x24,
+	BRD_GetNumberOfSubmuxes = 0x31,
+	BRD_GetSubmuxScale = 0x33,
+	BRD_GetSubmuxOffset = 0x34,
 	BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC, // TBD, long list
 	BRD_REBOOT = 0xFF,
 
@@ -176,7 +186,7 @@ enum class DataItemIds : TDataId
 	TCP_ConnectionID = 0x7001,
 	PNP_,		   // distinct from BRD_?
 	CFG_ = 0x9000, // "Other" Configuration stuff; Linux, IIoT protocol selection, etc?
-	CFG_Hostname,
+	CFG_Hostname = 0x9001,
 	SYS_UploadFileName = 0xEF01,
 	SYS_UploadFileData = 0xEF02,
 	DOC_Get = 0xFFFF,
@@ -191,7 +201,7 @@ int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
 int widthFromOffset(int ofs);
 
 #pragma region TDataItemBase
-
+struct GenericParams {};
 using PTDataItemBase = std::shared_ptr<class TDataItemBase>;
 class TDataItemBase
 {

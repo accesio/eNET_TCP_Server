@@ -43,12 +43,13 @@ using TConfig = struct TConfigStruct {
 	std::string Model;
 	std::string Description;
 	std::string SerialNumber;
-	__u32 FpgaVersionCode;
-	__u8 numberOfSubmuxes;
+	__u32 FpgaVersionCode; 							// read off the hardware
+	__u8 features; 									// read off the hardware
+	__u8 numberOfSubmuxes;							// set by TBRD_NumberOfSubmuxes
 	std::string submuxBarcodes[maxSubmuxes];
 	std::string submuxTypes[maxSubmuxes];
-	float submuxScaleFactors[maxSubmuxes][gainGroupsPerSubmux];
-	float submuxOffsets[maxSubmuxes][gainGroupsPerSubmux];
+	float submuxScaleFactors[maxSubmuxes][gainGroupsPerSubmux]; // set by TBRD_SubmuxScale
+	float submuxOffsets[maxSubmuxes][gainGroupsPerSubmux];      // set by TBRD_SubmuxOffset
 	__u8 adcDifferential; // bit map bit0=adcCh0, set == differential // J2H: TODO: may want to invert this; may want 16 of them, may want 128 of them, may want 16+128 of them
 	__u32 adcRangeCodes[16];
 	float adcScaleCoefficients[8];
@@ -63,6 +64,7 @@ extern TConfig Config;
 
 void InitConfig(TConfig &config);
 
+void LoadBrdConfig(std::string which = CONFIG_CURRENT);
 void LoadSubmuxConfig(std::string which = CONFIG_CURRENT);
 void LoadAdcConfig(std::string which = CONFIG_CURRENT);
 void LoadDacConfig(std::string which = CONFIG_CURRENT);
@@ -71,6 +73,7 @@ void LoadDacCalConfig(std::string which = CONFIG_CURRENT);
 void LoadCalConfig(std::string which = CONFIG_CURRENT);
 void LoadConfig(std::string which = CONFIG_CURRENT);
 
+bool SaveBrdConfig(std::string which = CONFIG_CURRENT);
 bool SaveDacCalConfig(std::string which = CONFIG_CURRENT);
 bool SaveAdcCalConfig(std::string which = CONFIG_CURRENT);
 bool SaveCalConfig(std::string which = CONFIG_CURRENT);

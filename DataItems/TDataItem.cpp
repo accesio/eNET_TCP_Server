@@ -38,7 +38,7 @@ extern bool done;
 #define DATA_ITEM(...) DATA_ITEM_GET_MACRO(__VA_ARGS__, DATA_ITEM_IMPL_2, DATA_ITEM_IMPL_1)(__VA_ARGS__)
 
 #pragma region TDataItemRaw
-struct GenericParams {};
+
 // stores raw bytes as parameters instead of struct-style
 class TDataItemRaw : public TDataItem<GenericParams> {
 public:
@@ -66,11 +66,22 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(INVALID, TDataItemRaw, 0, 0, 0, "Invalid DId -1", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #pragma region BRD_
-		DATA_ITEM(BRD_,         TDataItemDoc,  0, 0, 0,   "Documentation: list of BRD_ DataItems", nullptr),
-		DATA_ITEM(BRD_Reset,    TDataItemRaw,  0, 0, 0,   "BRD_Reset()", nullptr),
-		DATA_ITEM(BRD_DeviceID, TBRD_DeviceID, 0, 0, 0,   "BRD_DeviceID() → u32", nullptr),
-		DATA_ITEM(BRD_Features, TBRD_Features, 0, 4, 255, "BRD_Features() → u8"),
-		DATA_ITEM(BRD_FpgaID,   TBRD_FpgaId,   0, 4, 255, "BRD_FpgaID() → u32"),
+		DATA_ITEM(BRD_,					TDataItemDoc,			0, 0, 0,   "Documentation: list of BRD_ DataItems", nullptr),
+		DATA_ITEM(BRD_Reset,			TDataItemRaw,			0, 0, 0,   "BRD_Reset()", nullptr),
+		DATA_ITEM(BRD_DeviceID,			TBRD_DeviceID,			0, 0, 0,   "BRD_DeviceID() → u32", nullptr),
+		DATA_ITEM(BRD_Features,			TBRD_Features,			0, 4, 4,   "BRD_Features() → u8"),
+		DATA_ITEM(BRD_FpgaID,			TBRD_FpgaId,			0, 4, 4,   "BRD_FpgaID() → u32"),
+		DATA_ITEM(BRD_Model,            TBRD_Model,             12, 40, 40,"BRD_Model(ASCII)", nullptr),
+		DATA_ITEM(BRD_GetModel,         TBRD_GetModel,          0, 0, 0,   "BRD_GetModel() → ASCII", nullptr),
+		DATA_ITEM(BRD_SerialNumber,     TBRD_SerialNumber,      12, 12, 14,"BRD_SetSerialNumber(ASCII SN)", nullptr),
+		DATA_ITEM(BRD_GetSerialNumber,  TBRD_GetSerialNumber,   0, 0, 0,   "BRD_GetSerialNumber() → ASCII", nullptr),
+		DATA_ITEM(BRD_NumberOfSubmuxes,	TBRD_NumberOfSubmuxes,	1, 1, 1,   "BRD_NumberOfSubmuxes(u8 count)", nullptr),
+		DATA_ITEM(BRD_SubmuxScale,		TBRD_SubmuxScale,		6, 6, 6,   "BRD_SubmuxScale(u8 submuxIndex, u8 gainGroupIndex, f32 Scale)", nullptr),
+		DATA_ITEM(BRD_SubmuxOffset,		TBRD_SubmuxOffset,		6, 6, 6,   "BRD_SubmuxOffset(u8 submuxIndex, u8 gainGroupIndex, f32 Offset)", nullptr),
+		DATA_ITEM(BRD_GetNumberOfSubmuxes, TBRD_GetNumberOfSubmuxes, 0, 0, 0, "BRD_GetNumberOfSubmuxes() → [u8]", nullptr),
+		DATA_ITEM(BRD_GetSubmuxScale,   TBRD_GetSubmuxScale,    2, 2, 2,   "BRD_GetSubmuxScale(u8 submuxIndex, u8 gainGroupIndex) → [float]", nullptr),
+		DATA_ITEM(BRD_GetSubmuxOffset,  TBRD_GetSubmuxOffset,   2, 2, 2,   "BRD_GetSubmuxOffset(u8 submuxIndex, u8 gainGroupIndex) → [float]", nullptr),
+
 		DATA_ITEM(BRD_REBOOT,   TDataItemRaw,  8, 8, 8,   "BRD_REBOOT(double)",
 				  static_cast<std::function<void(void *)>>([](void *args)
 					{

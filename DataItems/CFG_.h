@@ -22,8 +22,6 @@ public:
 };
 
 
-
-
 struct ConfigFieldParams {
     // If you want to store additional data, you can add fields here.
 };
@@ -67,13 +65,11 @@ public:
     virtual TConfigField &Go() override
     {
         LOG_IT;
-        // If your old code used this->getDId(), now use this->DId
         auto item = DIdDict.find(this->DId);
         if (item != DIdDict.end())
         {
             Trace(item->second.desc);
             Trace("this->rawBytes = ", this->rawBytes);
-            // item->second.go expects a pointer to the data
             item->second.go(this->rawBytes.data());
         }
         else

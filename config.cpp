@@ -122,7 +122,7 @@ int WriteConfigString(std::string key, std::string value, std::string which ){
 	// ConfigWrite(file, key, value);
 	//std::string filename = CONFIG_PATH + file + "/" + key + ".conf";
 	ssize_t bytesRead = -1;
-	auto f = open(filename.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC | O_SYNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+	auto f = open(filename.c_str(), O_WRONLY | O_CREAT| O_TRUNC | O_CLOEXEC | O_SYNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 	if (f < 0)
 	{
 		bytesRead = errno;
@@ -287,6 +287,14 @@ void LoadSubmuxConfig(std::string which)
 	HandleError(ReadConfigFloat("BRD_Submux3Offset3", Config.submuxOffsets[3][3], which));
 }
 
+// reads some BRD_ data from config files
+void LoadBrdConfig(std::string which)
+{
+	HandleError(ReadConfigString("BRD_Model", Config.Model, which));
+	HandleError(ReadConfigString("BRD_Description", Config.Description, which));
+	HandleError(ReadConfigString("BRD_SerialNumber", Config.SerialNumber, which));
+}
+
 // Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure
 void LoadConfig(std::string which)
 {
@@ -298,10 +306,7 @@ void LoadConfig(std::string which)
 		Debug("Hostname == " + Config.Hostname);
 	}
 
-	HandleError(ReadConfigString("BRD_Model", Config.Model, which));
-	HandleError(ReadConfigString("BRD_Description", Config.Description, which));
-	HandleError(ReadConfigString("BRD_SerialNumber", Config.SerialNumber, which));
-
+	LoadBrdConfig(which);
 	LoadCalConfig(which);
 	LoadDacConfig(which);
 	LoadAdcConfig(which);
@@ -438,14 +443,20 @@ bool SaveSubmuxConfig(std::string which)
 	return true;
 }
 
+bool SaveBrdConfig(std::string which)
+{
+	HandleError(WriteConfigString("BRD_Description", Config.Description, which));
+	HandleError(WriteConfigString("BRD_Model", Config.Model, which));
+	HandleError(WriteConfigString("BRD_SerialNumber", Config.SerialNumber, which));
+	return true;
+}
+
 // saves the active configuration into current.config or which
 bool SaveConfig(std::string which)
 {
 	Debug("SaveConfig writing Config struct to config files " + which);
-	HandleError(WriteConfigString("BRD_Description", Config.Description, which));
-	HandleError(WriteConfigString("BRD_Model", Config.Model, which));
-	HandleError(WriteConfigString("BRD_SerialNumber", Config.SerialNumber, which));
 
+	SaveBrdConfig(which);
 	SaveCalConfig(which);
 	SaveDacConfig(which);
 	SaveAdcConfig(which);

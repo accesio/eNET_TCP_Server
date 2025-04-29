@@ -1,4 +1,5 @@
 #include "BRD_.h"
+#include "../config.h"
 #include "../utilities.h"   // For stuff<>, etc.
 
 // =================== TReadOnlyConfig<T> ===================
@@ -200,6 +201,7 @@ TBRD_Features &TBRD_Features::Go()
     this->params.config = static_cast<__u8>(in(this->params.offset));
     Log("Offset = " + to_hex<__u8>(this->params.offset)
         + " > " + to_hex<__u8>(this->params.config));
+    Config.features = this->params.config;
     return *this;
 }
 
@@ -210,4 +212,240 @@ TBytes TBRD_Features::calcPayload(bool bAsReply)
     // Otherwise, do 1 byte:
     stuff<__u32>(bytes, this->params.config);
     return bytes;
+}
+// ——— TBRD_Model ———————————————————————————————————————————————————————
+
+TDataItemBase &TBRD_Model::Go()
+{
+    // parse incoming bytes as ASCII
+    std::string val(rawBytes.begin(), rawBytes.end());
+    Debug("TBRD_Model::Go() received model = '" + val + "'");
+
+    // update in-memory config
+    Config.Model = val;
+
+    // persist
+    if (!SaveBrdConfig(CONFIG_CURRENT)) {
+        Error("TBRD_Model::Go() failed to SaveConfig");
+    }
+
+    return *this;
+}
+
+TBytes TBRD_Model::calcPayload(bool bAsReply)
+{
+    // echo back the stored model as ASCII, no trailing NUL
+    return TBytes(Config.Model.begin(), Config.Model.end());
+}
+
+std::string TBRD_Model::AsString(bool bAsReply)
+{
+    if (bAsReply) {
+        return "BRD_Model() → \"" + Config.Model + "\"";
+    } else {
+        std::string sent(rawBytes.begin(), rawBytes.end());
+        return "BRD_Model(\"" + sent + "\")";
+    }
+}
+
+// ——— TBRD_GetModel ————————————————————————————————————————————————————
+
+TBytes TBRD_GetModel::calcPayload(bool /*bAsReply*/)
+{
+    // always reply with the current model
+    return TBytes(Config.Model.begin(), Config.Model.end());
+}
+
+std::string TBRD_GetModel::AsString(bool bAsReply)
+{
+    if (bAsReply) {
+        return "BRD_GetModel() → \"" + Config.Model + "\"";
+    } else {
+        return "BRD_GetModel()";
+    }
+}
+
+// ——— TBRD_SerialNumber —————————————————————————————————————————————
+
+TDataItemBase &TBRD_SerialNumber::Go()
+{
+    std::string val(rawBytes.begin(), rawBytes.end());
+    Debug("TBRD_SerialNumber::Go() received serial = '" + val + "'");
+
+    Config.SerialNumber = val;
+
+    if (!SaveBrdConfig(CONFIG_CURRENT)) {
+        Error("TBRD_SerialNumber::Go() failed to SaveConfig");
+    }
+
+    return *this;
+}
+
+TBytes TBRD_SerialNumber::calcPayload(bool /*bAsReply*/)
+{
+    return TBytes(Config.SerialNumber.begin(), Config.SerialNumber.end());
+}
+
+std::string TBRD_SerialNumber::AsString(bool bAsReply)
+{
+    if (bAsReply) {
+        return "BRD_SerialNumber() → \"" + Config.SerialNumber + "\"";
+    } else {
+        std::string sent(rawBytes.begin(), rawBytes.end());
+        return "BRD_SerialNumber(\"" + sent + "\")";
+    }
+}
+
+// ——— TBRD_GetSerialNumber ————————————————————————————————————————————
+
+TBytes TBRD_GetSerialNumber::calcPayload(bool /*bAsReply*/)
+{
+    return TBytes(Config.SerialNumber.begin(), Config.SerialNumber.end());
+}
+
+std::string TBRD_GetSerialNumber::AsString(bool bAsReply)
+{
+    if (bAsReply) {
+        return "BRD_GetSerialNumber() → \"" + Config.SerialNumber + "\"";
+    } else {
+        return "BRD_GetSerialNumber()";
+    }
+}
+
+
+// -----------------------------------------
+// TBRD_GetNumberOfSubmuxes
+// -----------------------------------------
+TBRD_GetNumberOfSubmuxes::TBRD_GetNumberOfSubmuxes(DataItemIds dId, const TBytes &buf)
+  : TDataItem<NumberOfSubmuxParams>(dId, buf)
+{
+    // ignore buf
+}
+TBRD_GetNumberOfSubmuxes::TBRD_GetNumberOfSubmuxes(DataItemIds dId)
+  : TDataItem<NumberOfSubmuxParams>(dId, {})
+{}
+
+TBRD_GetNumberOfSubmuxes &TBRD_GetNumberOfSubmuxes::Go()
+{
+    this->params.value = Config.numberOfSubmuxes;
+    return *this;
+}
+
+TBytes TBRD_GetNumberOfSubmuxes::calcPayload(bool /*bAsReply*/)
+{
+    TBytes out;
+    out.push_back(this->params.value);
+    return out;
+}
+
+std::string TBRD_GetNumberOfSubmuxes::AsString(bool bAsReply)
+{
+    if (bAsReply)
+        return "TBRD_GetNumberOfSubmuxes() → " + std::to_string(this->params.value);
+    else
+        return "TBRD_GetNumberOfSubmuxes()";
+}
+
+// -----------------------------------------
+// TBRD_GetSubmuxScale
+// -----------------------------------------
+TBRD_GetSubmuxScale::TBRD_GetSubmuxScale(DataItemIds dId, const TBytes &buf)
+  : TDataItem<SubmuxScaleParams>(dId, buf)
+{
+    if (buf.size() == 2) {
+        this->params.submuxIndex    = buf[0];
+        this->params.gainGroupIndex = buf[1];
+    } else if (buf.size() == 4) {
+        this->params.value = *(float *)(&buf[0]);
+    }
+}
+
+TBRD_GetSubmuxScale &TBRD_GetSubmuxScale::Go()
+{
+    auto s = this->params.submuxIndex;
+    auto g = this->params.gainGroupIndex;
+    if (s < 4 && g < 4) {
+        this->params.value = Config.submuxScaleFactors[s][g];
+    } else {
+        this->params.value = 0.0f;
+        Error("TBRD_GetSubmuxScale: index out of range");
+    }
+    return *this;
+}
+
+TBytes TBRD_GetSubmuxScale::calcPayload(bool bAsReply)
+{
+    TBytes out;
+    if (bAsReply){
+        const auto *p = reinterpret_cast<const __u8*>(&this->params.value);
+        out.insert(out.end(), p, p + sizeof(float));
+    }
+    else{
+        out.push_back(this->params.submuxIndex);
+        out.push_back(this->params.gainGroupIndex);
+    }
+    return out;
+}
+
+std::string TBRD_GetSubmuxScale::AsString(bool bAsReply)
+{
+    std::ostringstream ss;
+    ss << "TBRD_GetSubmuxScale[submux " << int(this->params.submuxIndex)
+       << "][group " << int(this->params.gainGroupIndex) << "]";
+    if (bAsReply)
+        ss << " → " << this->params.value;
+    return ss.str();
+}
+
+// -----------------------------------------
+// TBRD_GetSubmuxOffset
+// -----------------------------------------
+TBRD_GetSubmuxOffset::TBRD_GetSubmuxOffset(DataItemIds dId, const TBytes &buf)
+  : TDataItem<SubmuxOffsetParams>(dId, buf)
+{
+    if (buf.size() == 2) {
+        this->params.submuxIndex    = buf[0];
+        this->params.gainGroupIndex = buf[1];
+    } else if (buf.size() == 4) {
+        this->params.value = *(float *)(&buf[0]);
+    }
+}
+TBRD_GetSubmuxOffset &TBRD_GetSubmuxOffset::Go()
+{
+    auto s = this->params.submuxIndex;
+    auto g = this->params.gainGroupIndex;
+    if (s < 4 &&
+        g < 4)
+    {
+        this->params.value = Config.submuxOffsets[s][g];
+    } else {
+        this->params.value = 0.0f;
+        Error("TBRD_GetSubmuxOffset: index out of range");
+    }
+    return *this;
+}
+
+TBytes TBRD_GetSubmuxOffset::calcPayload(bool bAsReply)
+{
+    TBytes out;
+    if (bAsReply){
+        const auto *p = reinterpret_cast<const __u8*>(&this->params.value);
+        out.insert(out.end(), p, p + sizeof(float));
+    }
+    else
+    {
+        out.push_back(this->params.submuxIndex);
+        out.push_back(this->params.gainGroupIndex);
+    }
+    return out;
+}
+
+std::string TBRD_GetSubmuxOffset::AsString(bool bAsReply)
+{
+    std::ostringstream ss;
+    ss << "TBRD_GetSubmuxOffset[submux " << int(this->params.submuxIndex)
+       << "][group " << int(this->params.gainGroupIndex) << "]";
+    if (bAsReply)
+        ss << " → " << this->params.value;
+    return ss.str();
 }
