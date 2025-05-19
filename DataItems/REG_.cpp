@@ -62,7 +62,7 @@ TError TREG_Read1::validateDataItemPayload(DataItemIds DataItemID, TBytes Data)
     }
     int offset = Data[0];
     int w = widthFromOffset(offset);
-    if (w != 0)
+    if (w == 0)
     {
         Error(err_msg[-ERR_DId_BAD_OFFSET]);
         return ERR_DId_BAD_OFFSET;

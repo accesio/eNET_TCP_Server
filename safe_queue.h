@@ -28,13 +28,13 @@ public:
   }
 
   // Get the "front"-element.
-  // If the queue is empty, wait till a element is avaiable.
+  // If the queue is empty, wait till a element is available.
   T dequeue(void)
   {
     std::unique_lock<std::mutex> lock(m);
     while(q.empty() && !done)
     {
-      // release lock as long as the wait and reaquire it afterwards.
+      // release lock as long as the wait and reacquire it afterwards.
       c.wait(lock);
       if (stop) return nullptr;
     }

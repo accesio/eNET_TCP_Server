@@ -413,7 +413,7 @@ int TDataItemBase::validateDataItem(const TBytes &bytes)
 	DataItemIds Id = head->DId;
 	if (!isValidDataItemID(Id))
 	{
-		Error(err_msg[ERR_MSG_DATAITEM_ID_UNKNOWN]);
+		Error(err_msg[-ERR_MSG_DATAITEM_ID_UNKNOWN]);
 		return ERR_MSG_DATAITEM_ID_UNKNOWN;
 	}
 
