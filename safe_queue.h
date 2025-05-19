@@ -1,9 +1,11 @@
 #pragma once
 //https://stackoverflow.com/questions/15278343/c11-thread-safe-queue //2020 05 28
 
+#include <signal.h>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+
 extern volatile sig_atomic_t done;
 // A threadsafe-queue.
 template <class T>

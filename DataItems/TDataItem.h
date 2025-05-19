@@ -38,162 +38,16 @@ TDataItemParent - virtual / interface
 #include <iterator>
 #include <fmt/core.h>
 
+#include "TDataItemBase.h"
 #include "../logging.h"
 #include "../utilities.h"
 #include "../eNET-AIO16-16F.h"
 #include "../TError.h"
 #include "../apci.h"
 
-class TDataItemBase;
-
-using PTDataItem = std::shared_ptr<TDataItemBase>;
-using TPayload = std::vector<PTDataItem>;
-using TDataId = __u16;
-using TDataItemLength=__u16;
-
-#pragma region TDataItem DId enum
-
-#define _INVALID_DATAITEMID_ ((TDataId)-2)
-
-enum class DataItemIds : TDataId
-{
-	INVALID = _INVALID_DATAITEMID_,
-	// Note 1: the "TLA_" DIds (e.g., `BRD_` and `REG_` et al; i.e., those DId names that don't have anything after the `_`)
-	//         return human-readable text of all TLA_ category DIds and what they do & why
-	BRD_ = 0x0000, // Query Only.
-	BRD_Reset = 0x0001,
-	BRD_DeviceID = 0x0002,
-	BRD_Features = 0x0003,
-	BRD_FpgaID = 0x0004,
-	BRD_Model = 0x0008,
-	BRD_GetModel = 0x0009,
-	BRD_SerialNumber = 0x10,
-	BRD_GetSerialNumber = 0x11,
-	BRD_NumberOfSubmuxes = 0x21,
-	BRD_SubmuxScale = 0x23,
-	BRD_SubmuxOffset = 0x24,
-	BRD_GetNumberOfSubmuxes = 0x31,
-	BRD_GetSubmuxScale = 0x33,
-	BRD_GetSubmuxOffset = 0x34,
-	BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC, // TBD, long list
-	BRD_REBOOT = 0xFF,
-
-	REG_ = 0x100, // Query Only.
-	// NOTE: REG_ister access functionality does not allow (at this time) specifying 8-. 16-, or 32-bit access width.
-	//       Instead, the width is determined automatically from the register offset, because none of the eNET-AIO registers are flexible
-	//    Additionally, the TDataItem::fromBytes() factory method will throw an error if an invalid offset is passed,
-	//       like offset=0x41 is invalid because 0x40 is a 32-bit register
-	// NOTE: int widthFromOffset(int ofs) is used to determine the register width but it is hard-coded, specific to eNET-AIO, by ranges
-	//       of offsets. We'll want the aioenetd to eventually support OTHER (non-eNET-AIO16-128A Family) eNET- boards so this will
-	//       need to be a configurable, preferably read off the hardware (although "from eMMC" is probably sufficient)
-	REG_Read1 = 0x101,
-	REG_ReadAll = 0x103,
-	REG_ReadBuf, // like draining a FIFO, TODO: improve name
-	REG_Write1 = 0x105,
-	REG_WriteBuf = 0x107, // like filling a FIFO, TODO: improve name
-
-	REG_ClearBits = 0x0108,
-	REG_SetBits = 0x0109,
-	REG_ToggleBits = 0x010A,
-
-	REG_ReadBit = 0x121,
-	REG_WriteBit,
-	REG_ClearBit,
-	REG_SetBit,
-	REG_ToggleBit,
-
-	DAC_ = 0x200, // Query Only. *1
-	DAC_Output1 = 0x201,
-	DAC_OutputAll,
-	DAC_Range1 = 0x204, // Query Only.
-	DAC_Calibrate1 = 0x20C,
-	DAC_CalibrateAll,
-	DAC_Offset1 = 0x20E,
-	DAC_OffsetAll = 0x20F,
-	DAC_Scale1 = 0x210,
-	DAC_ScaleAll = 0x211,
-	DAC_Configure1 = 0x2C0,
-	DAC_ConfigAndOutput1 = 0x2C1,
-
-	DIO_ = 0x300, // Query Only. *1
-	DIO_ConfigureBit,
-	DIO_Configure,
-	DIO_InputBit,
-	DIO_Input = 0x0305,
-	DIO_InputBuf1,
-	DIO_InputBufAll,
-	DIO_OutputBit,
-	DIO_Output,
-	DIO_OutputBuf, // like unpaced waveform output; NOTE: not sure this is useful
-	DIO_ConfigureReadWriteReadSome,
-	DIO_ClearBit,
-	DIO_ClearAll,
-	DIO_SetBit,
-	DIO_SetAll,
-	DIO_SetSome,
-	DIO_ToggleBit,
-	DIO_ToggleAll,
-	DIO_PulseBit,
-	DIO_PulseAll,
-
-	PWM_ = 0x400, // Query Only. *1
-	PWM_Configure1,
-	PWM_ConfigureAll,
-	PWM_Input1,
-	PWM_InputAll,
-	PWM_Output1,
-	PWM_OutputAll,
-
-	ADC_ = 0x1000, // Query Only. *1
-	ADC_Claim = 0x1001,
-	ADC_Release = 0x1002,
-	ADC_BaseClock = 0x1003,
-	ADC_StartHz = 0x1004,
-	ADC_StartDivisor = 0x1005,
-	ADC_ConfigurationOfEverything = 0x1006,
-	ADC_Differential1 = 0x1007,
-	ADC_DifferentialAll = 0x1008,
-	ADC_Range1 = 0x1009,
-	ADC_RangeAll = 0x100A,
-	ADC_Calibration1 = 0x100C,
-	ADC_CalibrationAll = 0x100D,
-	ADC_Scale1 = 0x100E,
-	ADC_ScaleAll = 0x100F,
-	ADC_Offset1 = 0x1010,
-	ADC_OffsetAll = 0x1011,
-	ADC_Volts1 = 0x1020,
-	ADC_VoltsAll = 0x1021,
-	ADC_Counts1 = 0x1030,
-	ADC_CountsAll = 0x1031,
-	ADC_Raw1 = 0x1040,
-	ADC_RawAll = 0x1041,
-
-	ADC_Stream = 0x1100,
-	ADC_StreamStart = 0x1101,
-	ADC_StreamStop = 0x1102,
-
-	ADC_Streaming_stuff_including_Hz_config, // TODO: finish
-
-	// TODO: DIds below this point are TBD/notional
-	SCRIPT_ = 0x3000,
-	SCRIPT_Pause, // insert a pause in execution of TDataItems
-
-	// broken out from "BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC" mentioned above
-	WDG_ = 0x4000, // Watchdog related
-	DEF_ = 0x5000, // power-on default state related
-	SERVICE_,	   // tech support stuff
-	TCP_ = 0x7000, // TCP-IP stuff broken out from the
-	TCP_ConnectionID = 0x7001,
-	PNP_,		   // distinct from BRD_?
-	CFG_ = 0x9000, // "Other" Configuration stuff; Linux, IIoT protocol selection, etc?
-	CFG_Hostname = 0x9001,
-	SYS_UploadFileName = 0xEF01,
-	SYS_UploadFileData = 0xEF02,
-	DOC_Get = 0xFFFF,
-};
-#pragma endregion
-
-#pragma pack(push, 1)
+template<typename> class TDataItem;
+struct GenericParams {};
+using TPayload = std::vector<PTDataItemBase>;
 
 int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
 // return register width for given offset as defined for eNET-AIO registers
@@ -201,62 +55,7 @@ int validateDataItemPayload(DataItemIds DataItemID, TBytes Data);
 int widthFromOffset(int ofs);
 
 #pragma region TDataItemBase
-struct GenericParams {};
-using PTDataItemBase = std::shared_ptr<class TDataItemBase>;
-class TDataItemBase
-{
-public:
-    // ========== Common Fields ==========
-	TBytes Data;
-    DataItemIds DId;      // e.g., DAC_Output1, DAC_Range1
-    TError resultCode = ERR_SUCCESS;
-    bool bWrite = false;  // Used by many items to indicate write vs. read
-    int conn = 0;         // Connection ID or similar
-    // ========== Constructors ==========
-    explicit TDataItemBase(DataItemIds dId)
-        : DId(dId)
-    {
-        Debug("TDataItemBase(DId) constructor");
-    }
 
-    virtual ~TDataItemBase() {}
-
-	std::string AsStringBase(bool bAsReply) const;
-
-    // ========== Virtual Methods for Polymorphism ==========
-    // Called by the main worker thread to execute hardware logic
-    virtual TDataItemBase &Go() = 0;
-
-    // Serializes the data item to bytes (for sending over TCP)
-    virtual TBytes calcPayload(bool bAsReply = false) = 0;
-
-    // High-level string form for debugging/logging
-	virtual std::string AsString(bool bAsReply = false) = 0;
-
-	// ========== Static / Factory Methods ==========
-    static PTDataItemBase fromBytes(const TBytes &msg, TError &result);
-
-    static int validateDataItemPayload(DataItemIds DataItemID, const TBytes &Data);
-    static int isValidDataItemID(DataItemIds DataItemID);
-    static int validateDataItem(const TBytes &msg);
-    static __u16 getMinLength(DataItemIds DId);
-    static __u16 getTargetLength(DataItemIds DId);
-    static __u16 getMaxLength(DataItemIds DId);
-    static int getDIdIndex(DataItemIds DId);
-    TDataItemBase &addData(__u8 aByte);
-    TDataItemBase &setDId(DataItemIds newId);
-    DataItemIds getDId() const;
-    bool isValidDataLength() const;
-    TBytes AsBytes(bool bAsReply);
-    std::string getDIdDesc() const;
-    TError getResultCode();
-    std::shared_ptr<void> getResultValue();
-    // These might be used for name lookups, etc.
-    static std::string getDIdDesc(DataItemIds DId);
-};
-#pragma endregion
-
-typedef std::shared_ptr<TDataItemBase> DIdConstructor(DataItemIds DId, TBytes FromBytes);
 
 template <class q>
 std::shared_ptr<TDataItemBase> construct(DataItemIds DId, TBytes FromBytes)
@@ -264,28 +63,6 @@ std::shared_ptr<TDataItemBase> construct(DataItemIds DId, TBytes FromBytes)
     // q must inherit from TDataItemBase
     return std::make_shared<q>(DId, FromBytes);
 }
-
-
-typedef struct
-{
-	DataItemIds DId;
-	TDataItemLength dataLength;
-} TDataItemHeader;
-
-typedef struct __DIdDictEntry_inner
-{
-	TDataItemLength minLen;
-	TDataItemLength typLen;
-	TDataItemLength maxLen;
-	// std::function<std::unique_ptr<TDataItem>(TBytes)> Construct;
-	DIdConstructor *Construct;
-	std::string desc;
-	std::function<void(void *)> go;
-} TDIdDictEntry;
-
-//  __DIdDictEntry_inner ;
-extern const std::map<DataItemIds, TDIdDictEntry> DIdDict;
-
 
 
 #pragma region "class TDataItem" declaration
@@ -296,9 +73,6 @@ class TDataItem : public TDataItemBase
 {
 public:
     ParamStruct params;  // e.g., DAC_OutputParams
-
-    // We keep a reference to the raw bytes, too, if you need them
-    // (In case you want to parse in a custom way.)
 	TBytes rawBytes;
 
 	TBytes calcPayload(bool bAsReply = false) override {

@@ -24,7 +24,7 @@ CXXFLAGS         = $(CXXFLAGS_RELEASE)
 
 # ---------------------- Libraries ----------------------
 LDLIBS    = -lm -lpthread -latomic -ldl -lfmt
-
+LDLIBS    = -lm -lpthread -latomic -ldl -lfmt
 # ---------------------- Directories / Files -----------------------
 SRCDIR    = .
 OBJDIR    = obj

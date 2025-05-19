@@ -14,21 +14,21 @@ using TActionQueueItem = struct TActionQueueItemClass
 	TMessage &theMessage;
 };
 
-using TSendQueueItem = struct TSendQueueItemClass
-{
-	// which TCP-per-client-read thread put this item into the Action Queue
-	pthread_t &receiver;
-	// which thread is responsible for sending results of the action to the client
-	pthread_t &sender;
-	// which queue is the sender-thread popping from
-	SafeQueue<TSendQueueItemClass> &sendQueue;
-	// which client is all this from/for
-	int clientref;
-	// what TCP port# was this received on
-	int portReceive;
-	// what TCP port# is this sending out on
-	int portSend;
-};
+// using TSendQueueItem = struct TSendQueueItemClass
+// {
+// 	// which TCP-per-client-read thread put this item into the Action Queue
+// 	pthread_t &receiver;
+// 	// which thread is responsible for sending results of the action to the client
+// 	pthread_t &sender;
+// 	// which queue is the sender-thread popping from
+// 	SafeQueue<TSendQueueItemClass> &sendQueue;
+// 	// which client is all this from/for
+// 	int clientref;
+// 	// what TCP port# was this received on
+// 	int portReceive;
+// 	// what TCP port# is this sending out on
+// 	int portSend;
+// };
 
 
 using TActionQueue = SafeQueue<TActionQueueItem *>;

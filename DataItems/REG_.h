@@ -4,9 +4,6 @@
 #include "TDataItem.h"
 
 #pragma pack(push, 1)
-
-
-
 // -------------- TREG_Read1 --------------
 struct REG_Read1Params {
     // offset + width + value
@@ -14,6 +11,8 @@ struct REG_Read1Params {
     int width    = 0;
     __u32 regVal = 0;  // “Value” from hardware read
 };
+#pragma pack(pop)
+
 class TREG_Read1 : public TDataItem<REG_Read1Params>
 {
 public:
@@ -39,14 +38,14 @@ private:
 };
 
 // -------------- TREG_Writes --------------
-typedef struct
-{
-    __u8 offset;
-    __u8 width;
-    __u32 value;
-} REG_Write;
+// typedef struct
+// {
+//     __u8 offset;
+//     __u8 width;
+//     __u32 value;
+// } REG_Write;
 
-typedef std::vector<REG_Write> REG_WriteList;
+// typedef std::vector<REG_Write> REG_WriteList;
 struct REG_WritesParams {
     REG_WriteList Writes;
     // You can store other data if needed

@@ -154,7 +154,7 @@ TPayload TMessage::parsePayload(TBytes Payload, __u32 payload_length, TError &re
 			break;
 		}
 
-		PTDataItem item = TDataItemBase::fromBytes(DataItemBytes, result);
+		PTDataItemBase item = TDataItemBase::fromBytes(DataItemBytes, result);
 		if (result != ERR_SUCCESS)
 		{
 			Error("TMessage::parsePayload: DIAG::fromBytes returned error " + std::to_string(result) + ", " + err_msg[-result]);
@@ -270,7 +270,7 @@ TMessage &TMessage::setMId(TMessageId ID)
 	return *this;
 }
 
-TMessage &TMessage::addDataItem(PTDataItem item)
+TMessage &TMessage::addDataItem(PTDataItemBase item)
 {
 	LOG_IT;
 
@@ -333,7 +333,7 @@ std::string TMessage::AsString(bool bAsReply)
 	{
 		for (uint itemNumber = 0; itemNumber < DataItems.size(); itemNumber++)
 		{
-			PTDataItem item = this->DataItems[itemNumber];
+			PTDataItemBase item = this->DataItems[itemNumber];
 			dest << '\n'
 				 << "		   " << std::setw(2) << itemNumber + 1 << ": " << item->AsString(bAsReply);
 		}

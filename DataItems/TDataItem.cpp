@@ -16,7 +16,6 @@
 #include "REG_.h"
 #include "SYS_.h"
 #include "../eNET-AIO16-16F.h"
-extern bool done;
 
 #define DIdNYI(d) { DataItemIds::d, { 0, 0, 0, construct<TDataItemNYI>, #d " (NYI)" } }
 
@@ -65,7 +64,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		//{INVALID, { 9, 9, 9,( [](DataItemIds x, TBytes bytes) { return construct<TDataItem>(x, bytes); }), "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", nullptr}},
 		DATA_ITEM(INVALID, TDataItemRaw, 0, 0, 0, "Invalid DId -1", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region BRD_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region BRD_
+#endif
 		DATA_ITEM(BRD_,					TDataItemDoc,			0, 0, 0,   "Documentation: list of BRD_ DataItems", nullptr),
 		DATA_ITEM(BRD_Reset,			TDataItemRaw,			0, 0, 0,   "BRD_Reset()", nullptr),
 		DATA_ITEM(BRD_DeviceID,			TBRD_DeviceID,			0, 0, 0,   "BRD_DeviceID() → u32", nullptr),
@@ -90,7 +91,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 							done = true;
 					})),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region REG_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region REG_
+#endif
 		// the registers on the eNET are only accessible as 8- or 32-bits, depending on the specific register.
 		// the "in()" and "out()" functions deal with this
 		DATA_ITEM(REG_,       TDataItemDoc,  0, 0, 0,   "Documentation: list of REG_ DataItems", nullptr),
@@ -142,7 +145,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(REG_ToggleBit, TREG_ToggleBit,             2, 2, 2, "TREG_ToggleBit(u8 offset, u8 bitIndex)",                nullptr),
 
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region DAC_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region DAC_
+#endif
 		// There are four DAC outputs on this board, driven by a pair of dual-DAC chips on an SPI bus (distinct from the DIO SPI)
 		// The range of each DAC is factory-set, per-dac, with ±10, ±5, 0-10, and 0-5 "standard"
 		// aioenetd is configured at the factory for the DAC range, so customers can output in Voltage
@@ -205,7 +210,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 						}
 					})),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region DIO_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region DIO_
+#endif
 		DATA_ITEM(DIO_,             TDataItemDoc,               0, 0, 0,   "Documentation: list of DIO_ DataItems", nullptr),
 
 	// there are 16 digital bits.  All of them are individually configured as input vs output.  1 = input, 0 = output // CHECK // FIX // TODO:
@@ -237,7 +244,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DIdNYI(DIO_PulseBit),
 		DIdNYI(DIO_ConfigureReadWriteReadSome),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region ADC_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region ADC_
+#endif
 		DATA_ITEM(ADC_,               TDataItemDoc,          0, 0, 0,   "Documentation: list of ADC_ DataItems", nullptr),
 
 		DIdNYI(ADC_Claim),
@@ -273,41 +282,61 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 
 		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region SCRIPT_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region SCRIPT_
+#endif
 		DIdNYI(SCRIPT_Pause), // SCRIPT_Pause(__u8 delay ms)
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region WDG_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region WDG_
+#endif
 		DATA_ITEM(WDG_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of WDG_ DataItems", nullptr),
 
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region DEF_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region DEF_
+#endif
 		DATA_ITEM(DEF_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of DEF_ DataItems", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region SERVICE_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region SERVICE_
+#endif
 		DATA_ITEM(SERVICE_,      TDataItemDoc,               0, 0, 0,   "Documentation: list of SERVICE_ DataItems", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region PNP_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region PNP_
+#endif
 		DATA_ITEM(PNP_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of PNP_ DataItems", nullptr),
 
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region CFG_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region CFG_
+#endif
 		DATA_ITEM(CFG_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of CFG_ DataItems", nullptr),
 		DATA_ITEM(CFG_Hostname,  TDataItemRaw,               1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region SYS_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region SYS_
+#endif
 		DATA_ITEM(SYS_UploadFileName, TSYS_UploadFileName,   1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
 		DATA_ITEM(SYS_UploadFileData, TSYS_UploadFileData,   1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
-#pragma region PWM_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region PWM_
+#endif
 		DATA_ITEM(PWM_,          TDataItemDoc,               0, 0, 0,   "Documentation: list of PWM_ DataItems", nullptr),
 
 		DIdNYI(PWM_Configure1),
 		DIdNYI(PWM_Input1),
 		DIdNYI(PWM_Output1),
-#pragma region TCP_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region TCP_
+#endif
 		DATA_ITEM(TCP_,             TDataItemDoc,            0, 0, 0, "Documentation: list of TCP_ DataItems", nullptr),
 		DATA_ITEM(TCP_ConnectionID, TDataItemRaw,            4, 4, 4, "TCP_ConnectionID() → u32", nullptr),
-#pragma region DOC_
+#if defined(_MSC_VER) || defined(__clang__)
+	#pragma region DOC_
+#endif
 		DATA_ITEM(DOC_Get,          TDataItemDocGet,         0, 0, 0, "Documentation: list of All top-level DataItem groups", nullptr),
 };
 
@@ -438,7 +467,7 @@ int TDataItemBase::validateDataItem(const TBytes &bytes)
 //    --DId --LEN --PayloadBytes
 //       |     |  DAC      Scale
 //     0210  0005   0    3F80000
-PTDataItem TDataItemBase::fromBytes(const TBytes &bytes, TError &result)
+std::shared_ptr<TDataItemBase> TDataItemBase::fromBytes(const TBytes &bytes, TError &result)
 {
 	LOG_IT;
 	result = ERR_SUCCESS;

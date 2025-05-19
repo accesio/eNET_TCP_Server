@@ -194,8 +194,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <netinet/in.h>
 #include <signal.h>
 #include <unistd.h>
-
-#define LOGGING_DISABLE
+#include <cstdlib>
 
 #include "apci.h"
 #include "logging.h"
@@ -343,8 +342,22 @@ void exit_handler(int s)
 void Intro(int argc, char **argv)
 {
 	// note __attribute__((unused)) is to silence an incorrect compiler warning
-	std::time_t start_time __attribute__((unused))= std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	Log(std::string("AIOeNET Daemon ") + VersionString + " STARTING, it is now: " + std::string(std::ctime(&start_time)));
+    const char* env = std::getenv("AIOENET_LOG_LEVEL");
+	if (env)
+	{
+			std::string lvl = env;
+			std::transform(lvl.begin(), lvl.end(), lvl.begin(), ::tolower);
+			SetLogLevel(LogLevel::Error);
+			if (lvl == "trace") SetLogLevel(LogLevel::Trace);
+			else if (lvl == "debug") SetLogLevel(LogLevel::Debug);
+			else if (lvl == "info") SetLogLevel(LogLevel::Info);
+			else if (lvl == "warning" || lvl == "warn") SetLogLevel(LogLevel::Warning);
+			else if (lvl == "error") SetLogLevel(LogLevel::Error);
+	}
+
+	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	Log("AIOeNET Daemon " VersionString " STARTING, it is now: " + std::string(std::ctime(&start_time)));
+
 	struct sigaction sigIntHandler;
 	sigIntHandler.sa_handler = abort_handler;
 	sigemptyset(&sigIntHandler.sa_mask);
@@ -575,7 +588,7 @@ void SendControlHello(int Socket)
 
 
 
-	PTDataItem d2 = TDataItemBase::fromBytes(bytes, result);
+	PTDataItemBase d2 = TDataItemBase::fromBytes(bytes, result);
 	Payload.push_back(d2);
 	Log("DID[TCP_ConnectionID] = ", d2->AsBytes(true));
 
@@ -597,10 +610,10 @@ void SendControlHello(int Socket)
 		Payload.push_back(d2);
 	}
 
-	PTDataItem features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
-	PTDataItem deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
-	PTDataItem adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
-	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
+	PTDataItemBase features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
+	PTDataItemBase deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
+	PTDataItemBase adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
+	PTDataItemBase fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
 	try
 	{
 		features->Go();

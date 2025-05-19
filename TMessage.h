@@ -129,6 +129,7 @@ TODO: finish writing the descendants of TDataItem.  See validateDataItemPayload(
 #include <sstream>
 #include <iomanip>
 
+#include "eNET-types.h"
 #include "utilities.h"
 #include "TError.h"
 #include "DataItems/TDataItem.h"
@@ -146,11 +147,11 @@ using TCheckSum = __u8;
 #define maxDataLength (std::numeric_limits<TDataItemLength>::max())
 #define maxPayloadLength ((TMessagePayloadSize)(sizeof(TDataItemHeader) + maxDataLength) * 16)
 
-using TMessageHeader =  struct
-{
-	TMessageId type;
-	TMessagePayloadSize payload_size;
-};
+// using TMessageHeader =  struct
+// {
+// 	TMessageId type;
+// 	TMessagePayloadSize payload_size;
+// };
 
 #pragma region class TMessage declaration
 class TMessage
@@ -206,7 +207,7 @@ public:
 	// set the MId ("MessageId")
 	TMessage &setMId(TMessageId MId);
 	// append a Data Item onto this Message's Payload
-	TMessage &addDataItem(PTDataItem item);
+	TMessage &addDataItem(PTDataItemBase item);
 
 	// returns this Message serialized into TBytes suitable for TCP send()
 	TBytes AsBytes(bool bAsReply = false);

@@ -22,7 +22,6 @@ TDataItem IDs, but that should change.
 #include <vector>
 
 #include "eNET-AIO16-16F.h" // widthFromOffset()
-#include "utilities.h"
 #include "TError.h"
 
 /* type definitions */

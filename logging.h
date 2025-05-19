@@ -1,7 +1,9 @@
 #pragma once
+#include <atomic>
 #include <experimental/source_location>
-using namespace std::experimental;
+using namespace std::experimental::fundamentals_v2;
 
+#include "eNET-types.h"
 #include "utilities.h"
 
 #define LOG_DISABLE_TRACE
@@ -13,35 +15,30 @@ using namespace std::experimental;
 extern int FUNCTION_DEPTH;
 
 std::string elapsedms();
+enum class LogLevel { Error = 0, Warning, Info, Debug, Trace };
 
-// logging levels can be disabled at compile time
-#ifdef LOG_DISABLE_TRACE
-#define Trace(...) {}
-#else
-int Trace(std::string message, const source_location &loc = source_location::current());
-int Trace(std::string intro, TBytes bytes, bool crlf = true, const source_location &loc = source_location::current());
-#endif
+void SetLogLevel(LogLevel level);
+LogLevel GetLogLevel();
 
-#ifdef LOG_DISABLE_WARNING
-#define Warn(...) {}
-#endif
+void LogImpl(LogLevel level, std::string message, const source_location &loc = source_location::current());
+void LogImpl(LogLevel level, std::string intro, TBytes bytes, bool crlf = true, const source_location &loc = source_location::current());
 
-#ifdef LOG_DISABLE_INFO
-#define Log(...) {}
-#else
-int Log(  std::string message, const source_location &loc = source_location::current());
-int Log(  std::string intro, TBytes bytes, bool crlf = true, const source_location &loc = source_location::current());
-#endif
+#define LOG_IF(level, ...) \
+    do { if ((level) <= GetLogLevel()) LogImpl(level, __VA_ARGS__); } while (0)
 
-#ifdef LOG_DISABLE_DEBUG
-#define Debug(...) {}
-#else
-int Debug(std::string message, const source_location &loc = source_location::current());
-int Debug(std::string intro, TBytes bytes, bool crlf = true, const source_location &loc = source_location::current());
-#endif
+#define LOG_TRACE(...)   LOG_IF(LogLevel::Trace, __VA_ARGS__)
+#define LOG_DEBUG(...)   LOG_IF(LogLevel::Debug, __VA_ARGS__)
+#define LOG_INFO(...)    LOG_IF(LogLevel::Info,  __VA_ARGS__)
+#define LOG_WARNING(...) LOG_IF(LogLevel::Warning, __VA_ARGS__)
+#define LOG_ERROR(...)   LOG_IF(LogLevel::Error, __VA_ARGS__)
 
-int Error(std::string message, const source_location &loc = source_location::current());
-int Error(std::string intro, TBytes bytes, bool crlf = true, const source_location &loc = source_location::current());
+#define Trace(...)   LOG_TRACE(__VA_ARGS__)
+#define Debug(...)   LOG_DEBUG(__VA_ARGS__)
+#define Log(...)     LOG_INFO(__VA_ARGS__)
+#define Warn(...)    LOG_WARNING(__VA_ARGS__)
+#define Error(...)   LOG_ERROR(__VA_ARGS__)
+
+
 
 #ifdef LOG_DISABLE_FUNCTION_TRACE
 #define LOG_IT
