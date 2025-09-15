@@ -183,7 +183,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 
 	All threads (including Main) should generate log file data, with programmatically configured verbosity level;
 
-	Logs should be retrievable via Protocol 2 Messages.
+	Logs should be retrievable via Protocol 2 Messages. (NYI)
  */
 
 #include <algorithm>
@@ -213,14 +213,15 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.6.2"
+#define VersionString "0.7.2"
 
 int apci = -1;
 volatile sig_atomic_t done = 0;
-bool bTERMINATE = false;
 
-int ControlListenPort = 18767; // 0x494f, ASCII for "IO"
+static int ControlListenPort = 18767; // 0x494f, ASCII for "IO"
+static int controlSocket = -1;
 int AdcListenPort = ControlListenPort + 1;
+static int adcSocket = -1;
 
 pthread_t action_thread;
 pthread_t controlListener_thread;
@@ -263,19 +264,18 @@ pthread_t adcListener_thread;
 //     }
 // }
 
-
-
-
 int main(int argc, char *argv[])
 {
 	Intro(argc, argv);
 
 	InitConfig(Config);
+	InitializeConfigFiles(Config);
+
 	try
 	{
 		LoadConfig();
 	}
-	catch (const std::logic_error & e)
+	catch (const std::logic_error &e)
 	{
 		Error(e.what());
 	};
@@ -286,18 +286,18 @@ int main(int argc, char *argv[])
 	pthread_create(&controlListener_thread, NULL, ControlListenerThread, (void *)AF_INET6);
 	pthread_create(&adcListener_thread, NULL, AdcListenerThread, (void *)AF_INET6);
 
-    // struct mg_mgr mgr;
-    // struct mg_connection *nc;
+	// struct mg_mgr mgr;
+	// struct mg_connection *nc;
 
-    // mg_mgr_init(&mgr);
+	// mg_mgr_init(&mgr);
 	// nc = mg_http_listen(&mgr, "http://0.0.0.0:80", ev_handler, &mgr);
 
-    // if (nc == NULL) {
-    //     printf("Failed to create listener\n");
-    //     return 1;
-    // }
+	// if (nc == NULL) {
+	//     printf("Failed to create listener\n");
+	//     return 1;
+	// }
 
-    // printf("Starting server on port 80\n");
+	// printf("Starting server on port 80\n");
 
 	do
 	{
@@ -321,38 +321,48 @@ void abort_handler(int s)
 void exit_handler(int s)
 {
 	Log("exit process starting");
+	done = 1;
+	apci_cancel_irq(apci, 1);  // unblocks apci_wait_for_irq in worker
+
+	if (controlSocket >= 0) { shutdown(controlSocket, SHUT_RDWR); close(controlSocket); controlSocket = -1; }
+    if (adcSocket     >= 0) { shutdown(adcSocket, SHUT_RDWR);     close(adcSocket);     adcSocket     = -1; }
+	ActionQueue.enqueue(nullptr);
+
 	sleep(1);
-	// note __attribute__((unused)) is to silence an incorrect compiler warning
-	std::time_t end_time __attribute__((unused))= std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	pthread_cancel(controlListener_thread);
-	pthread_cancel(adcListener_thread);
-	pthread_cancel(action_thread);
 
 	pthread_join(adcListener_thread, NULL);
 	pthread_join(controlListener_thread, NULL);
 	pthread_join(action_thread, NULL);
-	close(apci);
-	SaveConfig();
-	Log(std::string("AIOeNET Daemon " VersionString " CLOSING, it is now: ") + std::string(std::ctime(&end_time)));
+
 	/* put the card back in the power-up state */
 	out(ofsReset, bmResetEverything);
-	pthread_join(AdcLogger_thread, NULL);
+	close(apci);
+	SaveConfig();
+
+	// note __attribute__((unused)) is to silence an incorrect compiler warning
+	std::time_t end_time __attribute__((unused)) = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	Log(std::string("AIOeNET Daemon " VersionString " CLOSING, it is now: ") + std::string(std::ctime(&end_time)));
 }
 
 void Intro(int argc, char **argv)
 {
 	// note __attribute__((unused)) is to silence an incorrect compiler warning
-    const char* env = std::getenv("AIOENET_LOG_LEVEL");
+	const char *env = std::getenv("AIOENET_LOG_LEVEL");
 	if (env)
 	{
-			std::string lvl = env;
-			std::transform(lvl.begin(), lvl.end(), lvl.begin(), ::tolower);
+		std::string lvl = env;
+		std::transform(lvl.begin(), lvl.end(), lvl.begin(), ::tolower);
+		SetLogLevel(LogLevel::Error);
+		if (lvl == "trace")
+			SetLogLevel(LogLevel::Trace);
+		else if (lvl == "debug")
+			SetLogLevel(LogLevel::Debug);
+		else if (lvl == "info")
+			SetLogLevel(LogLevel::Info);
+		else if (lvl == "warning" || lvl == "warn")
+			SetLogLevel(LogLevel::Warning);
+		else if (lvl == "error")
 			SetLogLevel(LogLevel::Error);
-			if (lvl == "trace") SetLogLevel(LogLevel::Trace);
-			else if (lvl == "debug") SetLogLevel(LogLevel::Debug);
-			else if (lvl == "info") SetLogLevel(LogLevel::Info);
-			else if (lvl == "warning" || lvl == "warn") SetLogLevel(LogLevel::Warning);
-			else if (lvl == "error") SetLogLevel(LogLevel::Error);
 	}
 
 	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -422,29 +432,26 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 		addr4->sin_port = htons(static_cast<short>(Port));
 		addr4->sin_addr.s_addr = INADDR_ANY;
 		result = bind(Socket, (struct sockaddr *)addr4, sizeof(sockaddr_in));
-		if (result < 0)
-		{
-			Error("Bind on port " + std::to_string(Port) + " failed");
-			exit(EXIT_FAILURE);
-		}
 	}
 	else // if (iNET == AF_INET6)
 	{
 		memset(addr6, 0, sizeof(*addr6));
 		addr6->sin6_family = AF_INET6;
 		addr6->sin6_port = htons(static_cast<short>(Port));
-		addr6->sin6_flowinfo = 0; //0x607ACCE5;
+		addr6->sin6_flowinfo = 0; // 0x607ACCE5;
 		addr6->sin6_addr = IN6ADDR_ANY_INIT;
 		addr6->sin6_scope_id = 0;
 		// addr6->sin6_scope_id = 0x0e;
 		result = bind(Socket, (struct sockaddr *)addr6, sizeof(sockaddr_in6));
-		if (result < 0)
-		{
-			Error("Bind on port " + std::to_string(Port) + " failed");
-			perror("Bind failed: ");
-			exit(EXIT_FAILURE);
-		}
 	}
+
+	if (result < 0)
+	{
+		Error("Bind on port " + std::to_string(Port) + " failed");
+		exit(EXIT_FAILURE);
+	}
+	if (Port == ControlListenPort) controlSocket = Socket;
+	if (Port == AdcListenPort)     adcSocket     = Socket;
 }
 
 void Listen(int &Socket, int num)
@@ -474,7 +481,7 @@ void *ControlListenerThread(void *arg)
 
 	Trace("Listen for Control Socket");
 	Listen(ControlSocket, 32);
-	for (;done == 0;)
+	for (; done == 0;)
 		HandleNewControlClients(ControlSocket, ControlAddrSize, ControlAddr);
 	ControlClients.clear();
 	return nullptr;
@@ -491,7 +498,7 @@ void SendAdcHello(int Socket)
 	}
 	else
 	{
-		Log("sent 'Hello' to new ADC Client# " + to_hex<__u16>(Socket) + ", (ORed with 0x80000000) ["+to_hex<__u32>(HelloAdc)+"]");
+		Log("sent 'Hello' to new ADC Client# " + to_hex<__u16>(Socket) + ", (ORed with 0x80000000) [" + to_hex<__u32>(HelloAdc) + "]");
 	}
 }
 
@@ -500,48 +507,47 @@ void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage
 	int new_socket;
 	Trace("accept ADC");
 
-    while (!done)
-    {
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(Socket, &readfds);
+	while (!done)
+	{
+		fd_set readfds;
+		FD_ZERO(&readfds);
+		FD_SET(Socket, &readfds);
 
-        // select() needs the highest fd + 1
-        int nfds = Socket + 1;
+		// select() needs the highest fd + 1
+		int nfds = Socket + 1;
 
-        // Set a 1-second timeout (adjust to taste)
-        struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
+		// Set a 1-second timeout (adjust to taste)
+		struct timeval tv;
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
 
-        int ret = select(nfds, &readfds, nullptr, nullptr, &tv);
-        if (ret < 0)
-        {
-            if (errno == EINTR)
-            {
-                // Interrupted by signal—check if we should exit
-                if (done) break;
-                continue; // otherwise just keep going
-            }
-            // Some real error
-            perror("select() failed");
-            break;
-        }
-        else if (ret == 0)
-        {
-            // Timeout expired, no sockets ready
-            if (done) break;  // see if we should exit
-            // else just continue polling
-            continue;
-        }
+		int ret = select(nfds, &readfds, nullptr, nullptr, &tv);
+		if (ret < 0)
+		{
+			if (errno == EINTR)
+			{
+				// Interrupted by signal—check if we should exit
+				if (done)
+					break;
+				continue; // otherwise just keep going
+			}
+			// Some real error
+			perror("select() failed");
+			break;
+		}
+		else if (ret == 0)
+		{
+			// Timeout expired, no sockets ready
+			if (done)
+				break; // see if we should exit
+			// else just continue polling
+			continue;
+		}
 
-        // If we get here, ret > 0, meaning 'listenSock' is readable
-        // => accept() should not block
-        if (FD_ISSET(Socket, &readfds))
-        {
-            // There's at least one pending connection
-            struct sockaddr_storage addr;
-            socklen_t addrLen = sizeof(addr);
+		// If we get here, ret > 0, meaning 'listenSock' is readable
+		// => accept() should not block
+		if (FD_ISSET(Socket, &readfds)) // There's at least one pending connection
+		{
 			if ((new_socket = accept(Socket, (struct sockaddr *)&addr, (socklen_t *)&addrSize)) < 0)
 			{
 				Error("accept failed");
@@ -567,8 +573,8 @@ void *AdcListenerThread(void *arg)
 	else
 		Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
 	Listen(AdcSocket, 1);
-	for (;done == 0;)
-		HandleNewAdcClients(AdcSocket, AdcAddrSize,  AdcAddr);
+	for (; done == 0;)
+		HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcAddr);
 	AdcClients.clear();
 	return nullptr;
 }
@@ -586,12 +592,9 @@ void SendControlHello(int Socket)
 	stuff<__u16>(bytes, data.size());
 	bytes.insert(bytes.end(), data.begin(), data.end());
 
-
-
 	PTDataItemBase d2 = TDataItemBase::fromBytes(bytes, result);
 	Payload.push_back(d2);
 	Log("DID[TCP_ConnectionID] = ", d2->AsBytes(true));
-
 
 	//__u32 dacRangeDefault = 0x3031E142;
 	//__u32 dacRangeDefault = 0x35303055;
@@ -625,7 +628,7 @@ void SendControlHello(int Socket)
 		fpgaId->Go();
 		Payload.push_back(fpgaId);
 	}
-	catch (const std::logic_error & e)
+	catch (const std::logic_error &e)
 	{
 		Error(e.what());
 		perror(e.what());
@@ -642,54 +645,52 @@ void SendControlHello(int Socket)
 	}
 	else
 	{
-		Log("Sent 'Hello' to Control Client# "+to_hex<__u16>(Socket)+":\n		  " + HelloControl.AsString()+", bytes=",rbuf);
+		Log("Sent 'Hello' to Control Client# " + to_hex<__u16>(Socket) + ":\n		  " + HelloControl.AsString() + ", bytes=", rbuf);
 	}
 }
-
 
 void Disconnect(int aClient)
 {
 	struct sockaddr_storage addr; // Can hold IPv4 or IPv6
 	socklen_t addrSize = sizeof(addr);
 
-    if (getpeername(aClient, reinterpret_cast<struct sockaddr*>(&addr), &addrSize) == -1)
-        Error("getpeername() failed");
-    else
-    {
-        char ipStr[INET6_ADDRSTRLEN] = {0};  // Enough space for IPv6 text
-        uint16_t port = 0;
+	if (getpeername(aClient, reinterpret_cast<struct sockaddr *>(&addr), &addrSize) == -1)
+		Error("getpeername() failed");
+	else
+	{
+		char ipStr[INET6_ADDRSTRLEN] = {0}; // Enough space for IPv6 text
+		uint16_t port = 0;
 
-        if (addr.ss_family == AF_INET)            // IPv4
-        {
-            auto *v4 = reinterpret_cast<struct sockaddr_in*>(&addr);
-            inet_ntop(AF_INET, &(v4->sin_addr), ipStr, sizeof(ipStr));
-            port = ntohs(v4->sin_port);
-        }
-        else if (addr.ss_family == AF_INET6)            // IPv6
-        {
-            auto *v6 = reinterpret_cast<struct sockaddr_in6*>(&addr);
-            inet_ntop(AF_INET6, &(v6->sin6_addr), ipStr, sizeof(ipStr));
-            port = ntohs(v6->sin6_port);
-        }
-        else
-        {
-            // Some other address family?
-            strncpy(ipStr, "UnknownAF", sizeof(ipStr));
-            port = 0;
-        }
+		if (addr.ss_family == AF_INET) // IPv4
+		{
+			auto *v4 = reinterpret_cast<struct sockaddr_in *>(&addr);
+			inet_ntop(AF_INET, &(v4->sin_addr), ipStr, sizeof(ipStr));
+			port = ntohs(v4->sin_port);
+		}
+		else if (addr.ss_family == AF_INET6) // IPv6
+		{
+			auto *v6 = reinterpret_cast<struct sockaddr_in6 *>(&addr);
+			inet_ntop(AF_INET6, &(v6->sin6_addr), ipStr, sizeof(ipStr));
+			port = ntohs(v6->sin6_port);
+		}
+		else
+		{
+			// Some other address family?
+			strncpy(ipStr, "UnknownAF", sizeof(ipStr));
+			port = 0;
+		}
 
-        Log(std::string("Host "+to_hex<__u16>(aClient)+" disconnected; IP: ") + ipStr + ", Port " + std::to_string(port));
-    }
-    close(aClient);
+		Log(std::string("Host " + to_hex<__u16>(aClient) + " disconnected; IP: ") + ipStr + ", Port " + std::to_string(port));
+	}
+	close(aClient);
 
-    // // Remove from list
-    // auto it = std::find(ClientList.begin(), ClientList.end(), aClient);
-    // if (it != ClientList.end())
-    //     ClientList.erase(it);
-    // else
-    //     Error("INTERNAL ERROR: Attempted to remove socket not in ClientList");
+	// // Remove from list
+	// auto it = std::find(ClientList.begin(), ClientList.end(), aClient);
+	// if (it != ClientList.end())
+	//     ClientList.erase(it);
+	// else
+	//     Error("INTERNAL ERROR: Attempted to remove socket not in ClientList");
 }
-
 
 bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 {
@@ -703,90 +704,98 @@ bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 		Error("TMessage::fromBytes(buf) returned " + std::to_string(-result) + ": " + err_msg[-result]);
 		return false;
 	}
-	Log("Received "+std::to_string(bytesRead)+" bytes on Control connection:\n		  " + parsedMessage.AsString());
+	Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:\n		  " + parsedMessage.AsString());
 	return true;
 }
 
 // new version of threadReceiver written by ChatGPT to accumulate and chunk incoming packets
-ssize_t ReceiveFromSocket(int controlSocket, std::vector<char>& buffer) {
-    char tempBuffer[65536];
-    ssize_t bytesRead = recv(controlSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
-    if (bytesRead > 0) {
-        buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
-    }
-    return bytesRead;
+ssize_t ReceiveFromSocket(int controlSocket, std::vector<char> &buffer)
+{
+	char tempBuffer[65536];
+	ssize_t bytesRead = recv(controlSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
+	if (bytesRead > 0)
+	{
+		buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
+	}
+	return bytesRead;
 }
 
-int CheckDisconnect(ssize_t bytesRead, int controlSocket) {
-    if (bytesRead == 0)
- 		return true;
+int CheckDisconnect(ssize_t bytesRead, int controlSocket)
+{
+	if (bytesRead == 0)
+		return true;
 	return false;
 }
 
-void ProcessMessage(std::vector<char>& buffer, int controlSocket) {
-    static __u32 expectedMessageLength = 0;
+void ProcessMessage(std::vector<char> &buffer, int controlSocket)
+{
+	static __u32 expectedMessageLength = 0;
 
-    if (expectedMessageLength == 0 && buffer.size() >= 5) {
-        expectedMessageLength = *reinterpret_cast<__u32*>(&buffer[1]);
-        expectedMessageLength = le32toh(expectedMessageLength);
-		Debug("-- Expected Length: "+std::to_string(expectedMessageLength));
-    }
+	if (expectedMessageLength == 0 && buffer.size() >= 5)
+	{
+		expectedMessageLength = *reinterpret_cast<__u32 *>(&buffer[1]);
+		expectedMessageLength = le32toh(expectedMessageLength);
+		Debug("-- Expected Length: " + std::to_string(expectedMessageLength));
+	}
 
-    if (buffer.size() >= expectedMessageLength + 5 + 1) {
-        TMessage* aMessage = new TMessage;
-        if (GotMessage(buffer.data(), expectedMessageLength+5+1, *aMessage)) {
-            TActionQueueItem* action = new TActionQueueItem{controlSocket, *aMessage};
-            ActionQueue.enqueue(action);
-            Debug(action->theMessage.AsString(true));
-        }
-        buffer.erase(buffer.begin(), buffer.begin() + expectedMessageLength+5+1 );
-        expectedMessageLength = 0;
-    }
+	if (buffer.size() >= expectedMessageLength + 5 + 1)
+	{
+		TMessage *aMessage = new TMessage;
+		if (GotMessage(buffer.data(), expectedMessageLength + 5 + 1, *aMessage))
+		{
+			TActionQueueItem *action = new TActionQueueItem{controlSocket, *aMessage};
+			ActionQueue.enqueue(action);
+			Debug(action->theMessage.AsString(true));
+		}
+		buffer.erase(buffer.begin(), buffer.begin() + expectedMessageLength + 5 + 1);
+		expectedMessageLength = 0;
+	}
 }
 
- // J2H: In progress
+// J2H: In progress
 void *threadReceiver(void *arg)
 {
-	int controlSocket = static_cast<int>((__u64)arg);
-	struct sockaddr_storage addr;   // Can hold IPv4 or IPv6
-    socklen_t addrSize = sizeof(addr);
+	struct sockaddr_storage addr; // Can hold IPv4 or IPv6
+	socklen_t addrSize = sizeof(addr);
 
-    if (getpeername(controlSocket, reinterpret_cast<struct sockaddr*>(&addr), &addrSize) == -1)
-        Error("getpeername() failed");
-    else
-    {
-        char ipStr[INET6_ADDRSTRLEN] = {0};  // Enough space for IPv6 text
-        uint16_t port = 0;
+	if (getpeername(controlSocket, reinterpret_cast<struct sockaddr *>(&addr), &addrSize) == -1)
+		Error("getpeername() failed");
+	else
+	{
+		char ipStr[INET6_ADDRSTRLEN] = {0}; // Enough space for IPv6 text
+		uint16_t port = 0;
 
-        if (addr.ss_family == AF_INET)            // IPv4
-        {
-            auto *v4 = reinterpret_cast<struct sockaddr_in*>(&addr);
-            inet_ntop(AF_INET, &(v4->sin_addr), ipStr, sizeof(ipStr));
-            port = ntohs(v4->sin_port);
-        }
-        else if (addr.ss_family == AF_INET6)            // IPv6
-        {
-            auto *v6 = reinterpret_cast<struct sockaddr_in6*>(&addr);
-            inet_ntop(AF_INET6, &(v6->sin6_addr), ipStr, sizeof(ipStr));
-            port = ntohs(v6->sin6_port);
-        }
-        else
-        {
-            // Some other address family?
-            strncpy(ipStr, "UnknownAF", sizeof(ipStr));
-            port = 0;
-        }
+		if (addr.ss_family == AF_INET) // IPv4
+		{
+			auto *v4 = reinterpret_cast<struct sockaddr_in *>(&addr);
+			inet_ntop(AF_INET, &(v4->sin_addr), ipStr, sizeof(ipStr));
+			port = ntohs(v4->sin_port);
+		}
+		else if (addr.ss_family == AF_INET6) // IPv6
+		{
+			auto *v6 = reinterpret_cast<struct sockaddr_in6 *>(&addr);
+			inet_ntop(AF_INET6, &(v6->sin6_addr), ipStr, sizeof(ipStr));
+			port = ntohs(v6->sin6_port);
+		}
+		else
+		{
+			// Some other address family?
+			strncpy(ipStr, "UnknownAF", sizeof(ipStr));
+			port = 0;
+		}
 		Log("New Control connection thread, socket fd is: " + to_hex<__u16>(controlSocket) + " IP: " + ipStr + ", Port " + std::to_string(port));
 	}
 	SendControlHello(controlSocket);
 
 	std::vector<char> buffer;
 
-	while (done == 0) {
+	while (done == 0)
+	{
 		ssize_t bytesRead = ReceiveFromSocket(controlSocket, buffer);
-		if (bytesRead < 0) {
+		if (bytesRead < 0)
+		{
 			Error("error on Control recv(): " + std::to_string(errno));
-			break;// error handling? frex "connection closed" or EAGAIN or EINTR?
+			break; // error handling? frex "connection closed" or EAGAIN or EINTR?
 		}
 		if (CheckDisconnect(bytesRead, controlSocket))
 		{
@@ -794,11 +803,12 @@ void *threadReceiver(void *arg)
 			break;
 		}
 
-		try {
-			Debug("control receiver got "+std::to_string(bytesRead)+ " bytes");
+		try
+		{
+			Debug("control receiver got " + std::to_string(bytesRead) + " bytes");
 			ProcessMessage(buffer, controlSocket);
 		}
-		catch (const std::logic_error & e)
+		catch (const std::logic_error &e)
 		{
 			Error(e.what());
 		}
@@ -813,45 +823,45 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 	int new_socket;
 	Trace("Accept for Control");
 
-    while (!done)
-    {
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(ControlListenSocket, &readfds);
+	while (!done)
+	{
+		fd_set readfds;
+		FD_ZERO(&readfds);
+		FD_SET(ControlListenSocket, &readfds);
 
-        // select() needs the highest fd + 1
-        int nfds = ControlListenSocket + 1;
+		// select() needs the highest fd + 1
+		int nfds = ControlListenSocket + 1;
 
-        // Set a 1-second timeout (adjust to taste)
-        struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
+		// Set a 1-second timeout (adjust to taste)
+		struct timeval tv;
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
 
-        int ret = select(nfds, &readfds, nullptr, nullptr, &tv);
-        if (ret < 0)
-        {
-            if (errno == EINTR)
-            {
-                if (done) break;
-                continue; // otherwise just keep going
-            }
-            perror("select() failed");
-            break;
-        }
-        else if (ret == 0)
-        {
-            // Timeout expired, no sockets ready
-            if (done) break;  // see if we should exit
-            // else just continue polling
-            continue;
-        }
+		int ret = select(nfds, &readfds, nullptr, nullptr, &tv);
+		if (ret < 0)
+		{
+			if (errno == EINTR)
+			{
+				if (done)
+					break;
+				continue; // otherwise just keep going
+			}
+			perror("select() failed");
+			break;
+		}
+		else if (ret == 0)
+		{
+			// Timeout expired, no sockets ready
+			if (done)
+				break; // see if we should exit
+			// else just continue polling
+			continue;
+		}
 
-        // If we get here, ret > 0, meaning 'listenSock' is readable
-        // => accept() should not block
-        if (FD_ISSET(ControlListenSocket, &readfds))
-        {
-            struct sockaddr_storage addr;
-            socklen_t addrLen = sizeof(addr);
+		// If we get here, ret > 0, meaning 'listenSock' is readable
+		// => accept() should not block
+		if (FD_ISSET(ControlListenSocket, &readfds))
+		{
 			if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&addr, &addrSize)) < 0)
 			{
 				Error("accept failed");
@@ -860,11 +870,11 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 			}
 			pthread_t receive_thread;
 			Log("New Control connection, socket fd is: " + to_hex<__u16>(new_socket));
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 			pthread_create(&receive_thread, NULL, &threadReceiver, (void *)new_socket); // spawn Control Read thread here, pass in new_socket
 			pthread_detach(receive_thread);
-		#pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 		}
 	}
 	// ReceiverThreadQueue.enqueue(receive_thread);
@@ -877,13 +887,13 @@ bool RunMessage(TMessage &aMessage)
 	{
 		for (auto anItem : aMessage.DataItems)
 		{
-			//Debug("About to execute " + anItem->AsString(true)+": ", anItem->AsBytes(true));
+			// Debug("About to execute " + anItem->AsString(true)+": ", anItem->AsBytes(true));
 			anItem->Go();
 			// if an error happens what do we do? This is a "run-time" error
 		}
 		aMessage.setMId('R'); // FIX: should be performed based on anItem.getResultCode() indicating no errors
 	}
-	catch (const std::logic_error & e)
+	catch (const std::logic_error &e)
 	{
 		aMessage.setMId('X');
 		Error("EXCEPTION! " + std::string(e.what()));
@@ -911,13 +921,15 @@ void SendResponse(int Client, TMessage &aMessage)
 
 void *ActionThread(TActionQueue *Q)
 {
-	for (;done == 0;)
+	for (; done == 0;)
 	{
 		TActionQueueItem *anAction = Q->dequeue();
+		if (!anAction) continue; // should only occur if done != 0, "poison pill"
+
 		Log("---DEQUEUED---");
 		RunMessage(anAction->theMessage);
 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
-		//free(anAction);
+															  // free(anAction);
 	}
 	return nullptr;
 }
@@ -936,5 +948,3 @@ void *ActionThread(TActionQueue *Q)
 // 	}
 // }
 // //---------------------End signal -----------------------
-
-

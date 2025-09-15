@@ -5,3 +5,4 @@ aioenetd
 test
 .bash_history
 *.o
+*.d

@@ -1,5 +1,7 @@
 #pragma once
 /*
+config.h
+
 eNET-AIO configuration structure and support API.
 
 	All configuration that should be stored non-volatile is held in TConfig structures.
@@ -19,13 +21,19 @@ eNET-AIO configuration structure and support API.
 		call LoadConfig(CONFIG_CURRENT), which will update the Config with the customer's desired values
 */
 
+#include <string>
+
 #include "utilities.h"
 #include "eNET-AIO16-16F.h"
 
-#define CONFIG_PATH "/etc/opt/aioenet/"
+#define CONFIG_PATH "/var/lib/aioenetd/"
+
 #define CONFIG_CURRENT "config.current/"
 #define CONFIG_FACTORY "config.factory/"
-#define CONFIG_USER "config.user/"
+#define CONFIG_USER    "config.user/"
+#define CONFIG_INIT_STAMP ".initialized"
+#define AIOENETD_VERSION "aioenetd " __DATE__ " " __TIME__
+
 
 /*
 RangeCode 0 = 0-10 V
@@ -80,44 +88,16 @@ bool SaveCalConfig(std::string which = CONFIG_CURRENT);
 bool SaveAdcConfig(std::string which = CONFIG_CURRENT);
 bool SaveSubmuxConfig(std::string which = CONFIG_CURRENT);
 bool SaveConfig(std::string which = CONFIG_CURRENT);
+int WriteConfigString(std::string key, std::string value, std::string which = CONFIG_CURRENT);
 
 void ApplyConfig();
 
-// On success: set value to config string from disk and return 0
-// On error: leave value unchanged and return errno
-// Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/
-// in files named key.conf
-int ReadConfigString(std::string key, std::string &value, std::string which = CONFIG_CURRENT);
 
-// On success: set value to config byte from disk and return 0
-// On error: leave value unchanged and return errno
-// Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/
-// in files named key.conf, in two-digit HEX form; intel nybble order, padded with leading zeroes
-int ReadConfigU8(std::string key, __u8 &value, std::string which = CONFIG_CURRENT);
-
-// On success: set value to config __u32 from disk and return 0
-// On error: leave value unchanged and return errno
-// Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/
-// in files named key.conf, in 8-digit HEX form; intel order, padded with leading zeroes
-int ReadConfigU32(std::string key, __u32 &value, std::string which = CONFIG_CURRENT);
-
-// On success: set value to config float from disk and return 0
-// On error: leave value unchanged and return errno
-// Config is stored in /etc/opt/aioenet/ in directories named config.factory/ config.current/ and config.user/
-// in files named key.conf, in 8-digit HEX form; intel order, padded with leading zeroes
-// (the single-precision 4-byte float is stored as a __u32 for perfect round-trip serdes)
-int ReadConfigFloat(std::string key, float &value, std::string which = CONFIG_CURRENT);
-
-int WriteConfigString(std::string key, std::string value, std::string which = CONFIG_CURRENT);
-int WriteConfigFloat(std::string key, float value, std::string which = CONFIG_CURRENT);
-int WriteConfigU8(std::string key, __u8 value, std::string which = CONFIG_CURRENT);
-int WriteConfigU32(std::string key, __u32 value, std::string which = CONFIG_CURRENT);
-
-// create /etc/opt/aioenet/ if missing.
-// create /etc/opt/aioenet/config.factory/ if missing.
-// create /etc/opt/aioenet/config.current/ if missing.
-// create /etc/opt/aioenet/config.user/ if missing.
-// create individual /etc/opt/aioenet/config.factory/foo.conf files for all config. fields that do not already have foo.conf.
+// create /var/aioenetd/ if missing.
+// create /var/aioenetd/config.factory/ if missing.
+// create /var/aioenetd/config.current/ if missing.
+// create /var/aioenetd/config.user/ if missing.
+// create individual /var/aioenetd/config.factory/foo.conf files for all config. fields that do not already have foo.conf.
 // if any individual foo.conf were created copy it to config.current/foo.conf if missing there.
 // if any individual foo.conf were created copy it to config.user/foo.conf if missing there.
-void InitializeConfigFiles(TConfig &config); // should only run if /etc/opt/aioenet/config.factory/ is missing or empty
+void InitializeConfigFiles(TConfig &config); // should only run if /var/aioenetd/config.factory/ is missing or empty

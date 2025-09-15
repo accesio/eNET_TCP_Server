@@ -1,25 +1,303 @@
 //------------------- Configuration Files -------------
+// config.cpp
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <fstream>
 #include <iostream>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/statfs.h>
+#include <dirent.h>
+#include <cstring>
+#include <cerrno>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #include "utilities.h"
 #include "logging.h"
 #include "apci.h"
 #include "config.h"
 
-#define filename (CONFIG_PATH + which + key + ".conf")
 TConfig Config;
+/*
+// On success: set value to config string from disk and return 0
+// On error: leave value unchanged and return errno
+// Config is stored in /var/lib/aioenetd/ in directories named config.factory/ config.current/ and config.user/
+// in files named key.conf
+static int ReadConfigString(std::string key, std::string &value, std::string which = CONFIG_CURRENT);
 
+// On success: set value to config byte from disk and return 0
+// On error: leave value unchanged and return errno
+// Config is stored in /var/lib/aioenetd/ in directories named config.factory/ config.current/ and config.user/
+// in files named key.conf, in two-digit HEX form; intel nybble order, padded with leading zeroes
+static int ReadConfigU8(std::string key, __u8 &value, std::string which = CONFIG_CURRENT);
+
+// On success: set value to config __u32 from disk and return 0
+// On error: leave value unchanged and return errno
+// Config is stored in /var/lib/aioenetd/ in directories named config.factory/ config.current/ and config.user/
+// in files named key.conf, in 8-digit HEX form; intel order, padded with leading zeroes
+static int ReadConfigU32(std::string key, __u32 &value, std::string which = CONFIG_CURRENT);
+
+// On success: set value to config float from disk and return 0
+// On error: leave value unchanged and return errno
+// Config is stored in /var/lib/aioenetd/ in directories named config.factory/ config.current/ and config.user/
+// in files named key.conf, in 8-digit HEX form; intel order, padded with leading zeroes
+// (the single-precision 4-byte float is stored as a __u32 for perfect round-trip serdes)
+static int ReadConfigFloat(std::string key, float &value, std::string which = CONFIG_CURRENT);
+
+static int WriteConfigString(std::string key, std::string value, std::string which = CONFIG_CURRENT);
+static int WriteConfigFloat(std::string key, float value, std::string which = CONFIG_CURRENT);
+static int WriteConfigU8(std::string key, __u8 value, std::string which = CONFIG_CURRENT);
+static int WriteConfigU32(std::string key, __u32 value, std::string which = CONFIG_CURRENT);
+*/
+
+static inline int FsyncDir(const std::string &dirPath)
+{
+	int dfd = open(dirPath.c_str(), O_DIRECTORY | O_CLOEXEC);
+	if (dfd < 0)
+		return -errno;
+	int rc = fsync(dfd);
+	int e = (rc == 0) ? 0 : -errno;
+	close(dfd);
+	return e;
+}
+
+static int MkdirP(const std::string &path, mode_t mode)
+{
+	std::error_code ec;
+	if (fs::exists(path, ec))
+		return 0;
+	if (!fs::create_directories(path, ec))
+	{
+		if (ec)
+			return -ec.value();
+	}
+	// best-effort: fsync each level (parent is enough in practice)
+	return FsyncDir(fs::path(path).parent_path().string());
+}
+
+static int AtomicWriteTextFile(const std::string &path, const std::string &contents, mode_t mode)
+{
+	std::string tmp = path + ".tmp";
+	int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, mode);
+	if (fd < 0)
+	{
+		int e = -errno;
+		Error("AtomicWriteTextFile open(" + tmp + ") failed: " + std::to_string(-e));
+		return e;
+	}
+	ssize_t need = static_cast<ssize_t>(contents.size());
+	const char *p = contents.data();
+	while (need > 0)
+	{
+		ssize_t w = write(fd, p, need);
+		if (w < 0)
+		{
+			int e = -errno;
+			Error("AtomicWriteTextFile write(" + tmp + ") failed: " + std::to_string(-e));
+			close(fd);
+			return e;
+		}
+		need -= w;
+		p += w;
+	}
+	if (fsync(fd) != 0)
+	{
+		int e = -errno;
+		Error("AtomicWriteTextFile fsync(" + tmp + ") failed: " + std::to_string(-e));
+		close(fd);
+		return e;
+	}
+	close(fd);
+
+	// fsync parent dir to persist rename
+	auto parent = fs::path(path).parent_path().string();
+	if (rename(tmp.c_str(), path.c_str()) != 0)
+	{
+		int e = -errno;
+		Error("AtomicWriteTextFile rename(" + tmp + " -> " + path + ") failed: " + std::to_string(-e));
+		return e;
+	}
+	(void)FsyncDir(parent);
+	return 0;
+}
+
+static inline std::string FilePathFor(const std::string &which, const std::string &key)
+{
+	// (CONFIG_PATH already ends with '/'; which ends with '/')
+	return std::string(CONFIG_PATH) + which + key + ".conf";
+}
+
+bool EnsureConfigTree()
+{
+	// /var/share/aioenetd/
+	if (int rc = MkdirP(CONFIG_PATH, 0755); rc < 0)
+		return false;
+	if (int rc = MkdirP(std::string(CONFIG_PATH) + CONFIG_FACTORY, 0755); rc < 0)
+		return false;
+	if (int rc = MkdirP(std::string(CONFIG_PATH) + CONFIG_CURRENT, 0755); rc < 0)
+		return false;
+	if (int rc = MkdirP(std::string(CONFIG_PATH) + CONFIG_USER, 0755); rc < 0)
+		return false;
+	return true;
+}
+
+static bool IsFirstBoot()
+{
+	std::error_code ec;
+	return !fs::exists(std::string(CONFIG_PATH) + CONFIG_INIT_STAMP, ec);
+}
+
+static bool WriteInitStamp()
+{
+	std::string stampPath = std::string(CONFIG_PATH) + CONFIG_INIT_STAMP;
+	return AtomicWriteTextFile(stampPath, AIOENETD_VERSION, 0644) == 0;
+}
+
+// write a key to a subtree iff missing (factory/current/user)
+static int WriteIfMissing(const std::string &which, const std::string &key, const std::string &value)
+{
+	std::error_code ec;
+	std::string path = FilePathFor(which, key);
+	if (fs::exists(path, ec))
+		return 0; // present; nothing to do
+	return AtomicWriteTextFile(path, value, 0644);
+}
+
+// helpers to dump Config into a target subtree, but only if that key is missing
+static void SeedFactoryFromStruct(const TConfig &cfg)
+{
+	// Board info
+	WriteIfMissing(CONFIG_FACTORY, "BRD_Description", cfg.Description);
+	WriteIfMissing(CONFIG_FACTORY, "BRD_Model", cfg.Model);
+	WriteIfMissing(CONFIG_FACTORY, "BRD_SerialNumber", cfg.SerialNumber);
+
+	// ADC ranges
+	WriteIfMissing(CONFIG_FACTORY, "ADC_Differential", to_hex<__u8>(cfg.adcDifferential));
+	for (int i = 0; i < 16; i++)
+	{
+		char key[32];
+		snprintf(key, sizeof(key), "ADC_RangeCodeCh%02d", i);
+		WriteIfMissing(CONFIG_FACTORY, key, to_hex<__u32>(cfg.adcRangeCodes[i]));
+	}
+
+	// DAC ranges
+	for (int i = 0; i < NUM_DACS; i++)
+	{
+		char key[32];
+		snprintf(key, sizeof(key), "DAC_RangeCh%d", i);
+		WriteIfMissing(CONFIG_FACTORY, key, to_hex<__u32>(cfg.dacRanges[i]));
+	}
+
+	// ADC cal (hex-IEEE float)
+	for (int r = 0; r < 8; r++)
+	{
+		char ks[32];
+		snprintf(ks, sizeof(ks), "ADC_ScaleRange%d", r);
+		char ko[32];
+		snprintf(ko, sizeof(ko), "ADC_OffsetRange%d", r);
+		WriteIfMissing(CONFIG_FACTORY, ks, to_hex<__u32>(bit_cast<__u32>(cfg.adcScaleCoefficients[r])));
+		WriteIfMissing(CONFIG_FACTORY, ko, to_hex<__u32>(bit_cast<__u32>(cfg.adcOffsetCoefficients[r])));
+	}
+
+	// DAC cal
+	for (int d = 0; d < NUM_DACS; d++)
+	{
+		char ks[32];
+		snprintf(ks, sizeof(ks), "DAC_ScaleCh%d", d);
+		char ko[32];
+		snprintf(ko, sizeof(ko), "DAC_OffsetCh%d", d);
+		WriteIfMissing(CONFIG_FACTORY, ks, to_hex<__u32>(bit_cast<__u32>(cfg.dacScaleCoefficients[d])));
+		WriteIfMissing(CONFIG_FACTORY, ko, to_hex<__u32>(bit_cast<__u32>(cfg.dacOffsetCoefficients[d])));
+	}
+
+	// Submux
+	WriteIfMissing(CONFIG_FACTORY, "BRD_NumberOfSubmuxes", to_hex<__u8>(cfg.numberOfSubmuxes));
+	for (int i = 0; i < 4; i++)
+	{
+		char kb[32];
+		snprintf(kb, sizeof(kb), "BRD_SubmuxBarcode%d", i);
+		char kt[32];
+		snprintf(kt, sizeof(kt), "BRD_SubmuxType%d", i);
+		WriteIfMissing(CONFIG_FACTORY, kb, cfg.submuxBarcodes[i]);
+		WriteIfMissing(CONFIG_FACTORY, kt, cfg.submuxTypes[i]);
+		for (int g = 0; g < gainGroupsPerSubmux; g++)
+		{
+			char ksf[32];
+			snprintf(ksf, sizeof(ksf), "BRD_Submux%dRange%d", i, g);
+			char kof[32];
+			snprintf(kof, sizeof(kof), "BRD_Submux%dOffset%d", i, g);
+			WriteIfMissing(CONFIG_FACTORY, ksf, to_hex<__u32>(bit_cast<__u32>(cfg.submuxScaleFactors[i][g])));
+			WriteIfMissing(CONFIG_FACTORY, kof, to_hex<__u32>(bit_cast<__u32>(cfg.submuxOffsets[i][g])));
+		}
+	}
+}
+
+// copy any factory key (if exists) into current if missing there
+static void SeedCurrentFromFactoryIfMissing()
+{
+	// simply iterate factory dir and copy any missing files into current
+	const std::string facDir = std::string(CONFIG_PATH) + CONFIG_FACTORY;
+	const std::string curDir = std::string(CONFIG_PATH) + CONFIG_CURRENT;
+
+	std::error_code ec;
+	if (!fs::exists(facDir, ec))
+		return;
+	for (auto &entry : fs::directory_iterator(facDir, ec))
+	{
+		if (!entry.is_regular_file())
+			continue;
+		auto name = entry.path().filename().string(); // e.g. Foo.conf
+		if (name.size() < 6 || name.rfind(".conf") != name.size() - 5)
+			continue;
+		auto dst = curDir + name;
+		if (!fs::exists(dst, ec))
+		{
+			// read whole file then AtomicWrite
+			std::ifstream in(entry.path(), std::ios::binary);
+			std::string contents((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			AtomicWriteTextFile(dst, contents, 0644);
+		}
+	}
+}
+
+void InitializeConfigFiles(TConfig &config)
+{
+	if (!EnsureConfigTree())
+	{
+		Error("InitializeConfigFiles: failed EnsureConfigTree()");
+		return;
+	}
+	if (!IsFirstBoot())
+	{
+		Debug("InitializeConfigFiles: already initialized; skipping seeding");
+		return;
+	}
+	// seed factory from compiled defaults (Config was pre-initialized by InitConfig)
+	SeedFactoryFromStruct(config);
+	// seed current from factory where missing
+	SeedCurrentFromFactoryIfMissing();
+	// future: optionally seed a default named user profile
+
+	if (!WriteInitStamp())
+	{
+		Error("InitializeConfigFiles: failed to write init stamp");
+	}
+	else
+	{
+		Log("InitializeConfigFiles: initial config written; stamp recorded: " AIOENETD_VERSION);
+	}
+}
 
 /* There are 16 ADC ranges, one per base board channel
-   There can be one submux (AIMUX64M) attached, which turns each ADC channel of the base board into 4 more channels (64 total)
+   There can be one submux (AIMUX64M) attached, which turns each ADC channel of the base board into 4 more channels (64 total),
    or up to four submux (AIMUX32), which turn groups of four ADC channels into 32 channels. With the AIMUX32 each ADC channel's group
    of 8 submux channels can have complex signal conditioning features applied.  The AIMUX64M merely allows an additional gain factor.
    This Config struct allows per-submux-channel-group calibration and scaling, as well as the range and calibration for the four DACs and ADC.
 */
-void InitConfig(TConfig &config) {
+void InitConfig(TConfig &config)
+{
 	config.Hostname = "enetaio000000000000000";
 	config.Model = "eNET-untested";
 	config.Description = "eNET-untested Description";
@@ -27,11 +305,14 @@ void InitConfig(TConfig &config) {
 	config.FpgaVersionCode = 0xDEADBA57;
 	config.numberOfSubmuxes = 0;
 	config.adcDifferential = 0b00000000;
-	for (int i = 0; i < 16; i++) {
-		if (i < 4) {
-			config.submuxBarcodes[i]="";
-			config.submuxTypes[i]="";
-			for(int submux=0; submux<4; submux++) {
+	for (int i = 0; i < 16; i++)
+	{
+		if (i < 4)
+		{
+			config.submuxBarcodes[i] = "";
+			config.submuxTypes[i] = "";
+			for (int submux = 0; submux < 4; submux++)
+			{
 				config.submuxScaleFactors[i][submux] = 1.0;
 				config.submuxOffsets[i][submux] = 0.0;
 			}
@@ -39,135 +320,152 @@ void InitConfig(TConfig &config) {
 			config.dacScaleCoefficients[i] = 1.00000000;
 			config.dacOffsetCoefficients[i] = 0.0;
 		}
-		if (i < 8) {
+		if (i < 8)
+		{
 			config.adcScaleCoefficients[i] = 1.0;
 			config.adcOffsetCoefficients[i] = 0.0;
-
 		}
-		if (i < 16) {
-			config.adcRangeCodes[i]=1;
+		if (i < 16)
+		{
+			config.adcRangeCodes[i] = 1;
 		}
 	}
 }
 
-int ReadConfigString(std::string key, std::string &value, std::string which )
+static int ReadConfigStringRaw(std::string key, std::string &value, std::string which)
 {
-	auto f = open(filename.c_str(), O_RDONLY | O_CLOEXEC | O_SYNC);
-	ssize_t bytesRead = -1;
+	std::string path = FilePathFor(which, key);
+	int f = open(path.c_str(), O_RDONLY | O_CLOEXEC);
 	if (f < 0)
 	{
-		bytesRead = -errno;
-		Error("failed to open() on " + filename + ", code " + std::to_string(bytesRead));
-		perror("ReadConfigString() file open failed ");
-		return static_cast<int>(bytesRead);
+		int e = -errno;
+		// Missing is normal (fallback will try next layer) -> no log
+		if (e == -ENOENT || e == -ENOTDIR)
+			return -ENOENT;
+
+		Error("ReadConfigString open(" + path + ") failed: " + std::to_string(-e));
+		return e;
 	}
-	__u8 buf[257];
-	bytesRead = read(f, buf, 256);
-	if (bytesRead < 0)
+
+	char buf[1024];
+	ssize_t r = read(f, buf, sizeof(buf) - 1);
+	int ret;
+	if (r < 0)
 	{
-		bytesRead = errno;
-		Error("ReadConfigString() " + filename + " failed, bytesRead=" + std::to_string(bytesRead) + ", status " + std::to_string(bytesRead));
-		perror("ReadConfigString() failed ");
-		return static_cast<int>(bytesRead);
-	}
-
-	buf[bytesRead] = 0;
-
-	value = std::string((char *)buf);
-	//std::cout << "ReadConfigString(" << key << ") got " << value << '\n';
-	return static_cast<int>(bytesRead);
-}
-
-int ReadConfigU8(std::string key, __u8 &value, std::string which )
-{
-	std::string v;
-	ssize_t bytesRead = ReadConfigString(key, v);
-	if (bytesRead == 2){
-		//std::cout << "ReadConfigU8 got " << v << " bytes read == " << bytesRead << '\n'<< '\n';
-
-		value = static_cast<__u8>(std::stoi(v, nullptr, 16));
+		ret = -errno;
+		// EISDIR/ENOENT here would be odd, but still: only log unexpected errors
+		if (!(ret == -ENOENT || ret == -ENOTDIR))
+		{
+			Error("ReadConfigString read(" + path + ") failed: " + std::to_string(-ret));
 		}
-	return static_cast<int>(bytesRead);
-}
-
-int ReadConfigU32(std::string key, __u32 &value, std::string which )
-{
-	std::string v;
-	ssize_t bytesRead = ReadConfigString(key, v);
-	if (bytesRead == 8)
-		value = std::stoi(v, nullptr, 16);
-	//Debug("ReadConfig32(" + key + ") got " + to_hex<__u32>(value));
-	return static_cast<int>(bytesRead);
-}
-
-// DEBUG BROKEN DOES NOT UPDATE value FIX FIX J2H --J2H TODO: FIX:
-int ReadConfigFloat(std::string key, float &value, std::string which )
-{
-	__u32 v;
-	int bytesRead = ReadConfigU32(key, v);
-
-	// if (bytesRead == 8){
-	// 	map_f__u32.u = v;
-	// 	value = map_f__u32.f;
-	// }
-	// std::cout << "ReadConfigFloat(" << key << ") got " << value << " (from "<< std::hex << v <<") with status " << bytesRead <<'\n';
-	return bytesRead;
-}
-
-
-
-int WriteConfigString(std::string key, std::string value, std::string which ){
-	// validate key, value, and filename are valid/safe to use
-	// if file == "config.current" then key must already exist
-	// ConfigWrite(file, key, value);
-	//std::string filename = CONFIG_PATH + file + "/" + key + ".conf";
-	ssize_t bytesRead = -1;
-	auto f = open(filename.c_str(), O_WRONLY | O_CREAT| O_TRUNC | O_CLOEXEC | O_SYNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-	if (f < 0)
-	{
-		bytesRead = errno;
-		Error("failed open() on " + filename + " code: " + std::to_string(bytesRead));
-		perror("open() failed");
 	}
 	else
 	{
-		bytesRead = write(f, value.c_str(), strlen(value.c_str()));
-		if (bytesRead < 0)
-		{
-			bytesRead = -errno;
-			Error("failed open() on " + filename + " code: " + std::to_string(bytesRead));
-			perror("WriteConfigString() open() failed");
-		}	close(f);
+		buf[r] = 0;
+		value.assign(buf);
+		while (!value.empty() && (value.back() == '\n' || value.back() == '\r'))
+			value.pop_back();
+		ret = 0;
 	}
-	// Trace(which + key + " = " + value );
-	return static_cast<int>(bytesRead);
+	close(f);
+	return ret;
 }
 
-int WriteConfigU8(std::string key, __u8 value, std::string which )
+int ReadConfigString(const std::string &key, std::string &value, const std::string &which)
+{
+	std::string path = FilePathFor(which, key);
+	std::error_code ec;
+	if (fs::exists(path, ec))
+		return ReadConfigStringRaw(key, value, which);
+
+	if (which.rfind("config.user/", 0) == 0)
+	{
+		if (fs::exists(FilePathFor(CONFIG_CURRENT, key), ec))
+		{
+			return ReadConfigStringRaw(key, value, CONFIG_CURRENT);
+		}
+	}
+	// final fallback to factory
+	if (fs::exists(FilePathFor(CONFIG_FACTORY, key), ec))
+	{
+		return ReadConfigStringRaw(key, value, CONFIG_FACTORY);
+	}
+	return -ENOENT;
+}
+
+int ReadConfigU8(std::string key, __u8 &value, std::string which)
+{
+	std::string v;
+	int rc = ReadConfigString(key, v, which);
+	if (rc < 0)
+		return rc;
+	if (v.size() < 2)
+		return -EINVAL;
+	value = static_cast<__u8>(std::stoul(v, nullptr, 16));
+	return 0;
+}
+
+int ReadConfigU32(std::string key, __u32 &value, std::string which)
+{
+	std::string v;
+	int rc = ReadConfigString(key, v, which);
+	if (rc < 0)
+		return rc;
+	if (v.size() < 8)
+		return -EINVAL;
+	value = static_cast<__u32>(std::stoul(v, nullptr, 16));
+	return 0;
+}
+
+int ReadConfigFloat(std::string key, float &value, std::string which)
+{
+	__u32 u = 0;
+	int rc = ReadConfigU32(key, u, which);
+	if (rc < 0)
+		return rc;
+	value = bit_cast<float>(u);
+	return 0;
+}
+
+int WriteConfigString(std::string key, std::string value, std::string which)
+{
+	std::string path = FilePathFor(which, key);
+	// ensure dir exists (idempotent)
+	MkdirP(fs::path(path).parent_path().string(), 0755);
+	int rc = AtomicWriteTextFile(path, value, 0644);
+	if (rc < 0)
+	{
+		Error("WriteConfigString(" + path + ") failed: " + std::to_string(-rc));
+	}
+	return rc;
+}
+
+int WriteConfigU8(std::string key, __u8 value, std::string which)
 {
 	std::string v = to_hex<__u8>(value);
 	return WriteConfigString(key, v, which);
 }
 
-int WriteConfigU32(std::string key, __u32 value, std::string which )
+int WriteConfigU32(std::string key, __u32 value, std::string which)
 {
 	std::string v = to_hex<__u32>(value);
 	return WriteConfigString(key, v, which);
 }
 
-int WriteConfigFloat(std::string key, float value, std::string which )
+int WriteConfigFloat(std::string key, float value, std::string which)
 {
-	//map_f__u32.f = value;
+	// map_f__u32.f = value;
 	__u32 v = bit_cast<__u32>(value);
 	return WriteConfigU32(key, v, which);
 	// std::cout << "	 wrote "+key+" as with "<< value <<" during WriteConfigFloat"<<'\n';
 }
 
 // TODO: improve error handling program-wide
-#define HandleError(x) {if (x<0)	\
-		Error("Error");				\
-}
-
+#define HandleError(x)      \
+	{                       \
+		if (x < 0)          \
+			Error("Error"); \
+	}
 
 /* LOAD CONFIGURATION STRUCT FROM DISK FILES */
 void LoadDacCalConfig(std::string which)
@@ -210,7 +508,8 @@ void LoadCalConfig(std::string which)
 }
 
 void LoadDacConfig(std::string which)
-{	HandleError(ReadConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
+{
+	HandleError(ReadConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
 	HandleError(ReadConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
 	HandleError(ReadConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
 	HandleError(ReadConfigU32("DAC_RangeCh3", Config.dacRanges[3], which));
@@ -295,13 +594,13 @@ void LoadBrdConfig(std::string which)
 	HandleError(ReadConfigString("BRD_SerialNumber", Config.SerialNumber, which));
 }
 
-// Reads the /etc/aioenetd.d/config.current/configuration data into the Config structure
+// Reads the /var/lib/aioenetd/config.current/configuration data into the Config structure
 void LoadConfig(std::string which)
 {
 	{
-	// read /etc/hostname into Config.Hostname
+		// read /etc/hostname into Config.Hostname
 		std::ifstream in("/etc/hostname");
-		in >> Config.Hostname;
+		std::getline(in, Config.Hostname);
 		in.close();
 		Debug("Hostname == " + Config.Hostname);
 	}
@@ -312,10 +611,6 @@ void LoadConfig(std::string which)
 	LoadAdcConfig(which);
 	LoadSubmuxConfig(which);
 }
-
-
-
-
 
 /* SAVE CONFIGURATION STRUCT TO DISK */
 bool SaveDacCalConfig(std::string which)
@@ -467,9 +762,10 @@ bool SaveConfig(std::string which)
 
 void ApplyAdcCalConfig()
 {
-	for (int cal=0;cal<8;++cal){
-		out(ofsAdcCalScale + cal*ofsAdcCalScaleStride, *reinterpret_cast<__u32 *>(&Config.adcScaleCoefficients[cal]));
-		out(ofsAdcCalOffset + cal*ofsAdcCalOffsetStride, *reinterpret_cast<__u32 *>(&Config.adcOffsetCoefficients[cal]));
+	for (int cal = 0; cal < 8; ++cal)
+	{
+		out(ofsAdcCalScale + cal * ofsAdcCalScaleStride, *reinterpret_cast<__u32 *>(&Config.adcScaleCoefficients[cal]));
+		out(ofsAdcCalOffset + cal * ofsAdcCalOffsetStride, *reinterpret_cast<__u32 *>(&Config.adcOffsetCoefficients[cal]));
 	}
 }
 

@@ -118,8 +118,7 @@ TDAC_Range1 &TDAC_Range1::Go()
     if (this->bWrite)
     {
         // if (this->permissionsCheck?) // placeholder
-        if (0 > WriteConfigString("DAC_RangeCh" + std::to_string(this->params.dacChannel),
-                                  to_hex<__u32>(this->params.dacRange)))
+        if (0 > WriteConfigString("DAC_RangeCh" + std::to_string(this->params.dacChannel), to_hex<__u32>(this->params.dacRange)))
         {
             this->params.dacRange = Config.dacRanges[this->params.dacChannel];
             Error("Failed to write config setting DAC_RangeCh");
