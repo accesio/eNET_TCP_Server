@@ -380,12 +380,12 @@ void Intro(int argc, char **argv)
 	if (argc < 2)
 	{
 		Trace("Warning: no tcp port specified.  Using default: " + std::to_string(ControlListenPort));
-		Trace(std::string("Usage: " + std::string(argv[0]) + " {port_to_listen — (i.e., 18767)}"));
+		Trace("Usage: " + std::string(argv[0]) + " {port_to_listen — (i.e., 18767)}");
 	}
 	else
 		sscanf(argv[1], "%d", &ControlListenPort);
 
-	Trace(std::string("Control port: ") + std::to_string(ControlListenPort));
+	Trace("Control port: " + std::to_string(ControlListenPort));
 }
 
 void OpenDevFile()
@@ -498,7 +498,7 @@ void SendAdcHello(int Socket)
 	}
 	else
 	{
-		Log("sent 'Hello' to new ADC Client# " + to_hex<__u16>(Socket) + ", (ORed with 0x80000000) [" + to_hex<__u32>(HelloAdc) + "]");
+		Log("sent 'Hello' to new ADC Client# " + to_hex<__u32>(Socket) + ", (ORed with 0x80000000) [" + to_hex<__u32>(HelloAdc) + "]");
 	}
 }
 
@@ -548,7 +548,7 @@ void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage
 		// => accept() should not block
 		if (FD_ISSET(Socket, &readfds)) // There's at least one pending connection
 		{
-			if ((new_socket = accept(Socket, (struct sockaddr *)&addr, (socklen_t *)&addrSize)) < 0)
+			if ((new_socket = accept(Socket, (struct sockaddr *)&addr, &addrSize)) < 0)
 			{
 				Error("accept failed");
 				perror("accept failed");
@@ -568,10 +568,8 @@ void *AdcListenerThread(void *arg)
 	std::vector<int> AdcClients;
 	AdcAddrSize = sizeof(sockaddr_storage);
 
-	if (iNET == AF_INET6)
-		Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
-	else
-		Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
+	Bind(AdcSocket, AdcListenPort, &AdcAddr, iNET);
+
 	Listen(AdcSocket, 1);
 	for (; done == 0;)
 		HandleNewAdcClients(AdcSocket, AdcAddrSize, AdcAddr);
@@ -589,7 +587,7 @@ void SendControlHello(int Socket)
 	for (uint byt = 0; byt < sizeof(Socket); byt++)
 		data.push_back(static_cast<__u8>((Socket >> (8 * byt)) & 0x000000FF));
 	stuff<__u16>(bytes, static_cast<__u16>(DataItemIds::TCP_ConnectionID));
-	stuff<__u16>(bytes, data.size());
+	stuff<__u16>(bytes, (__u16)data.size());
 	bytes.insert(bytes.end(), data.begin(), data.end());
 
 	PTDataItemBase d2 = TDataItemBase::fromBytes(bytes, result);
@@ -645,7 +643,7 @@ void SendControlHello(int Socket)
 	}
 	else
 	{
-		Log("Sent 'Hello' to Control Client# " + to_hex<__u16>(Socket) + ":\n		  " + HelloControl.AsString() + ", bytes=", rbuf);
+		Log("Sent 'Hello' to Control Client# " + to_hex<__u32>(Socket) + ":\n		  " + HelloControl.AsString() + ", bytes=", rbuf);
 	}
 }
 
@@ -680,7 +678,7 @@ void Disconnect(int aClient)
 			port = 0;
 		}
 
-		Log(std::string("Host " + to_hex<__u16>(aClient) + " disconnected; IP: ") + ipStr + ", Port " + std::to_string(port));
+		Log("Host " + to_hex<__u32>(aClient) + " disconnected; IP: " + ipStr + ", Port " + std::to_string(port));
 	}
 	close(aClient);
 
@@ -709,10 +707,10 @@ bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
 }
 
 // new version of threadReceiver written by ChatGPT to accumulate and chunk incoming packets
-ssize_t ReceiveFromSocket(int controlSocket, std::vector<char> &buffer)
+ssize_t ReceiveFromSocket(int aSocket, std::vector<char> &buffer)
 {
 	char tempBuffer[65536];
-	ssize_t bytesRead = recv(controlSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
+	ssize_t bytesRead = recv(aSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
 	if (bytesRead > 0)
 	{
 		buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
@@ -720,14 +718,14 @@ ssize_t ReceiveFromSocket(int controlSocket, std::vector<char> &buffer)
 	return bytesRead;
 }
 
-int CheckDisconnect(ssize_t bytesRead, int controlSocket)
+int CheckDisconnect(ssize_t bytesRead, int aSocket)
 {
 	if (bytesRead == 0)
 		return true;
 	return false;
 }
 
-void ProcessMessage(std::vector<char> &buffer, int controlSocket)
+void ProcessMessage(std::vector<char> &buffer, int aSocket)
 {
 	static __u32 expectedMessageLength = 0;
 
@@ -783,7 +781,7 @@ void *threadReceiver(void *arg)
 			strncpy(ipStr, "UnknownAF", sizeof(ipStr));
 			port = 0;
 		}
-		Log("New Control connection thread, socket fd is: " + to_hex<__u16>(controlSocket) + " IP: " + ipStr + ", Port " + std::to_string(port));
+		Log("New Control connection thread, socket fd is: " + to_hex<__u32>(controlSocket) + " IP: " + ipStr + ", Port " + std::to_string(port));
 	}
 	SendControlHello(controlSocket);
 
@@ -813,7 +811,7 @@ void *threadReceiver(void *arg)
 			Error(e.what());
 		}
 	};
-	Log("Closing threadReceiver for connection " + to_hex<__u16>(controlSocket));
+	Log("Closing threadReceiver for connection " + to_hex<__u32>(controlSocket));
 	Disconnect(controlSocket);
 	return nullptr;
 }
@@ -869,7 +867,7 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 				continue;
 			}
 			pthread_t receive_thread;
-			Log("New Control connection, socket fd is: " + to_hex<__u16>(new_socket));
+			Log("New Control connection, socket fd is: " + to_hex<__u32>(new_socket));
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 			pthread_create(&receive_thread, NULL, &threadReceiver, (void *)new_socket); // spawn Control Read thread here, pass in new_socket

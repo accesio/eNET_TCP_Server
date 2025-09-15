@@ -7,8 +7,8 @@
 #include "../eNET-AIO16-16F.h"
 
 
-TCFG_Hostname::TCFG_Hostname(DataItemIds dId, const TBytes &buf)
-    : TDataItem<HostnameParams>(dId, buf)
+TCFG_Hostname::TCFG_Hostname(DataItemIds id, const TBytes &buf)
+    : TDataItem<HostnameParams>(id, buf)
 {
     Debug("TCFG_Hostname ctor: Received ", buf);
 

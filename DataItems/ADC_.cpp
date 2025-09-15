@@ -7,8 +7,8 @@
 
 extern int apci;
 
-TADC_BaseClock::TADC_BaseClock(DataItemIds dId, const TBytes &buf)
-    : TDataItem<ADC_BaseClockParams>(dId, buf)
+TADC_BaseClock::TADC_BaseClock(DataItemIds id, const TBytes &buf)
+    : TDataItem<ADC_BaseClockParams>(id, buf)
 {
     // You previously had a constructor that validated 0 or 4 bytes
     GUARD((buf.size() == 0) || (buf.size() == 4), ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
@@ -48,8 +48,8 @@ std::string TADC_BaseClock::AsString(bool bAsReply)
 
 // -------------------- TADC_StreamStart --------------------
 
-TADC_StreamStart::TADC_StreamStart(DataItemIds dId, const TBytes &FromBytes)
-    : TDataItem<ADC_StreamStartParams>(dId, FromBytes)
+TADC_StreamStart::TADC_StreamStart(DataItemIds id, const TBytes &FromBytes)
+    : TDataItem<ADC_StreamStartParams>(id, FromBytes)
 {
     // If you want to parse a 4-byte connection ID, do so here
     // For example:
@@ -120,8 +120,8 @@ TADC_StreamStop &TADC_StreamStop::Go()
 // --------------------------------------------------------------------------
 // TADC_Differential1 Implementation
 // --------------------------------------------------------------------------
-TADC_Differential1::TADC_Differential1(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_Differential1Params>(DId, data)
+TADC_Differential1::TADC_Differential1(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_Differential1Params>(id, data)
 {
     if (data.size() >= 2)
     {
@@ -130,8 +130,8 @@ TADC_Differential1::TADC_Differential1(DataItemIds DId, const TBytes &data)
     }
 }
 
-TADC_Differential1::TADC_Differential1(DataItemIds DId, __u8 channelGroup, __u8 singleEnded)
-    : TDataItem<ADC_Differential1Params>(DId, {})
+TADC_Differential1::TADC_Differential1(DataItemIds id, __u8 channelGroup, __u8 singleEnded)
+    : TDataItem<ADC_Differential1Params>(id, {})
 {
     this->params.channelGroup = channelGroup;
     this->params.singleEnded = singleEnded;
@@ -140,12 +140,12 @@ TADC_Differential1::TADC_Differential1(DataItemIds DId, __u8 channelGroup, __u8 
 TDataItemBase &TADC_Differential1::Go()
 {
     // Read current ADC range register for the channel group.
-    __u8 reg = in(ofsAdcRange + this->params.channelGroup);
+    __u8 reg = static_cast<__u8>(in(ofsAdcRange + this->params.channelGroup));
     // Bit 3 determines single-ended (1) vs differential (0)
     if (this->params.singleEnded)
         reg |= (1 << 3);
     else
-        reg &= ~(1 << 3);
+        reg &= (__u8)(~(1 << 3));
     out(ofsAdcRange + this->params.channelGroup, reg);
     return *this;
 }
@@ -167,8 +167,8 @@ std::string TADC_Differential1::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_DifferentialAll Implementation
 // --------------------------------------------------------------------------
-TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_DifferentialAllParams>(DId, data)
+TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_DifferentialAllParams>(id, data)
 {
     if (data.size() >= 8)
     {
@@ -176,21 +176,21 @@ TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds DId, const TBytes &data)
             this->params.settings[i] = data[i];
     }
 }
-TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds DId, const __u8 settings[8])
-    : TDataItem<ADC_DifferentialAllParams>(DId, {})
+TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds id, const __u8 settings[8])
+    : TDataItem<ADC_DifferentialAllParams>(id, {})
 {
     for (int i = 0; i < 8; i++)
         this->params.settings[i] = settings[i];
 }
 TDataItemBase &TADC_DifferentialAll::Go()
 {
-    for (int grp = 0; grp < 8; grp++)
+    for (__u8 grp = 0; grp < 8; grp++)
     {
-        __u8 reg = in(ofsAdcRange + grp);
+        __u8 reg = static_cast<__u8>(in(ofsAdcRange + grp));
         if (this->params.settings[grp])
             reg |= (1 << 3);
         else
-            reg &= ~(1 << 3);
+            reg &= (__u8)(~(1 << 3));
         out(ofsAdcRange + grp, reg);
     }
     return *this;
@@ -219,8 +219,8 @@ std::string TADC_DifferentialAll::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_Range1 Implementation
 // --------------------------------------------------------------------------
-TADC_Range1::TADC_Range1(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_Range1Params>(DId, data)
+TADC_Range1::TADC_Range1(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_Range1Params>(id, data)
 {
     if (data.size() >= 2)
     {
@@ -228,8 +228,8 @@ TADC_Range1::TADC_Range1(DataItemIds DId, const TBytes &data)
         this->params.range = data[1];
     }
 }
-TADC_Range1::TADC_Range1(DataItemIds DId, __u8 channelGroup, __u8 range)
-    : TDataItem<ADC_Range1Params>(DId, {})
+TADC_Range1::TADC_Range1(DataItemIds id, __u8 channelGroup, __u8 range)
+    : TDataItem<ADC_Range1Params>(id, {})
 {
     this->params.channelGroup = channelGroup;
     this->params.range = range;
@@ -257,8 +257,8 @@ std::string TADC_Range1::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_RangeAll Implementation
 // --------------------------------------------------------------------------
-TADC_RangeAll::TADC_RangeAll(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_RangeAllParams>(DId, data)
+TADC_RangeAll::TADC_RangeAll(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_RangeAllParams>(id, data)
 {
     if (data.size() >= 8)
     {
@@ -266,8 +266,8 @@ TADC_RangeAll::TADC_RangeAll(DataItemIds DId, const TBytes &data)
             this->params.ranges[i] = data[i];
     }
 }
-TADC_RangeAll::TADC_RangeAll(DataItemIds DId, const __u8 ranges[8])
-    : TDataItem<ADC_RangeAllParams>(DId, {})
+TADC_RangeAll::TADC_RangeAll(DataItemIds id, const __u8 ranges[8])
+    : TDataItem<ADC_RangeAllParams>(id, {})
 {
     for (int i = 0; i < 8; i++)
         this->params.ranges[i] = ranges[i];
@@ -304,8 +304,8 @@ std::string TADC_RangeAll::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_Span1 Implementation (Scale calibration for one range)
 // --------------------------------------------------------------------------
-TADC_Scale1::TADC_Scale1(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_Span1Params>(DId, data)
+TADC_Scale1::TADC_Scale1(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_Span1Params>(id, data)
 {
     if (data.size() >= 5)
     {
@@ -314,8 +314,8 @@ TADC_Scale1::TADC_Scale1(DataItemIds DId, const TBytes &data)
         this->params.scale = *(reinterpret_cast<const float *>(&data[1]));
     }
 }
-TADC_Scale1::TADC_Scale1(DataItemIds DId, __u8 rangeIndex, float scale)
-    : TDataItem<ADC_Span1Params>(DId, {})
+TADC_Scale1::TADC_Scale1(DataItemIds id, __u8 rangeIndex, float scale)
+    : TDataItem<ADC_Span1Params>(id, {})
 {
     this->params.rangeIndex = rangeIndex;
     this->params.scale = scale;
@@ -349,8 +349,8 @@ std::string TADC_Scale1::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_ScaleAll Implementation
 // --------------------------------------------------------------------------
-TADC_ScaleAll::TADC_ScaleAll(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_SpanAllParams>(DId, data)
+TADC_ScaleAll::TADC_ScaleAll(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_SpanAllParams>(id, data)
 {
     if (data.size() >= 8 * sizeof(float))
     {
@@ -360,8 +360,8 @@ TADC_ScaleAll::TADC_ScaleAll(DataItemIds DId, const TBytes &data)
         }
     }
 }
-TADC_ScaleAll::TADC_ScaleAll(DataItemIds DId, const float scales[8])
-    : TDataItem<ADC_SpanAllParams>(DId, {})
+TADC_ScaleAll::TADC_ScaleAll(DataItemIds id, const float scales[8])
+    : TDataItem<ADC_SpanAllParams>(id, {})
 {
     for (int i = 0; i < 8; i++)
         this->params.scales[i] = scales[i];
@@ -404,8 +404,8 @@ std::string TADC_ScaleAll::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_Offset1 Implementation (Offset calibration for one range)
 // --------------------------------------------------------------------------
-TADC_Offset1::TADC_Offset1(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_Offset1Params>(DId, data)
+TADC_Offset1::TADC_Offset1(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_Offset1Params>(id, data)
 {
     if (data.size() >= 5)
     {
@@ -413,8 +413,8 @@ TADC_Offset1::TADC_Offset1(DataItemIds DId, const TBytes &data)
         this->params.offset = *(reinterpret_cast<const float *>(&data[1]));
     }
 }
-TADC_Offset1::TADC_Offset1(DataItemIds DId, __u8 rangeIndex, float offset)
-    : TDataItem<ADC_Offset1Params>(DId, {})
+TADC_Offset1::TADC_Offset1(DataItemIds id, __u8 rangeIndex, float offset)
+    : TDataItem<ADC_Offset1Params>(id, {})
 {
     this->params.rangeIndex = rangeIndex;
     this->params.offset = offset;
@@ -446,8 +446,8 @@ std::string TADC_Offset1::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_OffsetAll Implementation
 // --------------------------------------------------------------------------
-TADC_OffsetAll::TADC_OffsetAll(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_OffsetAllParams>(DId, data)
+TADC_OffsetAll::TADC_OffsetAll(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_OffsetAllParams>(id, data)
 {
     if (data.size() >= 8 * sizeof(float))
     {
@@ -457,8 +457,8 @@ TADC_OffsetAll::TADC_OffsetAll(DataItemIds DId, const TBytes &data)
         }
     }
 }
-TADC_OffsetAll::TADC_OffsetAll(DataItemIds DId, const float offsets[8])
-    : TDataItem<ADC_OffsetAllParams>(DId, {})
+TADC_OffsetAll::TADC_OffsetAll(DataItemIds id, const float offsets[8])
+    : TDataItem<ADC_OffsetAllParams>(id, {})
 {
     for (int i = 0; i < 8; i++)
         this->params.offsets[i] = offsets[i];
@@ -501,8 +501,8 @@ std::string TADC_OffsetAll::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_Calibration1 Implementation (both scale and offset for one range)
 // --------------------------------------------------------------------------
-TADC_Calibration1::TADC_Calibration1(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_Calibration1Params>(DId, data)
+TADC_Calibration1::TADC_Calibration1(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_Calibration1Params>(id, data)
 {
     if (data.size() >= 9)
     {
@@ -511,8 +511,8 @@ TADC_Calibration1::TADC_Calibration1(DataItemIds DId, const TBytes &data)
         this->params.offset = *(reinterpret_cast<const float *>(&data[5]));
     }
 }
-TADC_Calibration1::TADC_Calibration1(DataItemIds DId, __u8 rangeIndex, float scale, float offset)
-    : TDataItem<ADC_Calibration1Params>(DId, {})
+TADC_Calibration1::TADC_Calibration1(DataItemIds id, __u8 rangeIndex, float scale, float offset)
+    : TDataItem<ADC_Calibration1Params>(id, {})
 {
     this->params.rangeIndex = rangeIndex;
     this->params.scale = scale;
@@ -556,8 +556,8 @@ std::string TADC_Calibration1::AsString(bool /*bAsReply*/)
 // --------------------------------------------------------------------------
 // TADC_CalibrationAll Constructor (from interleaved TBytes)
 // --------------------------------------------------------------------------
-TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds DId, const TBytes &data)
-    : TDataItem<ADC_CalibrationAllParams>(DId, data)
+TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds id, const TBytes &data)
+    : TDataItem<ADC_CalibrationAllParams>(id, data)
 {
     // Expect interleaved scale/offset pairs: 16 floats = 16 * sizeof(float) bytes.
     if (data.size() >= 16 * sizeof(float))
@@ -573,8 +573,8 @@ TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds DId, const TBytes &data)
     }
 }
 
-TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds DId, const float scales[8], const float offsets[8])
-    : TDataItem<ADC_CalibrationAllParams>(DId, {})
+TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds id, const float scales[8], const float offsets[8])
+    : TDataItem<ADC_CalibrationAllParams>(id, {})
 {
     for (int i = 0; i < 8; i++)
     {

@@ -58,10 +58,10 @@ int widthFromOffset(int ofs);
 
 
 template <class q>
-std::shared_ptr<TDataItemBase> construct(DataItemIds DId, TBytes FromBytes)
+std::shared_ptr<TDataItemBase> construct(DataItemIds id, TBytes FromBytes)
 {
     // q must inherit from TDataItemBase
-    return std::make_shared<q>(DId, FromBytes);
+    return std::make_shared<q>(id, FromBytes);
 }
 
 
@@ -72,23 +72,25 @@ template <typename ParamStruct>
 class TDataItem : public TDataItemBase
 {
 public:
-    ParamStruct params;  // e.g., DAC_OutputParams
+    ParamStruct params{};  // e.g., DAC_OutputParams
 	TBytes rawBytes;
 
-	TBytes calcPayload(bool bAsReply = false) override {
-        TBytes bytes;
-        bytes.resize(sizeof(ParamStruct));
-        std::memcpy(bytes.data(), &params, sizeof(ParamStruct));
-        return rawBytes;
-		//return bytes;
+	TBytes calcPayload(bool /*bAsReply*/ = false) override {
+        if constexpr (std::is_trivially_copyable_v<ParamStruct>) {
+            TBytes bytes(sizeof(ParamStruct));
+            std::memcpy(bytes.data(), &params, sizeof(ParamStruct));
+            return bytes;                      // ← return what we built (not rawBytes)
+        } else {
+            // Non-trivial types must serialize themselves in derived classes.
+            return rawBytes;
+        }
     }
 
     // Constructor
-    TDataItem(DataItemIds dId, const TBytes &bytes)
-        : TDataItemBase(dId),
-          rawBytes(bytes)
+    TDataItem(DataItemIds id, const TBytes &bytes)
+        : TDataItemBase(id), rawBytes(bytes)
     {
-        Debug("TDataItem<ParamStruct>(dId, bytes) constructor");
+        Debug("TDataItem<ParamStruct>(id, bytes) constructor");
 
         // By default, copy entire `bytes` into `params` if it fits
         if (bytes.size() >= sizeof(ParamStruct)) {
@@ -114,8 +116,8 @@ struct DOC_Params { };
 class TDataItemDoc : public TDataItem<DOC_Params> {
 public:
     // Constructors: the incoming TBytes payload is ignored.
-    TDataItemDoc(DataItemIds DId, const TBytes &data);
-    TDataItemDoc(DataItemIds DId);
+    TDataItemDoc(DataItemIds id, const TBytes &data);
+    TDataItemDoc(DataItemIds id);
 
     // Assemble documentation payload into this->Data.
     virtual TDataItemBase &Go() override;
@@ -130,8 +132,8 @@ struct DOC_Get_Params { };
 class TDataItemDocGet : public TDataItem<DOC_Get_Params> {
 public:
     // Constructors – incoming payload is ignored.
-    TDataItemDocGet(DataItemIds DId, const TBytes &data);
-    TDataItemDocGet(DataItemIds DId);
+    TDataItemDocGet(DataItemIds id, const TBytes &data);
+    TDataItemDocGet(DataItemIds id);
 
     // In Go() we assemble the documentation payload into this->Data.
     virtual TDataItemBase &Go() override;
@@ -148,9 +150,9 @@ struct NYIParams {
 class TDataItemNYI : public TDataItem<NYIParams>
 {
 public:
-    // Must match the TDataItem<NYIParams>(DataItemIds dId, TBytes bytes) signature
-    TDataItemNYI(DataItemIds dId, TBytes bytes)
-        : TDataItem(dId, bytes)
+    // Must match the TDataItem<NYIParams>(DataItemIds id, TBytes bytes) signature
+    TDataItemNYI(DataItemIds id, TBytes bytes)
+        : TDataItem(id, bytes)
     {
         // Possibly do debug logs
         Debug("TDataItemNYI constructor: DId=" + std::to_string((int)DId));

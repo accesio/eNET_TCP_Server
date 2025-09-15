@@ -20,7 +20,7 @@ public:
     }
     // Constructor that checks incoming byte size
     // (If you want to pass 0 or 4 bytes.)
-    TADC_BaseClock(DataItemIds dId, const TBytes &FromBytes);
+    TADC_BaseClock(DataItemIds id, const TBytes &FromBytes);
 
     // Overridden methods
     virtual TBytes calcPayload(bool bAsReply=false) override;
@@ -37,7 +37,7 @@ class TADC_StreamStart : public TDataItem<ADC_StreamStartParams>
 {
 public:
     // You can define a constructor if you want partial parsing:
-    TADC_StreamStart(DataItemIds dId, const TBytes &FromBytes);
+    TADC_StreamStart(DataItemIds id, const TBytes &FromBytes);
 
     // Overridden methods
     virtual TADC_StreamStart &Go() override;
@@ -50,8 +50,8 @@ class TADC_StreamStop : public TDataItem<ADC_StreamStopParams>
 {
 public:
     // No fields, so only the base constructor needed
-    TADC_StreamStop(DataItemIds dId, const TBytes &FromBytes)
-      : TDataItem<ADC_StreamStopParams>(dId, FromBytes) {}
+    TADC_StreamStop(DataItemIds id, const TBytes &FromBytes)
+      : TDataItem<ADC_StreamStopParams>(id, FromBytes) {}
 
     // Overridden methods
 //    virtual TBytes calcPayload(bool bAsReply=false) override;
@@ -69,8 +69,8 @@ struct ADC_Differential1Params {
 
 class TADC_Differential1 : public TDataItem<ADC_Differential1Params> {
 public:
-    TADC_Differential1(DataItemIds DId, const TBytes &data);
-    TADC_Differential1(DataItemIds DId, __u8 channelGroup, __u8 singleEnded);
+    TADC_Differential1(DataItemIds id, const TBytes &data);
+    TADC_Differential1(DataItemIds id, __u8 channelGroup, __u8 singleEnded);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -83,8 +83,8 @@ struct ADC_DifferentialAllParams {
 
 class TADC_DifferentialAll : public TDataItem<ADC_DifferentialAllParams> {
 public:
-    TADC_DifferentialAll(DataItemIds DId, const TBytes &data);
-    TADC_DifferentialAll(DataItemIds DId, const __u8 settings[8]);
+    TADC_DifferentialAll(DataItemIds id, const TBytes &data);
+    TADC_DifferentialAll(DataItemIds id, const __u8 settings[8]);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -100,8 +100,8 @@ struct ADC_Range1Params {
 
 class TADC_Range1 : public TDataItem<ADC_Range1Params> {
 public:
-    TADC_Range1(DataItemIds DId, const TBytes &data);
-    TADC_Range1(DataItemIds DId, __u8 channelGroup, __u8 range);
+    TADC_Range1(DataItemIds id, const TBytes &data);
+    TADC_Range1(DataItemIds id, __u8 channelGroup, __u8 range);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -114,8 +114,8 @@ struct ADC_RangeAllParams {
 
 class TADC_RangeAll : public TDataItem<ADC_RangeAllParams> {
 public:
-    TADC_RangeAll(DataItemIds DId, const TBytes &data);
-    TADC_RangeAll(DataItemIds DId, const __u8 ranges[8]);
+    TADC_RangeAll(DataItemIds id, const TBytes &data);
+    TADC_RangeAll(DataItemIds id, const __u8 ranges[8]);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -135,8 +135,8 @@ struct ADC_Span1Params {
 
 class TADC_Scale1 : public TDataItem<ADC_Span1Params> {
 public:
-    TADC_Scale1(DataItemIds DId, const TBytes &data);
-    TADC_Scale1(DataItemIds DId, __u8 rangeIndex, float scale);
+    TADC_Scale1(DataItemIds id, const TBytes &data);
+    TADC_Scale1(DataItemIds id, __u8 rangeIndex, float scale);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -150,8 +150,8 @@ struct ADC_SpanAllParams {
 
 class TADC_ScaleAll : public TDataItem<ADC_SpanAllParams> {
 public:
-    TADC_ScaleAll(DataItemIds DId, const TBytes &data);
-    TADC_ScaleAll(DataItemIds DId, const float scales[8]);
+    TADC_ScaleAll(DataItemIds id, const TBytes &data);
+    TADC_ScaleAll(DataItemIds id, const float scales[8]);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -170,8 +170,8 @@ struct ADC_Offset1Params {
 
 class TADC_Offset1 : public TDataItem<ADC_Offset1Params> {
 public:
-    TADC_Offset1(DataItemIds DId, const TBytes &data);
-    TADC_Offset1(DataItemIds DId, __u8 rangeIndex, float offset);
+    TADC_Offset1(DataItemIds id, const TBytes &data);
+    TADC_Offset1(DataItemIds id, __u8 rangeIndex, float offset);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -185,8 +185,8 @@ struct ADC_OffsetAllParams {
 
 class TADC_OffsetAll : public TDataItem<ADC_OffsetAllParams> {
 public:
-    TADC_OffsetAll(DataItemIds DId, const TBytes &data);
-    TADC_OffsetAll(DataItemIds DId, const float offsets[8]);
+    TADC_OffsetAll(DataItemIds id, const TBytes &data);
+    TADC_OffsetAll(DataItemIds id, const float offsets[8]);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -206,8 +206,8 @@ struct ADC_Calibration1Params {
 
 class TADC_Calibration1 : public TDataItem<ADC_Calibration1Params> {
 public:
-    TADC_Calibration1(DataItemIds DId, const TBytes &data);
-    TADC_Calibration1(DataItemIds DId, __u8 rangeIndex, float scale, float offset);
+    TADC_Calibration1(DataItemIds id, const TBytes &data);
+    TADC_Calibration1(DataItemIds id, __u8 rangeIndex, float scale, float offset);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -223,8 +223,8 @@ struct ADC_CalibrationAllParams {
 
 class TADC_CalibrationAll : public TDataItem<ADC_CalibrationAllParams> {
 public:
-    TADC_CalibrationAll(DataItemIds DId, const TBytes &data); // Constructor from interleaved byte payload
-    TADC_CalibrationAll(DataItemIds DId, const float scales[8], const float offsets[8]); // Explicit parameter constructor: scales and offsets provided separately.
+    TADC_CalibrationAll(DataItemIds id, const TBytes &data); // Constructor from interleaved byte payload
+    TADC_CalibrationAll(DataItemIds id, const float scales[8], const float offsets[8]); // Explicit parameter constructor: scales and offsets provided separately.
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;

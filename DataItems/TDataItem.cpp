@@ -17,6 +17,12 @@
 #include "SYS_.h"
 #include "../eNET-AIO16-16F.h"
 
+template <class T, class... Args>
+static inline std::shared_ptr<T> SafeMakeShared(Args&&... args) {
+    return std::shared_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+
 #define DIdNYI(d) { DataItemIds::d, { 0, 0, 0, construct<TDataItemNYI>, #d " (NYI)" } }
 
 #define DATA_ITEM_IMPL_2(x, aclass, a, b, c, y, z)                                                 \
@@ -41,8 +47,8 @@
 // stores raw bytes as parameters instead of struct-style
 class TDataItemRaw : public TDataItem<GenericParams> {
 public:
-	TDataItemRaw(DataItemIds dId, const TBytes &bytes)
-		: TDataItem<GenericParams>(dId, bytes)
+	TDataItemRaw(DataItemIds id, const TBytes &bytes)
+		: TDataItem<GenericParams>(id, bytes)
 	{}
 
 	// No hardware action
@@ -59,6 +65,9 @@ public:
 };
 
 #pragma region DIdDict definition
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	{
 		//{INVALID, { 9, 9, 9,( [](DataItemIds x, TBytes bytes) { return construct<TDataItem>(x, bytes); }), "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", nullptr}},
@@ -339,7 +348,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 #endif
 		DATA_ITEM(DOC_Get,          TDataItemDocGet,         0, 0, 0, "Documentation: list of All top-level DataItem groups", nullptr),
 };
-
+#pragma GCC pop_options
 #pragma endregion
 
 
@@ -366,13 +375,13 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 // NOTE:
 //   This should be implemented OOP-style: each TDataItem ID should be a descendant-class that provides the
 //   specific validate and parse appropriate to that DataItemID
-int TDataItemBase::validateDataItemPayload(DataItemIds DId, const TBytes &bytes)
+int TDataItemBase::validateDataItemPayload(DataItemIds id, const TBytes &bytes)
 {
-	//Trace("ENTER, DId: " + to_hex<TDataId>(DId) + ": ", bytes);
+	//Trace("ENTER, DId: " + to_hex<TDataId>(id) + ": ", bytes);
 	int result = ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH;
 	TDataItemLength len = static_cast<TDataItemLength>(bytes.size());
-	Trace(std::to_string(getMinLength(DId)) + " <= " + std::to_string(len) + " <= " + std::to_string(getMaxLength(DId)));
-	if ((TDataItemBase::getMinLength(DId) <= len) && (len <= TDataItemBase::getMaxLength(DId)))
+	Trace(std::to_string(getMinLength(id)) + " <= " + std::to_string(len) + " <= " + std::to_string(getMaxLength(id)));
+	if ((TDataItemBase::getMinLength(id) <= len) && (len <= TDataItemBase::getMaxLength(id)))
 	{
 		result = ERR_SUCCESS;
 		Trace("Valid");
@@ -385,14 +394,14 @@ int TDataItemBase::validateDataItemPayload(DataItemIds DId, const TBytes &bytes)
 }
 
 std::string TDataItemBase::AsStringBase(bool bAsReply) const {
-    auto it = DIdDict.find(DId);
+    auto it = DIdDict.find(this->DId);
     std::string desc = (it != DIdDict.end()) ? it->second.desc : "Unknown DId";
-    return desc + " (DId=" + std::to_string(static_cast<__u16>(DId)) + ")";
+    return desc + " (DId=" + std::to_string(static_cast<__u16>(this->DId)) + ")";
 }
 
-int TDataItemBase::getDIdIndex(DataItemIds DId)
+int TDataItemBase::getDIdIndex(DataItemIds id)
 {
-	auto item = DIdDict.find(DId);
+	auto item = DIdDict.find(id);
 	if (item != DIdDict.end())
 	{
 		return static_cast<int>(std::distance(DIdDict.begin(), item));
@@ -401,30 +410,30 @@ int TDataItemBase::getDIdIndex(DataItemIds DId)
 }
 
 // returns human-readable description of this TDataItem
-std::string TDataItemBase::getDIdDesc(DataItemIds DId)
+std::string TDataItemBase::getDIdDesc(DataItemIds id)
 {
-	return DIdDict.find(DId)->second.desc;
+	return DIdDict.find(id)->second.desc;
 }
 
-TDataItemLength TDataItemBase::getMinLength(DataItemIds DId)
+TDataItemLength TDataItemBase::getMinLength(DataItemIds id)
 {
-	return DIdDict.find(DId)->second.minLen;
+	return DIdDict.find(id)->second.minLen;
 }
 
-TDataItemLength TDataItemBase::getTargetLength(DataItemIds DId)
+TDataItemLength TDataItemBase::getTargetLength(DataItemIds id)
 {
-	return DIdDict.find(DId)->second.maxLen;
+	return DIdDict.find(id)->second.maxLen;
 }
 
-TDataItemLength TDataItemBase::getMaxLength(DataItemIds DId)
+TDataItemLength TDataItemBase::getMaxLength(DataItemIds id)
 {
-	return DIdDict.find(DId)->second.maxLen;
+	return DIdDict.find(id)->second.maxLen;
 }
 
-int TDataItemBase::isValidDataItemID(DataItemIds DId)
+int TDataItemBase::isValidDataItemID(DataItemIds id)
 {
-	Debug("DataItemId: " + to_hex<__u16>((static_cast<__u16>(DId))));
-	auto item = DIdDict.find(DId);
+	Debug("DataItemId: " + to_hex<__u16>((static_cast<__u16>(id))));
+	auto item = DIdDict.find(id);
 	return (item != DIdDict.end());
 }
 
@@ -493,7 +502,7 @@ std::shared_ptr<TDataItemBase> TDataItemBase::fromBytes(const TBytes &bytes, TEr
 		{
 			Error("TDataItem::fromBytes() failed validateDataItemPayload with status: "
 				  + std::to_string(result) + ", " + err_msg[-result]);
-			return std::make_shared<TDataItemNYI>(DataItemIds::INVALID, TBytes{});
+			return SafeMakeShared<TDataItemNYI>(DataItemIds::INVALID, TBytes{});
 		}
 	}
 	//Debug("TDataItem::fromBytes sending to constructor: ", data);
@@ -511,9 +520,9 @@ TDataItemBase &TDataItemBase::addData(__u8 aByte)
 	return *this;
 }
 
-TDataItemBase &TDataItemBase::setDId(DataItemIds DId)
+TDataItemBase &TDataItemBase::setDId(DataItemIds id)
 {
-	GUARD(isValidDataItemID(DId), ERR_MSG_DATAITEM_ID_UNKNOWN, static_cast<__u16>(DId));
+	GUARD(isValidDataItemID(id), ERR_MSG_DATAITEM_ID_UNKNOWN, static_cast<__u16>(id));
 	this->DId = DId;
 	return *this;
 }
@@ -526,9 +535,9 @@ DataItemIds TDataItemBase::getDId() const
 bool TDataItemBase::isValidDataLength() const
 {
 	bool result = false;
-	DataItemIds DId = this->getDId();
+	DataItemIds Id = this->getDId();
 	TDataItemLength len = static_cast<TDataItemLength>(this->Data.size());
-	if ((this->getMinLength(DId) <= len) && (this->getMaxLength(DId) >= len))
+	if ((this->getMinLength(Id) <= len) && (this->getMaxLength(Id) >= len))
 	{
 		result = true;
 	}
@@ -610,14 +619,14 @@ static inline __u8 GetMSB(DataItemIds id) {
     return static_cast<__u8>(static_cast<unsigned>(id) >> 8);
 }
 
-TDataItemDoc::TDataItemDoc(DataItemIds DId, const TBytes &data)
-    : TDataItem<DOC_Params>(DId, data)
+TDataItemDoc::TDataItemDoc(DataItemIds id, const TBytes &data)
+    : TDataItem<DOC_Params>(id, data)
 {
     // Ignore incoming payload.
 }
 
-TDataItemDoc::TDataItemDoc(DataItemIds DId)
-    : TDataItem<DOC_Params>(DId, {})
+TDataItemDoc::TDataItemDoc(DataItemIds id)
+    : TDataItem<DOC_Params>(id, {})
 {
 }
 
@@ -655,14 +664,14 @@ std::string TDataItemDoc::AsString(bool /*bAsReply*/) {
 #pragma endregion
 
 #pragma region TDataItemDocGet
-TDataItemDocGet::TDataItemDocGet(DataItemIds DId, const TBytes &data)
-    : TDataItem<DOC_Get_Params>(DId, data)
+TDataItemDocGet::TDataItemDocGet(DataItemIds id, const TBytes &data)
+    : TDataItem<DOC_Get_Params>(id, data)
 {
     // No parameters expected.
 }
 
-TDataItemDocGet::TDataItemDocGet(DataItemIds DId)
-    : TDataItem<DOC_Get_Params>(DId, {})
+TDataItemDocGet::TDataItemDocGet(DataItemIds id)
+    : TDataItem<DOC_Get_Params>(id, {})
 {
 }
 

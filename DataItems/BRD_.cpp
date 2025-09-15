@@ -1,3 +1,7 @@
+#pragma GCC push_options
+#pragma GCC sanitize ("")   // empty disables all -fsanitize flags for this TU
+#pragma GCC optimize ("O0")
+
 #include "BRD_.h"
 #include "../config.h"
 #include "../utilities.h"   // For stuff<>, etc.
@@ -6,16 +10,16 @@
 
 // (1) Constructor: DId + offset
 template <typename T>
-TReadOnlyConfig<T>::TReadOnlyConfig(DataItemIds dId, __u8 offset)
-    : TDataItem<ReadOnlyConfigParams<T>>(dId, {})
+TReadOnlyConfig<T>::TReadOnlyConfig(DataItemIds id, __u8 offset)
+    : TDataItem<ReadOnlyConfigParams<T>>(id, {})
 {
     this->params.offset = offset;
 }
 
 // (2) Constructor: DId + raw bytes
 template <typename T>
-TReadOnlyConfig<T>::TReadOnlyConfig(DataItemIds dId, const TBytes &FromBytes)
-    : TDataItem<ReadOnlyConfigParams<T>>(dId, FromBytes)
+TReadOnlyConfig<T>::TReadOnlyConfig(DataItemIds id, const TBytes &FromBytes)
+    : TDataItem<ReadOnlyConfigParams<T>>(id, FromBytes)
 {
     // By default offset=0. Subclasses can override (like TBRD_DeviceID) if needed
     this->params.offset = 0;
@@ -92,8 +96,8 @@ TBRD_FpgaId::TBRD_FpgaId(const TBytes &FromBytes)
     this->params.offset = ofsFpgaID;
 }
 
-TBRD_FpgaId::TBRD_FpgaId(DataItemIds DId, const TBytes &FromBytes)
-    : TReadOnlyConfig<__u32>(DId, FromBytes)
+TBRD_FpgaId::TBRD_FpgaId(DataItemIds id, const TBytes &FromBytes)
+    : TReadOnlyConfig<__u32>(id, FromBytes)
 {
     this->params.offset = ofsFpgaID;
 }
@@ -112,7 +116,7 @@ std::string TBRD_FpgaId::AsString(bool bAsReply)
 
 TBRD_FpgaId &TBRD_FpgaId::Go()
 {
-    this->params.config = static_cast<__u32>(in(this->params.offset));
+    this->params.config = in(this->params.offset);
     Log("Offset = " + to_hex<__u8>(this->params.offset)
         + " > " + to_hex<__u32>(this->params.config));
     return *this;
@@ -137,8 +141,8 @@ TBRD_DeviceID::TBRD_DeviceID(const TBytes &FromBytes)
     this->params.offset = ofsDeviceID;
 }
 
-TBRD_DeviceID::TBRD_DeviceID(DataItemIds DId, const TBytes &FromBytes)
-    : TReadOnlyConfig<__u16>(DId, FromBytes)
+TBRD_DeviceID::TBRD_DeviceID(DataItemIds id, const TBytes &FromBytes)
+    : TReadOnlyConfig<__u16>(id, FromBytes)
 {
     this->params.offset = ofsDeviceID;
 }
@@ -180,8 +184,8 @@ TBRD_Features::TBRD_Features(const TBytes &FromBytes)
     this->params.offset = ofsFeatures;
 }
 
-TBRD_Features::TBRD_Features(DataItemIds DId, const TBytes &FromBytes)
-    : TReadOnlyConfig<__u8>(DId, FromBytes)
+TBRD_Features::TBRD_Features(DataItemIds id, const TBytes &FromBytes)
+    : TReadOnlyConfig<__u8>(id, FromBytes)
 {
     this->params.offset = ofsFeatures;
 }
@@ -316,13 +320,13 @@ std::string TBRD_GetSerialNumber::AsString(bool bAsReply)
 // -----------------------------------------
 // TBRD_GetNumberOfSubmuxes
 // -----------------------------------------
-TBRD_GetNumberOfSubmuxes::TBRD_GetNumberOfSubmuxes(DataItemIds dId, const TBytes &buf)
-  : TDataItem<NumberOfSubmuxParams>(dId, buf)
+TBRD_GetNumberOfSubmuxes::TBRD_GetNumberOfSubmuxes(DataItemIds id, const TBytes &buf)
+  : TDataItem<NumberOfSubmuxParams>(id, buf)
 {
     // ignore buf
 }
-TBRD_GetNumberOfSubmuxes::TBRD_GetNumberOfSubmuxes(DataItemIds dId)
-  : TDataItem<NumberOfSubmuxParams>(dId, {})
+TBRD_GetNumberOfSubmuxes::TBRD_GetNumberOfSubmuxes(DataItemIds id)
+  : TDataItem<NumberOfSubmuxParams>(id, {})
 {}
 
 TBRD_GetNumberOfSubmuxes &TBRD_GetNumberOfSubmuxes::Go()
@@ -349,8 +353,8 @@ std::string TBRD_GetNumberOfSubmuxes::AsString(bool bAsReply)
 // -----------------------------------------
 // TBRD_GetSubmuxScale
 // -----------------------------------------
-TBRD_GetSubmuxScale::TBRD_GetSubmuxScale(DataItemIds dId, const TBytes &buf)
-  : TDataItem<SubmuxScaleParams>(dId, buf)
+TBRD_GetSubmuxScale::TBRD_GetSubmuxScale(DataItemIds id, const TBytes &buf)
+  : TDataItem<SubmuxScaleParams>(id, buf)
 {
     if (buf.size() == 2) {
         this->params.submuxIndex    = buf[0];
@@ -400,8 +404,8 @@ std::string TBRD_GetSubmuxScale::AsString(bool bAsReply)
 // -----------------------------------------
 // TBRD_GetSubmuxOffset
 // -----------------------------------------
-TBRD_GetSubmuxOffset::TBRD_GetSubmuxOffset(DataItemIds dId, const TBytes &buf)
-  : TDataItem<SubmuxOffsetParams>(dId, buf)
+TBRD_GetSubmuxOffset::TBRD_GetSubmuxOffset(DataItemIds id, const TBytes &buf)
+  : TDataItem<SubmuxOffsetParams>(id, buf)
 {
     if (buf.size() == 2) {
         this->params.submuxIndex    = buf[0];
@@ -449,3 +453,5 @@ std::string TBRD_GetSubmuxOffset::AsString(bool bAsReply)
         ss << " → " << this->params.value;
     return ss.str();
 }
+
+#pragma GCC pop_options

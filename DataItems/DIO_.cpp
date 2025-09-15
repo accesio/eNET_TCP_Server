@@ -12,17 +12,17 @@
 // --------------------------------------------------------------------------
 // TDIO_Configure Implementation
 // --------------------------------------------------------------------------
-TDIO_Configure::TDIO_Configure(DataItemIds DId, const TBytes &data)
-    : TDataItem<TDIO_ConfigureParams>(DId, data)
+TDIO_Configure::TDIO_Configure(DataItemIds id, const TBytes &data)
+    : TDataItem<TDIO_ConfigureParams>(id, data)
 {
     if(data.size() >= 2) {
         // Assuming little-endian: data[0]=low byte, data[1]=high byte.
-        this->params.value = static_cast<__u16>(data[0]) | (static_cast<__u16>(data[1]) << 8);
+        this->params.value = static_cast<__u16>(static_cast<__u16>(data[0]) | (static_cast<__u16>(data[1]) << 8));
     }
 }
 
-TDIO_Configure::TDIO_Configure(DataItemIds DId, __u16 value)
-    : TDataItem<TDIO_ConfigureParams>(DId, {})
+TDIO_Configure::TDIO_Configure(DataItemIds id, __u16 value)
+    : TDataItem<TDIO_ConfigureParams>(id, {})
 {
     this->params.value = value;
 }
@@ -51,14 +51,14 @@ std::string TDIO_Configure::AsString(bool /*bAsReply*/) {
 // --------------------------------------------------------------------------
 // TDIO_Input Implementation
 // --------------------------------------------------------------------------
-TDIO_Input::TDIO_Input(DataItemIds DId, const TBytes &data)
-    : TDataItem<TDIO_InputParams>(DId, data)
+TDIO_Input::TDIO_Input(DataItemIds id, const TBytes &data)
+    : TDataItem<TDIO_InputParams>(id, data)
 {
     // No parameters needed; this command just triggers a read.
 }
 
-TDIO_Input::TDIO_Input(DataItemIds DId)
-    : TDataItem<TDIO_InputParams>(DId, {})
+TDIO_Input::TDIO_Input(DataItemIds id)
+    : TDataItem<TDIO_InputParams>(id, {})
 {
 }
 
@@ -97,16 +97,16 @@ std::shared_ptr<void> TDIO_Input::getResultValue() {
 // --------------------------------------------------------------------------
 // TDIO_Output Implementation
 // --------------------------------------------------------------------------
-TDIO_Output::TDIO_Output(DataItemIds DId, const TBytes &data)
-    : TDataItem<TDIO_OutputParams>(DId, data)
+TDIO_Output::TDIO_Output(DataItemIds id, const TBytes &data)
+    : TDataItem<TDIO_OutputParams>(id, data)
 {
     if(data.size() >= 2) {
-        this->params.value = static_cast<__u16>(data[0]) | (static_cast<__u16>(data[1]) << 8);
+        this->params.value = static_cast<__u16>(static_cast<__u16>(data[0]) | (static_cast<__u16>(data[1]) << 8));
     }
 }
 
-TDIO_Output::TDIO_Output(DataItemIds DId, __u16 value)
-    : TDataItem<TDIO_OutputParams>(DId, {})
+TDIO_Output::TDIO_Output(DataItemIds id, __u16 value)
+    : TDataItem<TDIO_OutputParams>(id, {})
 {
     this->params.value = value;
 }
@@ -134,16 +134,16 @@ std::string TDIO_Output::AsString(bool /*bAsReply*/) {
 // --------------------------------------------------------------------------
 // TDIO_ConfigureBit Implementation
 // --------------------------------------------------------------------------
-TDIO_ConfigureBit::TDIO_ConfigureBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<DIO_ConfigureBitParams>(DId, data)
+TDIO_ConfigureBit::TDIO_ConfigureBit(DataItemIds id, const TBytes &data)
+    : TDataItem<DIO_ConfigureBitParams>(id, data)
 {
     if (data.size() >= 2) {
         this->params.bitNumber = data[0];
         this->params.direction = data[1];
     }
 }
-TDIO_ConfigureBit::TDIO_ConfigureBit(DataItemIds DId, __u8 bitNumber, __u8 direction)
-    : TDataItem<DIO_ConfigureBitParams>(DId, {})
+TDIO_ConfigureBit::TDIO_ConfigureBit(DataItemIds id, __u8 bitNumber, __u8 direction)
+    : TDataItem<DIO_ConfigureBitParams>(id, {})
 {
     this->params.bitNumber = bitNumber;
     this->params.direction = direction;
@@ -173,21 +173,21 @@ std::string TDIO_ConfigureBit::AsString(bool /*bAsReply*/) {
 // --------------------------------------------------------------------------
 // TDIO_InputBit Implementation
 // --------------------------------------------------------------------------
-TDIO_InputBit::TDIO_InputBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<DIO_InputBitParams>(DId, data)
+TDIO_InputBit::TDIO_InputBit(DataItemIds id, const TBytes &data)
+    : TDataItem<DIO_InputBitParams>(id, data)
 {
     if (data.size() >= 1) {
         this->params.bitNumber = data[0];
     }
 }
-TDIO_InputBit::TDIO_InputBit(DataItemIds DId, __u8 bitNumber)
-    : TDataItem<DIO_InputBitParams>(DId, {})
+TDIO_InputBit::TDIO_InputBit(DataItemIds id, __u8 bitNumber)
+    : TDataItem<DIO_InputBitParams>(id, {})
 {
     this->params.bitNumber = bitNumber;
 }
 TDataItemBase &TDIO_InputBit::Go() {
     __u32 regValue = in(ofsDioInputs);
-    this->params.bitValue = (regValue >> this->params.bitNumber) & 1;
+    this->params.bitValue = (__u8)((regValue >> this->params.bitNumber) & 1);
     return *this;
 }
 TBytes TDIO_InputBit::calcPayload(bool bAsReply) {
@@ -214,16 +214,16 @@ std::shared_ptr<void> TDIO_InputBit::getResultValue() {
 // --------------------------------------------------------------------------
 // TDIO_OutputBit Implementation
 // --------------------------------------------------------------------------
-TDIO_OutputBit::TDIO_OutputBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<DIO_OutputBitParams>(DId, data)
+TDIO_OutputBit::TDIO_OutputBit(DataItemIds id, const TBytes &data)
+    : TDataItem<DIO_OutputBitParams>(id, data)
 {
     if (data.size() >= 2) {
         this->params.bitNumber = data[0];
         this->params.value = data[1];
     }
 }
-TDIO_OutputBit::TDIO_OutputBit(DataItemIds DId, __u8 bitNumber, __u8 value)
-    : TDataItem<DIO_OutputBitParams>(DId, {})
+TDIO_OutputBit::TDIO_OutputBit(DataItemIds id, __u8 bitNumber, __u8 value)
+    : TDataItem<DIO_OutputBitParams>(id, {})
 {
     this->params.bitNumber = bitNumber;
     this->params.value = value;
@@ -253,15 +253,15 @@ std::string TDIO_OutputBit::AsString(bool /*bAsReply*/) {
 // --------------------------------------------------------------------------
 // TDIO_ClearBit Implementation
 // --------------------------------------------------------------------------
-TDIO_ClearBit::TDIO_ClearBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<DIO_ClearBitParams>(DId, data)
+TDIO_ClearBit::TDIO_ClearBit(DataItemIds id, const TBytes &data)
+    : TDataItem<DIO_ClearBitParams>(id, data)
 {
     if (data.size() >= 1) {
         this->params.bitNumber = data[0];
     }
 }
-TDIO_ClearBit::TDIO_ClearBit(DataItemIds DId, __u8 bitNumber)
-    : TDataItem<DIO_ClearBitParams>(DId, {})
+TDIO_ClearBit::TDIO_ClearBit(DataItemIds id, __u8 bitNumber)
+    : TDataItem<DIO_ClearBitParams>(id, {})
 {
     this->params.bitNumber = bitNumber;
 }
@@ -285,15 +285,15 @@ std::string TDIO_ClearBit::AsString(bool /*bAsReply*/) {
 // --------------------------------------------------------------------------
 // TDIO_SetBit Implementation
 // --------------------------------------------------------------------------
-TDIO_SetBit::TDIO_SetBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<DIO_SetBitParams>(DId, data)
+TDIO_SetBit::TDIO_SetBit(DataItemIds id, const TBytes &data)
+    : TDataItem<DIO_SetBitParams>(id, data)
 {
     if (data.size() >= 1) {
         this->params.bitNumber = data[0];
     }
 }
-TDIO_SetBit::TDIO_SetBit(DataItemIds DId, __u8 bitNumber)
-    : TDataItem<DIO_SetBitParams>(DId, {})
+TDIO_SetBit::TDIO_SetBit(DataItemIds id, __u8 bitNumber)
+    : TDataItem<DIO_SetBitParams>(id, {})
 {
     this->params.bitNumber = bitNumber;
 }
@@ -317,15 +317,15 @@ std::string TDIO_SetBit::AsString(bool /*bAsReply*/) {
 // --------------------------------------------------------------------------
 // TDIO_ToggleBit Implementation
 // --------------------------------------------------------------------------
-TDIO_ToggleBit::TDIO_ToggleBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<DIO_ToggleBitParams>(DId, data)
+TDIO_ToggleBit::TDIO_ToggleBit(DataItemIds id, const TBytes &data)
+    : TDataItem<DIO_ToggleBitParams>(id, data)
 {
     if (data.size() >= 1) {
         this->params.bitNumber = data[0];
     }
 }
-TDIO_ToggleBit::TDIO_ToggleBit(DataItemIds DId, __u8 bitNumber)
-    : TDataItem<DIO_ToggleBitParams>(DId, {})
+TDIO_ToggleBit::TDIO_ToggleBit(DataItemIds id, __u8 bitNumber)
+    : TDataItem<DIO_ToggleBitParams>(id, {})
 {
     this->params.bitNumber = bitNumber;
 }

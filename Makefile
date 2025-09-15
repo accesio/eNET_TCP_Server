@@ -2,12 +2,14 @@
 # Compile-only base flags
 BASE_CFLAGS     = -MMD -MP
 
-CXXFLAGS_DEBUG  = -fsanitize=address,undefined,leak -fno-omit-frame-pointer -g \
+SAN_FLAGS = -fsanitize=address,undefined,leak -fno-omit-frame-pointer
+
+CXXFLAGS_DEBUG  = $(SAN_FLAGS) -g \
                   -Wall -Wextra -Wnon-virtual-dtor -Wcast-align -Wunused \
                   -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion \
                   -Wnull-dereference -Wduplicated-cond -Wduplicated-branches \
                   -Wlogical-op -Wuseless-cast -Wfatal-errors -Wno-unknown-pragmas\
-                  -Wno-unused-parameter -std=gnu++2a
+                  -Wno-unused-parameter -std=gnu++2a -O1
 
 CXXFLAGS_RELEASE = -O2 -Wfatal-errors -std=gnu++2a
 
@@ -19,7 +21,8 @@ CXXFLAGS_RELEASE += $(BASE_CFLAGS)
 CXXFLAGS         = $(CXXFLAGS_RELEASE)
 
 # Link flags are separate (keeps link line clean)
-LDFLAGS          =
+LDFLAGS          = $(SAN_FLAGS)
+LDFLAGS         += -static-libasan
 LDLIBS           = -lm -lpthread -latomic -ldl -lfmt
 
 # ---------------------- Directories / Files -----------------------

@@ -12,7 +12,7 @@ struct HostnameParams {
 class TCFG_Hostname : public TDataItem<HostnameParams>
 {
 public:
-    explicit TCFG_Hostname(DataItemIds dId, const TBytes &buf);
+    explicit TCFG_Hostname(DataItemIds id, const TBytes &buf);
 
     TCFG_Hostname() = delete;
 
@@ -41,8 +41,8 @@ public:
     }
 
     // 2) Provide the (DataItemIds, TBytes) constructor, for when the factory calls it
-    TConfigField(DataItemIds DId, TBytes bytes)
-        : TDataItem<ConfigFieldParams>(DId, bytes),
+    TConfigField(DataItemIds id, TBytes bytes)
+        : TDataItem<ConfigFieldParams>(id, bytes),
           ptr_(nullptr),
           size_(0)
     {

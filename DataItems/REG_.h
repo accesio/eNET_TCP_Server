@@ -21,8 +21,8 @@ public:
     // Constructors
     explicit TREG_Read1(const TBytes &data);
     TREG_Read1();
-    TREG_Read1(DataItemIds DId, int ofs);
-    TREG_Read1(DataItemIds DId, const TBytes &FromBytes);
+    TREG_Read1(DataItemIds id, int ofs);
+    TREG_Read1(DataItemIds id, const TBytes &FromBytes);
 
     // Core methods
     virtual TBytes calcPayload(bool bAsReply=false) override;
@@ -48,19 +48,18 @@ private:
 // typedef std::vector<REG_Write> REG_WriteList;
 struct REG_WritesParams {
     REG_WriteList Writes;
-    // You can store other data if needed
 };
 
 // Abstract base class for TREG_WriteAll-type items
 class TREG_Writes : public TDataItem<REG_WritesParams>
 {
 public:
-    TREG_Writes(DataItemIds DId);
+    TREG_Writes(DataItemIds id);
     TREG_Writes();
     virtual ~TREG_Writes();
 
     explicit TREG_Writes(const TBytes &buf);
-    TREG_Writes(DataItemIds DId, const TBytes &FromBytes);
+    TREG_Writes(DataItemIds id, const TBytes &FromBytes);
 
     virtual TREG_Writes &Go() override;
     TREG_Writes &addWrite(__u8 w, int ofs, __u32 value);
@@ -122,8 +121,8 @@ struct REG_ToggleBitParams {
 class TREG_ReadBit : public TDataItem<REG_ReadBitParams> {
 public:
     // Constructors: one from raw bytes and one from explicit parameters.
-    TREG_ReadBit(DataItemIds DId, const TBytes &data);
-    TREG_ReadBit(DataItemIds DId, __u8 offset, __u8 bitIndex);
+    TREG_ReadBit(DataItemIds id, const TBytes &data);
+    TREG_ReadBit(DataItemIds id, __u8 offset, __u8 bitIndex);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -134,8 +133,8 @@ public:
 // TREG_WriteBit: Reads the register, sets or clears the specified bit, and writes back.
 class TREG_WriteBit : public TDataItem<REG_WriteBitParams> {
 public:
-    TREG_WriteBit(DataItemIds DId, const TBytes &data);
-    TREG_WriteBit(DataItemIds DId, __u8 offset, __u8 bitIndex, __u8 value);
+    TREG_WriteBit(DataItemIds id, const TBytes &data);
+    TREG_WriteBit(DataItemIds id, __u8 offset, __u8 bitIndex, __u8 value);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -146,8 +145,8 @@ public:
 class TREG_ClearBit : public TDataItem<REG_ClearBitParams> {
     public:
         // Constructors: one from raw bytes and one from explicit parameters.
-        TREG_ClearBit(DataItemIds DId, const TBytes &data);
-        TREG_ClearBit(DataItemIds DId, __u8 offset, __u8 bitIndex);
+        TREG_ClearBit(DataItemIds id, const TBytes &data);
+        TREG_ClearBit(DataItemIds id, __u8 offset, __u8 bitIndex);
 
         virtual TDataItemBase &Go() override;
         virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -157,8 +156,8 @@ class TREG_ClearBit : public TDataItem<REG_ClearBitParams> {
     // TREG_SetBit: Sets a single bit (to 1) in a register.
     class TREG_SetBit : public TDataItem<REG_SetBitParams> {
     public:
-        TREG_SetBit(DataItemIds DId, const TBytes &data);
-        TREG_SetBit(DataItemIds DId, __u8 offset, __u8 bitIndex);
+        TREG_SetBit(DataItemIds id, const TBytes &data);
+        TREG_SetBit(DataItemIds id, __u8 offset, __u8 bitIndex);
 
         virtual TDataItemBase &Go() override;
         virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -168,8 +167,8 @@ class TREG_ClearBit : public TDataItem<REG_ClearBitParams> {
 // TREG_ToggleBit: Reads the register, toggles the specified bit, and writes back.
 class TREG_ToggleBit : public TDataItem<REG_ToggleBitParams> {
 public:
-    TREG_ToggleBit(DataItemIds DId, const TBytes &data);
-    TREG_ToggleBit(DataItemIds DId, __u8 offset, __u8 bitIndex);
+    TREG_ToggleBit(DataItemIds id, const TBytes &data);
+    TREG_ToggleBit(DataItemIds id, __u8 offset, __u8 bitIndex);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;

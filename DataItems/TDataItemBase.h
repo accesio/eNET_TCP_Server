@@ -19,7 +19,7 @@ typedef struct
 	TDataItemLength dataLength;
 } TDataItemHeader;
 
-typedef std::shared_ptr<TDataItemBase> DIdConstructor(DataItemIds DId, TBytes FromBytes);
+typedef std::shared_ptr<TDataItemBase> DIdConstructor(DataItemIds id, TBytes FromBytes);
 
 typedef struct __DIdDictEntry_inner
 {
@@ -45,9 +45,9 @@ public:
     bool bWrite = false;  // Used by many items to indicate write vs. read
     int conn = 0;         // Connection ID or similar
     // ========== Constructors ==========
-    explicit TDataItemBase(DataItemIds dId) : DId(dId)
+    explicit TDataItemBase(DataItemIds id) : DId(id)
     {
-        Debug("TDataItemBase(DId) constructor");
+        Debug("TDataItemBase(id) constructor");
     }
 
     virtual ~TDataItemBase() {}
@@ -70,11 +70,11 @@ public:
     static int validateDataItemPayload(DataItemIds DataItemID, const TBytes &Data);
     static int isValidDataItemID(DataItemIds DataItemID);
     static int validateDataItem(const TBytes &msg);
-    static __u16 getMinLength(DataItemIds DId);
-    static __u16 getTargetLength(DataItemIds DId);
-    static __u16 getMaxLength(DataItemIds DId);
-    static int getDIdIndex(DataItemIds DId);
-    static std::string getDIdDesc(DataItemIds DId);
+    static __u16 getMinLength(DataItemIds id);
+    static __u16 getTargetLength(DataItemIds id);
+    static __u16 getMaxLength(DataItemIds id);
+    static int getDIdIndex(DataItemIds id);
+    static std::string getDIdDesc(DataItemIds id);
 
     TDataItemBase &addData(__u8 aByte);
     TDataItemBase &setDId(DataItemIds newId);

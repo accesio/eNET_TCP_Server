@@ -20,10 +20,10 @@ class TReadOnlyConfig : public TDataItem<ReadOnlyConfigParams<T>>
 {
 public:
     // (1) Constructor: DId + offset
-    TReadOnlyConfig(DataItemIds dId, __u8 offset);
+    TReadOnlyConfig(DataItemIds id, __u8 offset);
 
     // (2) Constructor: DId + raw bytes (from factory)
-    TReadOnlyConfig(DataItemIds dId, const TBytes &FromBytes);
+    TReadOnlyConfig(DataItemIds id, const TBytes &FromBytes);
 
     // (3) Constructor: just TBytes
     explicit TReadOnlyConfig(const TBytes &FromBytes);
@@ -45,7 +45,7 @@ class TBRD_FpgaId : public TReadOnlyConfig<__u32>
 public:
     TBRD_FpgaId();
     TBRD_FpgaId(const TBytes &FromBytes);
-    TBRD_FpgaId(DataItemIds DId, const TBytes &FromBytes);
+    TBRD_FpgaId(DataItemIds id, const TBytes &FromBytes);
 
     // Override if needed
     virtual std::string AsString(bool bAsReply) override;
@@ -59,7 +59,7 @@ class TBRD_DeviceID : public TReadOnlyConfig<__u16>
 public:
     TBRD_DeviceID();
     TBRD_DeviceID(const TBytes &FromBytes);
-    TBRD_DeviceID(DataItemIds DId, const TBytes &FromBytes);
+    TBRD_DeviceID(DataItemIds id, const TBytes &FromBytes);
 
     virtual std::string AsString(bool bAsReply) override;
     virtual TBRD_DeviceID &Go() override;
@@ -72,7 +72,7 @@ class TBRD_Features : public TReadOnlyConfig<__u8>
 public:
     TBRD_Features();
     TBRD_Features(const TBytes &FromBytes);
-    TBRD_Features(DataItemIds DId, const TBytes &FromBytes);
+    TBRD_Features(DataItemIds id, const TBytes &FromBytes);
 
     virtual std::string AsString(bool bAsReply) override;
     virtual TBRD_Features &Go() override;
@@ -84,8 +84,8 @@ public:
 class TBRD_Model : public TDataItem<GenericParams>
 {
 public:
-    explicit TBRD_Model(DataItemIds dId, const TBytes &buf)
-        : TDataItem<GenericParams>(dId, buf) {}
+    explicit TBRD_Model(DataItemIds id, const TBytes &buf)
+        : TDataItem<GenericParams>(id, buf) {}
 
     // no zero-arg ctor
     TBRD_Model() = delete;
@@ -104,8 +104,8 @@ public:
 class TBRD_GetModel : public TDataItem<GenericParams>
 {
 public:
-    explicit TBRD_GetModel(DataItemIds dId, const TBytes &buf)
-        : TDataItem<GenericParams>(dId, buf) {}
+    explicit TBRD_GetModel(DataItemIds id, const TBytes &buf)
+        : TDataItem<GenericParams>(id, buf) {}
 
     TBRD_GetModel() = delete;
 
@@ -122,8 +122,8 @@ public:
 class TBRD_SerialNumber : public TDataItem<GenericParams>
 {
 public:
-    explicit TBRD_SerialNumber(DataItemIds dId, const TBytes &buf)
-        : TDataItem<GenericParams>(dId, buf) {}
+    explicit TBRD_SerialNumber(DataItemIds id, const TBytes &buf)
+        : TDataItem<GenericParams>(id, buf) {}
 
     TBRD_SerialNumber() = delete;
 
@@ -136,8 +136,8 @@ public:
 class TBRD_GetSerialNumber : public TDataItem<GenericParams>
 {
 public:
-    explicit TBRD_GetSerialNumber(DataItemIds dId, const TBytes &buf)
-        : TDataItem<GenericParams>(dId, buf) {}
+    explicit TBRD_GetSerialNumber(DataItemIds id, const TBytes &buf)
+        : TDataItem<GenericParams>(id, buf) {}
 
     TBRD_GetSerialNumber() = delete;
 
@@ -152,9 +152,9 @@ struct NumberOfSubmuxParams {
 class TBRD_GetNumberOfSubmuxes : public TDataItem<NumberOfSubmuxParams> {
     public:
         // ctor from raw bytes (ignored)
-        TBRD_GetNumberOfSubmuxes(DataItemIds dId, const TBytes &buf);
+        TBRD_GetNumberOfSubmuxes(DataItemIds id, const TBytes &buf);
         // no-arg ctor
-        TBRD_GetNumberOfSubmuxes(DataItemIds dId);
+        TBRD_GetNumberOfSubmuxes(DataItemIds id);
 
         virtual TBRD_GetNumberOfSubmuxes &Go() override;
         virtual TBytes              calcPayload(bool bAsReply = false) override;
@@ -164,8 +164,8 @@ class TBRD_GetNumberOfSubmuxes : public TDataItem<NumberOfSubmuxParams> {
 class TBRD_NumberOfSubmuxes : public TDataItem<NumberOfSubmuxParams>
 {
 public:
-    explicit TBRD_NumberOfSubmuxes(DataItemIds dId, const TBytes &buf)
-        : TDataItem<NumberOfSubmuxParams>(dId, buf)
+    explicit TBRD_NumberOfSubmuxes(DataItemIds id, const TBytes &buf)
+        : TDataItem<NumberOfSubmuxParams>(id, buf)
     {
         // Assuming buf contains the value in the first byte
         if (!buf.empty())
@@ -242,7 +242,7 @@ struct SubmuxScaleParams {
 
 class TBRD_GetSubmuxScale : public TDataItem<SubmuxScaleParams> {
 public:
-    TBRD_GetSubmuxScale(DataItemIds dId, const TBytes &buf);
+    TBRD_GetSubmuxScale(DataItemIds id, const TBytes &buf);
 
     virtual TBRD_GetSubmuxScale &Go() override;
     virtual TBytes               calcPayload(bool bAsReply = false) override;
@@ -254,8 +254,8 @@ class TBRD_SubmuxScale : public TDataItem<SubmuxScaleParams>
 public:
     // For setting the value directly via pointer to buffer, the buffer will be structured as:
     // [submuxIndex (1 byte), gainGroupIndex (1 byte), then float bytes (4 bytes)]
-    explicit TBRD_SubmuxScale(DataItemIds dId, const TBytes &buf)
-        : TDataItem<SubmuxScaleParams>(dId, buf)
+    explicit TBRD_SubmuxScale(DataItemIds id, const TBytes &buf)
+        : TDataItem<SubmuxScaleParams>(id, buf)
     {
         if (buf.size() >= 6)
         {
@@ -332,7 +332,7 @@ struct SubmuxOffsetParams {
 
 class TBRD_GetSubmuxOffset : public TDataItem<SubmuxOffsetParams> {
     public:
-        TBRD_GetSubmuxOffset(DataItemIds dId, const TBytes &buf);
+        TBRD_GetSubmuxOffset(DataItemIds id, const TBytes &buf);
 
         virtual TBRD_GetSubmuxOffset &Go() override;
         virtual TBytes                calcPayload(bool bAsReply = false) override;
@@ -342,8 +342,8 @@ class TBRD_GetSubmuxOffset : public TDataItem<SubmuxOffsetParams> {
 class TBRD_SubmuxOffset : public TDataItem<SubmuxOffsetParams>
 {
 public:
-    explicit TBRD_SubmuxOffset(DataItemIds dId, const TBytes &buf)
-        : TDataItem<SubmuxOffsetParams>(dId, buf)
+    explicit TBRD_SubmuxOffset(DataItemIds id, const TBytes &buf)
+        : TDataItem<SubmuxOffsetParams>(id, buf)
     {
         if (buf.size() >= 6)
         {

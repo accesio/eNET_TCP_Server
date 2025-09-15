@@ -55,8 +55,8 @@ struct TDIO_OutputParams {
 // --------------------------------------------------------------------------
 class TDIO_Configure : public TDataItem<TDIO_ConfigureParams> {
 public:
-    TDIO_Configure(DataItemIds DId, const TBytes &data);
-    TDIO_Configure(DataItemIds DId, __u16 value);
+    TDIO_Configure(DataItemIds id, const TBytes &data);
+    TDIO_Configure(DataItemIds id, __u16 value);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -69,8 +69,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_Input : public TDataItem<TDIO_InputParams> {
 public:
-    TDIO_Input(DataItemIds DId, const TBytes &data);
-    TDIO_Input(DataItemIds DId);
+    TDIO_Input(DataItemIds id, const TBytes &data);
+    TDIO_Input(DataItemIds id);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -84,8 +84,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_Output : public TDataItem<TDIO_OutputParams> {
 public:
-    TDIO_Output(DataItemIds DId, const TBytes &data);
-    TDIO_Output(DataItemIds DId, __u16 value);
+    TDIO_Output(DataItemIds id, const TBytes &data);
+    TDIO_Output(DataItemIds id, __u16 value);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -98,8 +98,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_ConfigureBit : public TDataItem<DIO_ConfigureBitParams> {
 public:
-    TDIO_ConfigureBit(DataItemIds DId, const TBytes &data);
-    TDIO_ConfigureBit(DataItemIds DId, __u8 bitNumber, __u8 direction);
+    TDIO_ConfigureBit(DataItemIds id, const TBytes &data);
+    TDIO_ConfigureBit(DataItemIds id, __u8 bitNumber, __u8 direction);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -111,8 +111,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_InputBit : public TDataItem<DIO_InputBitParams> {
 public:
-    TDIO_InputBit(DataItemIds DId, const TBytes &data);
-    TDIO_InputBit(DataItemIds DId, __u8 bitNumber);
+    TDIO_InputBit(DataItemIds id, const TBytes &data);
+    TDIO_InputBit(DataItemIds id, __u8 bitNumber);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -125,8 +125,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_OutputBit : public TDataItem<DIO_OutputBitParams> {
 public:
-    TDIO_OutputBit(DataItemIds DId, const TBytes &data);
-    TDIO_OutputBit(DataItemIds DId, __u8 bitNumber, __u8 value);
+    TDIO_OutputBit(DataItemIds id, const TBytes &data);
+    TDIO_OutputBit(DataItemIds id, __u8 bitNumber, __u8 value);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -138,8 +138,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_ClearBit : public TDataItem<DIO_ClearBitParams> {
 public:
-    TDIO_ClearBit(DataItemIds DId, const TBytes &data);
-    TDIO_ClearBit(DataItemIds DId, __u8 bitNumber);
+    TDIO_ClearBit(DataItemIds id, const TBytes &data);
+    TDIO_ClearBit(DataItemIds id, __u8 bitNumber);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -151,8 +151,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_SetBit : public TDataItem<DIO_SetBitParams> {
 public:
-    TDIO_SetBit(DataItemIds DId, const TBytes &data);
-    TDIO_SetBit(DataItemIds DId, __u8 bitNumber);
+    TDIO_SetBit(DataItemIds id, const TBytes &data);
+    TDIO_SetBit(DataItemIds id, __u8 bitNumber);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;
@@ -164,8 +164,8 @@ public:
 // --------------------------------------------------------------------------
 class TDIO_ToggleBit : public TDataItem<DIO_ToggleBitParams> {
 public:
-    TDIO_ToggleBit(DataItemIds DId, const TBytes &data);
-    TDIO_ToggleBit(DataItemIds DId, __u8 bitNumber);
+    TDIO_ToggleBit(DataItemIds id, const TBytes &data);
+    TDIO_ToggleBit(DataItemIds id, __u8 bitNumber);
 
     virtual TDataItemBase &Go() override;
     virtual TBytes calcPayload(bool bAsReply = false) override;

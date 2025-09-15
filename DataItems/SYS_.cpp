@@ -200,7 +200,8 @@ void UploadFilesByDataItem(TDataItemBase& item)
 }
 
 
-TSYS_UploadFileName::TSYS_UploadFileName(DataItemIds DId, TBytes buf) : TDataItemBase(DId)
+TSYS_UploadFileName::TSYS_UploadFileName(DataItemIds id, TBytes buf)
+     : TDataItemBase(id)
 {
     std::string str = std::string(buf.begin(), buf.end());
     if (sanitizePath(str))
@@ -242,7 +243,8 @@ TSYS_UploadFileName & TSYS_UploadFileName::Go()
 }
 
 
-TSYS_UploadFileData::TSYS_UploadFileData(DataItemIds DId, TBytes buf) : TDataItemBase(DId)
+TSYS_UploadFileData::TSYS_UploadFileData(DataItemIds id, TBytes buf)
+    : TDataItemBase(id)
 {
     Data = buf;
     //Debug("Buffer received: ", buf);

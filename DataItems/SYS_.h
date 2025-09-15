@@ -13,7 +13,7 @@ class TSYS_UploadFileName : public TDataItemBase
 {
 public:
 	explicit TSYS_UploadFileName(TBytes buf) : TSYS_UploadFileName(DataItemIds::SYS_UploadFileName, buf){};
-	explicit TSYS_UploadFileName(DataItemIds DId, TBytes buf);
+	explicit TSYS_UploadFileName(DataItemIds id, TBytes buf);
 	//TSYS_UploadFileName() : TDataItem(SYS_UploadFileName){}
 
 	// returns the sanitized file name
@@ -30,7 +30,7 @@ class TSYS_UploadFileData : public TDataItemBase
 {
 public:
 	explicit TSYS_UploadFileData(TBytes buf) : TSYS_UploadFileData(DataItemIds::SYS_UploadFileName, buf){};
-	explicit TSYS_UploadFileData(DataItemIds DId, TBytes buf);
+	explicit TSYS_UploadFileData(DataItemIds id, TBytes buf);
 
 	// returns the sanitized file name
 	virtual TBytes calcPayload(bool bAsReply = false);

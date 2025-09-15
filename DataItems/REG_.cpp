@@ -13,7 +13,7 @@ int WaitUntilRegisterBitIsLow(__u8 offset, __u32 bitMask) // TODO: move into uti
 	do
 	{
 		value = in(offset);
-		Trace("SPI Busy Bit at " + std::string(to_hex<__u8>(offset)) + " is " + ((value & bitMask) ? "1" : "0"));
+		Trace("SPI Busy Bit at " + to_hex<__u8>(offset) + " is " + ((value & bitMask) ? "1" : "0"));
 		// if (status < 0)
 		// 	return -errno;
 		if (++attempt > 100)
@@ -40,7 +40,7 @@ std::shared_ptr<void> TREG_Read1::getResultValue()
     Trace("returning "
           + (this->params.width == 8
              ? to_hex<__u8>((__u8)this->params.regVal)
-             : to_hex<__u32>((__u32)this->params.regVal)));
+             : to_hex<__u32>(this->params.regVal)));
 
     if (this->params.width == 8)
     {
@@ -48,7 +48,7 @@ std::shared_ptr<void> TREG_Read1::getResultValue()
     }
     else
     {
-        return std::make_shared<__u32>((__u32)this->params.regVal);
+        return std::make_shared<__u32>(this->params.regVal);
     }
 }
 
@@ -70,8 +70,8 @@ TError TREG_Read1::validateDataItemPayload(DataItemIds DataItemID, TBytes Data)
     return result;
 }
 
-TREG_Read1::TREG_Read1(DataItemIds DId, int ofs)
-    : TDataItem<REG_Read1Params>(DId, {})
+TREG_Read1::TREG_Read1(DataItemIds id, int ofs)
+    : TDataItem<REG_Read1Params>(id, {})
 {
     this->setOffset(ofs);
 }
@@ -93,8 +93,8 @@ TREG_Read1::TREG_Read1(const TBytes &data)
     this->params.width = w;
 }
 
-TREG_Read1::TREG_Read1(DataItemIds DId, const TBytes &FromBytes)
-    : TDataItem<REG_Read1Params>(DId, FromBytes)
+TREG_Read1::TREG_Read1(DataItemIds id, const TBytes &FromBytes)
+    : TDataItem<REG_Read1Params>(id, FromBytes)
 {
     if (!FromBytes.empty())
     {
@@ -171,8 +171,8 @@ std::string TREG_Read1::AsString(bool bAsReply)
 
 // ======================== TREG_Writes ========================
 
-TREG_Writes::TREG_Writes(DataItemIds DId)
-    : TDataItem<REG_WritesParams>(DId, {})
+TREG_Writes::TREG_Writes(DataItemIds id)
+    : TDataItem<REG_WritesParams>(id, {})
 {
 }
 
@@ -193,8 +193,8 @@ TREG_Writes::TREG_Writes(const TBytes &buf)
     Debug("CHAINING1");
 }
 
-TREG_Writes::TREG_Writes(DataItemIds DId, const TBytes &FromBytes)
-    : TDataItem<REG_WritesParams>(DId, FromBytes)
+TREG_Writes::TREG_Writes(DataItemIds id, const TBytes &FromBytes)
+    : TDataItem<REG_WritesParams>(id, FromBytes)
 {
     Debug("CHAINING2");
 }
@@ -222,7 +222,7 @@ TREG_Writes &TREG_Writes::Go()
 
         if (action.width == 8)
         {
-            Trace("out(" + to_hex<__u8>(action.offset) + ") → " + to_hex<__u8>(action.value));
+            Trace("out(" + to_hex<__u8>(action.offset) + ") → " + to_hex<__u8>((__u8)action.value));
         }
         else
         {
@@ -235,7 +235,7 @@ TREG_Writes &TREG_Writes::Go()
 TREG_Writes &TREG_Writes::addWrite(__u8 w, int ofs, __u32 value)
 {
     Trace("ENTER, w:" + std::to_string(w)
-          + ", offset: " + to_hex<__u8>(ofs)
+          + ", offset: " + to_hex<__u8>((__u8)ofs)
           + ", value: " + to_hex<__u32>(value));
     REG_Write aWrite;
     aWrite.width  = w;
@@ -312,8 +312,8 @@ TBytes TREG_Write1::calcPayload(bool bAsReply)
 }
 
 
-TREG_ReadBit::TREG_ReadBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<REG_ReadBitParams>(DId, data)
+TREG_ReadBit::TREG_ReadBit(DataItemIds id, const TBytes &data)
+    : TDataItem<REG_ReadBitParams>(id, data)
 {
     // Expect at least 2 bytes: offset and bitIndex.
     if(data.size() >= 2) {
@@ -322,8 +322,8 @@ TREG_ReadBit::TREG_ReadBit(DataItemIds DId, const TBytes &data)
     }
 }
 
-TREG_ReadBit::TREG_ReadBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
-    : TDataItem<REG_ReadBitParams>(DId, {})
+TREG_ReadBit::TREG_ReadBit(DataItemIds id, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_ReadBitParams>(id, {})
 {
     this->params.offset = offset;
     this->params.bitIndex = bitIndex;
@@ -333,7 +333,7 @@ TDataItemBase &TREG_ReadBit::Go() {
     // Read the full register value.
     __u32 regValue = in(this->params.offset);
     // Extract the desired bit.
-    this->params.bitValue = (regValue >> this->params.bitIndex) & 1;
+    this->params.bitValue = (__u8)((regValue >> this->params.bitIndex) & 1);
     return *this;
 }
 
@@ -370,8 +370,8 @@ std::shared_ptr<void> TREG_ReadBit::getResultValue() {
 // TREG_WriteBit Implementation
 // --------------------------------------------------------------------------
 
-TREG_WriteBit::TREG_WriteBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<REG_WriteBitParams>(DId, data)
+TREG_WriteBit::TREG_WriteBit(DataItemIds id, const TBytes &data)
+    : TDataItem<REG_WriteBitParams>(id, data)
 {
     // Expect at least 3 bytes: offset, bitIndex, value.
     if(data.size() >= 3) {
@@ -381,8 +381,8 @@ TREG_WriteBit::TREG_WriteBit(DataItemIds DId, const TBytes &data)
     }
 }
 
-TREG_WriteBit::TREG_WriteBit(DataItemIds DId, __u8 offset, __u8 bitIndex, __u8 value)
-    : TDataItem<REG_WriteBitParams>(DId, {})
+TREG_WriteBit::TREG_WriteBit(DataItemIds id, __u8 offset, __u8 bitIndex, __u8 value)
+    : TDataItem<REG_WriteBitParams>(id, {})
 {
     this->params.offset = offset;
     this->params.bitIndex = bitIndex;
@@ -423,8 +423,8 @@ std::string TREG_WriteBit::AsString(bool /*bAsReply*/) {
 // TREG_ClearBit Implementation
 // --------------------------------------------------------------------------
 
-TREG_ClearBit::TREG_ClearBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<REG_ClearBitParams>(DId, data)
+TREG_ClearBit::TREG_ClearBit(DataItemIds id, const TBytes &data)
+    : TDataItem<REG_ClearBitParams>(id, data)
 {
     // Expect at least 2 bytes: offset and bitIndex.
     if(data.size() >= 2) {
@@ -433,8 +433,8 @@ TREG_ClearBit::TREG_ClearBit(DataItemIds DId, const TBytes &data)
     }
 }
 
-TREG_ClearBit::TREG_ClearBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
-    : TDataItem<REG_ClearBitParams>(DId, {})
+TREG_ClearBit::TREG_ClearBit(DataItemIds id, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_ClearBitParams>(id, {})
 {
     this->params.offset = offset;
     this->params.bitIndex = bitIndex;
@@ -470,8 +470,8 @@ std::string TREG_ClearBit::AsString(bool /*bAsReply*/) {
 // TREG_SetBit Implementation
 // --------------------------------------------------------------------------
 
-TREG_SetBit::TREG_SetBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<REG_SetBitParams>(DId, data)
+TREG_SetBit::TREG_SetBit(DataItemIds id, const TBytes &data)
+    : TDataItem<REG_SetBitParams>(id, data)
 {
     // Expect at least 2 bytes: offset and bitIndex.
     if(data.size() >= 2) {
@@ -480,8 +480,8 @@ TREG_SetBit::TREG_SetBit(DataItemIds DId, const TBytes &data)
     }
 }
 
-TREG_SetBit::TREG_SetBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
-    : TDataItem<REG_SetBitParams>(DId, {})
+TREG_SetBit::TREG_SetBit(DataItemIds id, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_SetBitParams>(id, {})
 {
     this->params.offset = offset;
     this->params.bitIndex = bitIndex;
@@ -515,8 +515,8 @@ std::string TREG_SetBit::AsString(bool /*bAsReply*/) {
 // TREG_ToggleBit Implementation
 // --------------------------------------------------------------------------
 
-TREG_ToggleBit::TREG_ToggleBit(DataItemIds DId, const TBytes &data)
-    : TDataItem<REG_ToggleBitParams>(DId, data)
+TREG_ToggleBit::TREG_ToggleBit(DataItemIds id, const TBytes &data)
+    : TDataItem<REG_ToggleBitParams>(id, data)
 {
     // Expect at least 2 bytes: offset and bitIndex.
     if(data.size() >= 2) {
@@ -525,8 +525,8 @@ TREG_ToggleBit::TREG_ToggleBit(DataItemIds DId, const TBytes &data)
     }
 }
 
-TREG_ToggleBit::TREG_ToggleBit(DataItemIds DId, __u8 offset, __u8 bitIndex)
-    : TDataItem<REG_ToggleBitParams>(DId, {})
+TREG_ToggleBit::TREG_ToggleBit(DataItemIds id, __u8 offset, __u8 bitIndex)
+    : TDataItem<REG_ToggleBitParams>(id, {})
 {
     this->params.offset = offset;
     this->params.bitIndex = bitIndex;

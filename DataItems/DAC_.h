@@ -28,8 +28,8 @@ public:
     explicit TDAC_Output(const TBytes &bytes);
 
     // Additional constructor for the dictionary/factory
-    TDAC_Output(DataItemIds DId, const TBytes &FromBytes)
-        : TDataItem(DId, FromBytes)
+    TDAC_Output(DataItemIds id, const TBytes &FromBytes)
+        : TDataItem(id, FromBytes)
     {
         // We rely on the main constructor for partial parsing
         // So forward there:
@@ -55,8 +55,8 @@ public:
     explicit TDAC_Range1(const TBytes &bytes);
 
     // For dictionary/factory usage
-    TDAC_Range1(DataItemIds DId, const TBytes &FromBytes)
-        : TDataItem(DId, FromBytes)
+    TDAC_Range1(DataItemIds id, const TBytes &FromBytes)
+        : TDataItem(id, FromBytes)
     {
         parseBytes(FromBytes);
     }
