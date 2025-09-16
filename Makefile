@@ -79,8 +79,6 @@ endif
 # ---------------------- Default Target ----------------------
 all: release
 
-
-
 LINK_CMD = $(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 # ---------------------- Build Targets -----------------------
@@ -110,11 +108,14 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 
 # Ensure obj/ and obj/DataItems exist
 $(OBJDIR):
-	mkdir -p $@
-	mkdir -p $@/DataItems
+	@mkdir -p $@
+	@mkdir -p $@/DataItems
 
 clean:
-	rm -rf $(OBJDIR) aioenetd test
+	@printf "$(GREEN)cleaning...$(RESET)\n"
+	@rm -rf $(OBJDIR) aioenetd test
+	@printf "$(GREEN)done.$(RESET)\n"
+
 
 # Automatic dependencies for each compiled .cpp
 -include $(OBJDIR)/*.d
