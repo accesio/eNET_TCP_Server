@@ -1,10 +1,11 @@
 # ---------------------- Base, Debug & Release Flags ----------------------
-# Compile-only base flags
+MAKEFLAGS += --output-sync=target
+
 BASE_CFLAGS     = -MMD -MP
 
 SAN_FLAGS = -fsanitize=address,undefined,leak -fno-omit-frame-pointer
 
-CXXFLAGS_DEBUG  = $(SAN_FLAGS) -g \
+CXXFLAGS_DEBUG  = $(SAN_FLAGS) -gdwarf-4 -g2 \
                   -Wall -Wextra -Wnon-virtual-dtor -Wcast-align -Wunused \
                   -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion \
                   -Wnull-dereference -Wduplicated-cond -Wduplicated-branches \
@@ -13,17 +14,17 @@ CXXFLAGS_DEBUG  = $(SAN_FLAGS) -g \
 
 CXXFLAGS_RELEASE = -O2 -Wfatal-errors -std=gnu++2a
 
-# Append compile-only base flags
 CXXFLAGS_DEBUG   += $(BASE_CFLAGS)
 CXXFLAGS_RELEASE += $(BASE_CFLAGS)
 
+LDFLAGS_DEBUG    = $(SAN_FLAGS) -static-libasan
+LDFLAGS_RELEASE  =
+
+LDLIBS           = -lm -lpthread -latomic -ldl -lfmt
+
 # By default, we will do "release"
 CXXFLAGS         = $(CXXFLAGS_RELEASE)
-
-# Link flags are separate (keeps link line clean)
-LDFLAGS          = $(SAN_FLAGS)
-LDFLAGS         += -static-libasan
-LDLIBS           = -lm -lpthread -latomic -ldl -lfmt
+LDFLAGS          = $(LDFLAGS_RELEASE)
 
 # ---------------------- Directories / Files -----------------------
 SRCDIR    = .
@@ -48,22 +49,22 @@ RESET  = \033[0m
 
 # -------- Pretty printing knobs ----------
 WIDTH ?= 16
-QLINK := @
+Q := @
+
+WRAP_COL ?= 120
+FMT_WRAP = | fmt -w $(WRAP_COL) | sed '2,$$s/^/  /'
 
 # Silence by default; VERBOSE=1 shows raw commands
 ifeq ($(VERBOSE),1)
-  Q :=
-  PRINT_COMPILE = @printf "$(CYAN)Compiling %23s$(RESET) : " "$<"
+  PRINT_COMPILE = @printf "$(CYAN)Compiling %23s$(RESET)\n" "$<"; \
+                  (echo "  $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@") $(FMT_WRAP)
 else
-  Q := @
   PRINT_COMPILE = @printf "$(CYAN)Compiling %23s$(RESET)\n" "$<"
 endif
 
 LINK_BANNER_QUIET = @printf "$(GREEN)Linking %-$(WIDTH)s($(words $^) objs)$(RESET)\n" "$@"
 
-WRAP_COL ?= 120
-
-LINK_BANNER_VERBOSE = @printf "$(GREEN)Linking %-$(WIDTH_LINK)s$(RESET)\n" "$@"; \
+LINK_BANNER_VERBOSE = @printf "$(GREEN)Linking %-$(WIDTH)s$(RESET)\n" "$@"; \
   ( printf "  %s " "$(CXX) $(LDFLAGS) -o $@"; \
     printf "%s " $(notdir $^); \
     printf "%s\n" "$(LDLIBS)" ) \
@@ -86,18 +87,20 @@ LINK_CMD = $(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 test: $(OBJS_FOR_TEST)
 	$(LINK_BANNER)
-	$(QLINK)$(LINK_CMD)
+	$(Q)$(LINK_CMD)
 
 aioenetd: $(OBJS_FOR_AIOENETD)
 	$(LINK_BANNER)
-	$(QLINK)$(LINK_CMD)
+	$(Q)$(LINK_CMD)
 
-# Debug build => override CXXFLAGS with CXXFLAGS_DEBUG
+# Debug build
 debug: CXXFLAGS = $(CXXFLAGS_DEBUG)
+debug: LDFLAGS = $(LDFLAGS_DEBUG)
 debug: aioenetd
 
-# Release build => override CXXFLAGS with CXXFLAGS_RELEASE
+# Release build
 release: CXXFLAGS = $(CXXFLAGS_RELEASE)
+release: LDFLAGS = $(LDFLAGS_RELEASE)
 release: aioenetd
 
 # Pattern rule for creating .o files from .cpp
