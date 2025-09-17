@@ -1,5 +1,9 @@
 # ---------------------- Base, Debug & Release Flags ----------------------
 MAKEFLAGS += --output-sync=target
+NPROC := $(shell nproc 2>/dev/null || echo 1)
+ifeq (,$(filter -j%,$(MAKEFLAGS)))
+  MAKEFLAGS += -j$(NPROC)
+endif
 
 BASE_CFLAGS     = -MMD -MP
 
@@ -30,13 +34,17 @@ endif
 SANITIZE ?= 1
 
 # Enable sanitizers only if requested AND toolchain provides them
-ifeq ($(SANITIZE)$(SAN_PRESENT),1)
-  SAN_FLAGS := -fsanitize=address,undefined,leak -fno-omit-frame-pointer
+ifeq ($(SANITIZE),1)
+  ifneq ($(SAN_PRESENT),)
+    SAN_FLAGS := -fsanitize=address,undefined,leak -fno-omit-frame-pointer
+  else
+    SAN_FLAGS :=
+  endif
 else
   SAN_FLAGS :=
 endif
 
-CXXFLAGS_DEBUG  = -gdwarf-4 -g2 \
+CXXFLAGS_DEBUG  = $(SAN_FLAGS) -gdwarf-4 -g2 \
                   -Wall -Wextra -Wnon-virtual-dtor -Wcast-align -Wunused \
                   -Wshadow -Woverloaded-virtual -Wpedantic -Wconversion \
                   -Wnull-dereference -Wduplicated-cond -Wduplicated-branches \
@@ -46,10 +54,12 @@ CXXFLAGS_DEBUG  = -gdwarf-4 -g2 \
 CXXFLAGS_RELEASE = -O2 -Wfatal-errors -std=gnu++2a
 
 CXXFLAGS_DEBUG   += $(BASE_CFLAGS)
-CXXFLAGS_DEBUG   += $(SAN_FLAGS)
 CXXFLAGS_RELEASE += $(BASE_CFLAGS)
 
-LDFLAGS_DEBUG    = $(SAN_FLAGS) -static-libasan
+LDFLAGS_DEBUG    = $(SAN_FLAGS)
+ifneq ($(LIBASAN_A),)
+  LDFLAGS_DEBUG += -static-libasan
+endif
 LDFLAGS_RELEASE  =
 
 LDLIBS           = -lm -lpthread -latomic -ldl -lfmt
@@ -140,7 +150,7 @@ aioenetd: $(OBJS_FOR_AIOENETD)
 	$(Q)$(LINK_CMD)
 ifneq ($(DEPLOY_AFTER_BUILD),0)
 	$(MAKE) --no-print-directory deploy
-ifneq ($(DEPLOY_SOURCES),0)
+ifeq ($(DEPLOY_SOURCES),1)
 	$(MAKE) --no-print-directory deploy-src
 endif
 endif
@@ -176,41 +186,41 @@ clean:
 
 # Deploy binary: try each pair until one works
 deploy: aioenetd
-	 set -e; ok=0; \
-	   for pair in $(DEPLOY_PAIRS); do \
-	     host="$${pair%%::*}"; dir="$${pair##*::}"; \
-	     echo "Deploying $< -> $$host:$$dir"; \
-	     if $(SSH) "$$host" 'mkdir -p '"$$dir" && \
-	        $(RSYNC) $(RSYNC_FLAGS) "$<" "$$host:$$dir/"; then \
-	       echo "Deploy OK to $$host:$$dir"; ok=1; break; \
-	     else \
-	       echo "Deploy failed to $$host:$$dir — trying next..."; \
-	     fi; \
-	   done; \
-	   test $$ok -eq 1 || { echo "ERROR: deploy failed to all targets" >&2; exit 1; }; \
-
+	@{	set -e; ok=0; \
+		for pair in $(DEPLOY_PAIRS); do \
+			host="$${pair%%::*}"; dir="$${pair##*::}"; \
+			echo "Deploying $< -> $$host:$$dir"; \
+			if $(SSH) "$$host" 'mkdir -p '"$$dir" && \
+			$(RSYNC) $(RSYNC_FLAGS) "$<" "$$host:$$dir/"; then \
+			echo "Deploy OK to $$host:$$dir"; ok=1; break; \
+			else \
+			echo "Deploy failed to $$host:$$dir — trying next..."; \
+			fi; \
+		done; \
+		test $$ok -eq 1 || { echo "ERROR: deploy failed to all targets" >&2; exit 1; }; \
+	}
 
 # Mirror sources: same fallback logic; target dir = DIR/REMOTE_SUBDIR
 deploy-src:
-	 set -e; ok=0; \
-	   for pair in $(DEPLOY_PAIRS); do \
-	     host="$${pair%%::*}"; dir="$${pair##*::}"; srcdir="$$dir/$(REMOTE_SUBDIR)"; \
-	     echo "Mirroring sources -> $$host:$$srcdir"; \
-	     if $(SSH) "$$host" 'mkdir -p '"$$srcdir" && \
-	        $(RSYNC) $(RSYNC_FLAGS) \
-	          --include='*/' \
-	          --include='*.cpp' --include='*.c' --include='*.hpp' --include='*.h' \
-	          --include='Makefile' \
-	          --include='DataItems/***' \
-	          --exclude='*' \
-	          ./ "$$host:$$srcdir/"; then \
-	       echo "Sources OK to $$host:$$srcdir"; ok=1; break; \
-	     else \
-	       echo "Source mirror failed to $$host:$$srcdir — trying next..."; \
-	     fi; \
-	   done; \
-	   test $$ok -eq 1 || { echo "ERROR: source mirror failed to all targets" >&2; exit 1; }; \
-
+	@{	set -e; ok=0; \
+		for pair in $(DEPLOY_PAIRS); do \
+			host="$${pair%%::*}"; dir="$${pair##*::}"; srcdir="$$dir/$(REMOTE_SUBDIR)"; \
+			echo "Mirroring sources -> $$host:$$srcdir"; \
+			if $(SSH) "$$host" 'mkdir -p '"$$srcdir" && \
+			$(RSYNC) $(RSYNC_FLAGS) \
+				--include='*/' \
+				--include='*.cpp' --include='*.c' --include='*.hpp' --include='*.h' \
+				--include='Makefile' \
+				--include='DataItems/***' \
+				--exclude='*' \
+				./ "$$host:$$srcdir/"; then \
+			echo "Sources OK to $$host:$$srcdir"; ok=1; break; \
+			else \
+			echo "Source mirror failed to $$host:$$srcdir — trying next..."; \
+			fi; \
+		done; \
+		test $$ok -eq 1 || { echo "ERROR: source mirror failed to all targets" >&2; exit 1; }; \
+	}
 
 # Automatic dependencies for each compiled .cpp
 -include $(OBJDIR)/*.d
