@@ -322,10 +322,20 @@ void exit_handler(int s)
 {
 	Log("exit process starting");
 	done = 1;
-	apci_cancel_irq(apci, 1);  // unblocks apci_wait_for_irq in worker
+	apci_cancel_irq(apci, 1); // unblocks apci_wait_for_irq in worker
 
-	if (controlSocket >= 0) { shutdown(controlSocket, SHUT_RDWR); close(controlSocket); controlSocket = -1; }
-    if (adcSocket     >= 0) { shutdown(adcSocket, SHUT_RDWR);     close(adcSocket);     adcSocket     = -1; }
+	if (controlSocket >= 0)
+	{
+		shutdown(controlSocket, SHUT_RDWR);
+		close(controlSocket);
+		controlSocket = -1;
+	}
+	if (adcSocket >= 0)
+	{
+		shutdown(adcSocket, SHUT_RDWR);
+		close(adcSocket);
+		adcSocket = -1;
+	}
 	ActionQueue.enqueue(nullptr);
 
 	sleep(1);
@@ -450,8 +460,10 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 		Error("Bind on port " + std::to_string(Port) + " failed");
 		exit(EXIT_FAILURE);
 	}
-	if (Port == ControlListenPort) controlSocket = Socket;
-	if (Port == AdcListenPort)     adcSocket     = Socket;
+	if (Port == ControlListenPort)
+		controlSocket = Socket;
+	if (Port == AdcListenPort)
+		adcSocket = Socket;
 }
 
 void Listen(int &Socket, int num)
@@ -548,7 +560,10 @@ void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage
 		// => accept() should not block
 		if (FD_ISSET(Socket, &readfds)) // There's at least one pending connection
 		{
-			if ((new_socket = accept(Socket, (struct sockaddr *)&addr, &addrSize)) < 0)
+			// There's at least one pending connection
+			struct sockaddr_storage socka;
+			socklen_t sockl = sizeof(socka);
+			if ((new_socket = accept(Socket, (struct sockaddr *)&socka, &sockl)) < 0)
 			{
 				Error("accept failed");
 				perror("accept failed");
@@ -860,7 +875,9 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 		// => accept() should not block
 		if (FD_ISSET(ControlListenSocket, &readfds))
 		{
-			if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&addr, &addrSize)) < 0)
+			sockaddr_storage socka;
+			socklen_t sockl = sizeof(socka);
+			if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&socka, &sockl)) < 0)
 			{
 				Error("accept failed");
 				perror("accept failed");
@@ -922,7 +939,8 @@ void *ActionThread(TActionQueue *Q)
 	for (; done == 0;)
 	{
 		TActionQueueItem *anAction = Q->dequeue();
-		if (!anAction) continue; // should only occur if done != 0, "poison pill"
+		if (!anAction)
+			continue; // should only occur if done != 0, "poison pill"
 
 		Log("---DEQUEUED---");
 		RunMessage(anAction->theMessage);
