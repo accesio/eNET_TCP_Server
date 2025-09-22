@@ -1,3 +1,4 @@
+/*
 #pragma once
 
 #include <cstdint>
@@ -12,6 +13,10 @@
 
 class TDataItemBase;
 using PTDataItemBase = std::shared_ptr<TDataItemBase>;
+using PTDataItem = std::shared_ptr<TDataItemBase>;
+using TPayload = std::vector<PTDataItem>;
+using TDataId = __u16;
+using TDataItemLength=__u16;
 
 typedef struct
 {
@@ -90,5 +95,5 @@ public:
 
 
 
-
+*/
 

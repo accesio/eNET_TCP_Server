@@ -476,7 +476,7 @@ int TDataItemBase::validateDataItem(const TBytes &bytes)
 //    --DId --LEN --PayloadBytes
 //       |     |  DAC      Scale
 //     0210  0005   0    3F80000
-std::shared_ptr<TDataItemBase> TDataItemBase::fromBytes(const TBytes &bytes, TError &result)
+PTDataItem TDataItemBase::fromBytes(const TBytes &bytes, TError &result)
 {
 	LOG_IT;
 	result = ERR_SUCCESS;

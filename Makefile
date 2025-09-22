@@ -88,18 +88,18 @@ OBJS_FOR_TEST       = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRCS_FOR_TEST
 # Use bash for string splitting in recipes
 SHELL := /bin/bash
 DEPLOY_PAIRS ?= \
-  pb@strix.local::/home/pb \
-  acces@acces-enet.local::/home/acces
+  root@strix.local::/home/pb \
+  root@acces-enet.local::/home/acces
 
 # Subdirectory (under each pair's DIR) to mirror sources into
 REMOTE_SUBDIR ?= eNET_TCP_Server
-REMOTE_SERVICE     ?= aioenetd
+REMOTE_SERVICE     ?=#aioenetd
 REMOTE_SERVICE_MODE  ?= auto       # auto | system | user
 REMOTE_NEEDS_SUDO  ?= 1            # 1 = prefix systemctl/mv/chmod with sudo, 0 = no sudo
 REMOTE_TMP         ?= /tmp/aioenetd.new
 RESTART_WITH_SUDO  ?= 1
 
-DEPLOY_AFTER_BUILD ?= 1
+DEPLOY_AFTER_BUILD ?= 0
 DEPLOY_SOURCES     ?= 0
 RSYNC_FLAGS        ?= -azP
 SSH                ?= ssh

@@ -219,9 +219,8 @@ int apci = -1;
 volatile sig_atomic_t done = 0;
 
 static int ControlListenPort = 18767; // 0x494f, ASCII for "IO"
-static int controlSocket = -1;
+
 int AdcListenPort = ControlListenPort + 1;
-static int adcSocket = -1;
 
 pthread_t action_thread;
 pthread_t controlListener_thread;
@@ -324,18 +323,18 @@ void exit_handler(int s)
 	done = 1;
 	apci_cancel_irq(apci, 1); // unblocks apci_wait_for_irq in worker
 
-	if (controlSocket >= 0)
-	{
-		shutdown(controlSocket, SHUT_RDWR);
-		close(controlSocket);
-		controlSocket = -1;
-	}
-	if (adcSocket >= 0)
-	{
-		shutdown(adcSocket, SHUT_RDWR);
-		close(adcSocket);
-		adcSocket = -1;
-	}
+	// if (controlSocket >= 0)
+	// {
+	// 	shutdown(controlSocket, SHUT_RDWR);
+	// 	close(controlSocket);
+	// 	controlSocket = -1;
+	// }
+	// if (adcSocket >= 0)
+	// {
+	// 	shutdown(adcSocket, SHUT_RDWR);
+	// 	close(adcSocket);
+	// 	adcSocket = -1;
+	// }
 	ActionQueue.enqueue(nullptr);
 
 	sleep(1);
@@ -460,10 +459,10 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 		Error("Bind on port " + std::to_string(Port) + " failed");
 		exit(EXIT_FAILURE);
 	}
-	if (Port == ControlListenPort)
-		controlSocket = Socket;
-	if (Port == AdcListenPort)
-		adcSocket = Socket;
+	// if (Port == ControlListenPort)
+	// 	controlSocket = Socket;
+	// if (Port == AdcListenPort)
+	// 	adcSocket = Socket;
 }
 
 void Listen(int &Socket, int num)
@@ -563,7 +562,7 @@ void HandleNewAdcClients(int Socket, socklen_t addrSize, struct sockaddr_storage
 			// There's at least one pending connection
 			struct sockaddr_storage socka;
 			socklen_t sockl = sizeof(socka);
-			if ((new_socket = accept(Socket, (struct sockaddr *)&socka, &sockl)) < 0)
+			if ((new_socket = accept(Socket, (struct sockaddr *)&socka, &addrSize)) < 0)
 			{
 				Error("accept failed");
 				perror("accept failed");
@@ -605,7 +604,7 @@ void SendControlHello(int Socket)
 	stuff<__u16>(bytes, (__u16)data.size());
 	bytes.insert(bytes.end(), data.begin(), data.end());
 
-	PTDataItemBase d2 = TDataItemBase::fromBytes(bytes, result);
+	PTDataItem d2 = TDataItemBase::fromBytes(bytes, result);
 	Payload.push_back(d2);
 	Log("DID[TCP_ConnectionID] = ", d2->AsBytes(true));
 
@@ -626,10 +625,10 @@ void SendControlHello(int Socket)
 		Payload.push_back(d2);
 	}
 
-	PTDataItemBase features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
-	PTDataItemBase deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
-	PTDataItemBase adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
-	PTDataItemBase fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
+	PTDataItem features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
+	PTDataItem deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
+	PTDataItem adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
+	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
 	try
 	{
 		features->Go();
@@ -756,7 +755,7 @@ void ProcessMessage(std::vector<char> &buffer, int aSocket)
 		TMessage *aMessage = new TMessage;
 		if (GotMessage(buffer.data(), expectedMessageLength + 5 + 1, *aMessage))
 		{
-			TActionQueueItem *action = new TActionQueueItem{controlSocket, *aMessage};
+			TActionQueueItem *action = new TActionQueueItem{aSocket, *aMessage};
 			ActionQueue.enqueue(action);
 			Debug(action->theMessage.AsString(true));
 		}
@@ -768,6 +767,7 @@ void ProcessMessage(std::vector<char> &buffer, int aSocket)
 // J2H: In progress
 void *threadReceiver(void *arg)
 {
+	int controlSocket = static_cast<int>((__u64)arg);
 	struct sockaddr_storage addr; // Can hold IPv4 or IPv6
 	socklen_t addrSize = sizeof(addr);
 
@@ -877,7 +877,7 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 		{
 			sockaddr_storage socka;
 			socklen_t sockl = sizeof(socka);
-			if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&socka, &sockl)) < 0)
+			if ((new_socket = accept(ControlListenSocket, (struct sockaddr *)&socka, &addrSize)) < 0)
 			{
 				Error("accept failed");
 				perror("accept failed");
