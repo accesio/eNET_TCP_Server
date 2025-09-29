@@ -62,9 +62,10 @@ using TConfig = struct TConfigStruct {
 	__u32 adcRangeCodes[16];
 	float adcScaleCoefficients[8];
 	float adcOffsetCoefficients[8];
-	__u32 dacRanges[NUM_DACS];
-	float dacScaleCoefficients[NUM_DACS];
-	float dacOffsetCoefficients[NUM_DACS];
+	__u8 NUM_DACs;
+	__u32 dacRanges[MAX_DACs];
+	float dacScaleCoefficients[MAX_DACs];
+	float dacOffsetCoefficients[MAX_DACs];
 };
 #pragma pack(pop)
 

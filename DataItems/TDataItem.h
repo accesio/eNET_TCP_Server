@@ -143,7 +143,7 @@ typedef struct __DIdDictEntry_inner
 	// std::function<std::unique_ptr<TDataItem>(TBytes)> Construct;
 	DIdConstructor *Construct;
 	std::string desc;
-	std::function<void(void *)> go;
+	std::function<void(const TBytes&)> go;
 } TDIdDictEntry;
 
 //  __DIdDictEntry_inner ;

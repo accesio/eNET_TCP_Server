@@ -3,6 +3,11 @@
 #include "TDataItem.h"
 #include "../utilities.h"
 
+static constexpr __u32 RC_UNIPOLAR_5   = 0x35303055; // 'U005'
+static constexpr __u32 RC_BIPOLAR_5    = 0x3530E142; // 'B±05'
+static constexpr __u32 RC_UNIPOLAR_10  = 0x30313055; // 'U010'
+static constexpr __u32 RC_BIPOLAR_10   = 0x3031E142; // 'B±10'
+
 // 1) Parameter structs
 // ====================
 
@@ -40,6 +45,34 @@ public:
     virtual TBytes calcPayload(bool bAsReply=false) override;
     virtual std::string AsString(bool bAsReply=false) override;
     virtual TDAC_Output &Go() override;
+
+private:
+    // Helper to unify the partial parsing logic
+    void parseBytes(const TBytes &bytes);
+};
+
+// 2) TDAC_OutputV
+// ==============
+class TDAC_OutputV : public TDataItem<DAC_OutputParams>
+{
+public:
+    // Constructor that does partial parse logic
+    // (like your old code)
+    explicit TDAC_OutputV(const TBytes &bytes);
+
+    // Additional constructor for the dictionary/factory
+    TDAC_OutputV(DataItemIds id, const TBytes &FromBytes)
+        : TDataItem(id, FromBytes)
+    {
+        // We rely on the main constructor for partial parsing
+        // So forward there:
+        parseBytes(FromBytes);
+    }
+
+    // Overridden methods
+    virtual TBytes calcPayload(bool bAsReply=false) override;
+    virtual std::string AsString(bool bAsReply=false) override;
+    virtual TDAC_OutputV &Go() override;
 
 private:
     // Helper to unify the partial parsing logic

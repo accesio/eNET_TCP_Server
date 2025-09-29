@@ -97,7 +97,8 @@ enum class DataItemIds : TDataId
 
 	DAC_ = 0x200, // Query Only. *1
 	DAC_Output1 = 0x201,
-	DAC_OutputAll,
+	DAC_OutputAll = 0x202,
+	DAC_Output1V = 0x203,
 	DAC_Range1 = 0x204, // Query Only.
 	DAC_Calibrate1 = 0x20C,
 	DAC_CalibrateAll,

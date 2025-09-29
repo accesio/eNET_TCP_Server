@@ -182,14 +182,6 @@ static void SeedFactoryFromStruct(const TConfig &cfg)
 		WriteIfMissing(CONFIG_FACTORY, key, to_hex<__u32>(cfg.adcRangeCodes[i]));
 	}
 
-	// DAC ranges
-	for (int i = 0; i < NUM_DACS; i++)
-	{
-		char key[32];
-		snprintf(key, sizeof(key), "DAC_RangeCh%d", i);
-		WriteIfMissing(CONFIG_FACTORY, key, to_hex<__u32>(cfg.dacRanges[i]));
-	}
-
 	// ADC cal (hex-IEEE float)
 	for (int r = 0; r < 8; r++)
 	{
@@ -201,8 +193,18 @@ static void SeedFactoryFromStruct(const TConfig &cfg)
 		WriteIfMissing(CONFIG_FACTORY, ko, to_hex<__u32>(bit_cast<__u32>(cfg.adcOffsetCoefficients[r])));
 	}
 
+	WriteIfMissing(CONFIG_FACTORY, "DAC_NumDACs", to_hex<__u8>(cfg.NUM_DACs));
+
+	// DAC ranges
+	for (int i = 0; i < MAX_DACs; i++)
+	{
+		char key[32];
+		snprintf(key, sizeof(key), "DAC_RangeCh%d", i);
+		WriteIfMissing(CONFIG_FACTORY, key, to_hex<__u32>(cfg.dacRanges[i]));
+	}
+
 	// DAC cal
-	for (int d = 0; d < NUM_DACS; d++)
+	for (int d = 0; d < MAX_DACs; d++)
 	{
 		char ks[32];
 		snprintf(ks, sizeof(ks), "DAC_ScaleCh%d", d);
@@ -305,6 +307,7 @@ void InitConfig(TConfig &config)
 	config.FpgaVersionCode = 0xDEADBA57;
 	config.numberOfSubmuxes = 0;
 	config.adcDifferential = 0b00000000;
+	config.NUM_DACs = 2;
 	for (int i = 0; i < 16; i++)
 	{
 		if (i < 4)

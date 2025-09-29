@@ -17,8 +17,7 @@ Frex: replace all the #defines with an abstract base class fields, then derive o
 
 constexpr __u8 maxSubmuxes = 4;
 constexpr __u8 gainGroupsPerSubmux = 4;
-
-constexpr __u8 NUM_DACS = 4;
+constexpr __u8 MAX_DACs = 4;
 constexpr int BAR_REGISTER = 1;
 
 #define FIFO_SIZE 0x800  /* FIFO Almost Full IRQ Threshold value (0 < FAF <= 0xFFF */
