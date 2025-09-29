@@ -275,7 +275,7 @@ TREG_Write1::TREG_Write1(DataItemIds ID, const TBytes &buf)
     __u8 ofs = buf[0];
     int w = widthFromOffset(ofs);
     GUARD(w != 0, ERR_DId_BAD_OFFSET, ofs);
-    GUARD(w == 8 ? (buf.size() == 2) : (buf.size() == 5),
+    GUARD(w == 8 ? (buf.size() == 2) : (buf.size() == 5),//offset+1 byte or 1 __u32
           ERR_DId_BAD_PARAM,
           static_cast<int>(buf.size()));
 

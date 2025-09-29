@@ -2,13 +2,13 @@
 #include "apcilib.h"
 #include <iostream>
 #include "eNET-AIO16-16F.h"
-
+#include "logging.h"
 
 __u8 in8(int offset)
 {
 	__u8 value = 0;
 	int status = apci_read8(apci, 0, BAR_REGISTER, offset, &value);
-	//std::cout << "in8("+to_hex<__u8>(static_cast<__u8>(offset))+"); Width= "+std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u8>(value) <<'\n';
+	// std::cout << "in8("+to_hex<__u8>(static_cast<__u8>(offset))+"); Width= "+std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u8>(value) <<'\n';
 	return status ? -1 : value;
 }
 
@@ -16,7 +16,7 @@ __u16 in16(int offset)
 {
 	__u16 value = 0;
 	int status = apci_read16(apci, 0, BAR_REGISTER, offset, &value);
-	//std::cout << "in16(" + to_hex<__u8>(static_cast<__u8>(offset)) + "); Width= " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u16>(value) << '\n';
+	// std::cout << "in16(" + to_hex<__u8>(static_cast<__u8>(offset)) + "); Width= " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << " Value = " << to_hex<__u16>(value) << '\n';
 	return status ? -1 : value;
 }
 
@@ -53,21 +53,21 @@ __u32 in(int offset)
 TError out8(int offset, __u8 value)
 {
 	int status = apci_write8(apci, 0, BAR_REGISTER, offset, value);
-	//std::cout << "out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", "<< to_hex<__u8>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
+	Debug("out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u8>(value) + "); Width = " + std::to_string(widthFromOffset(offset)) + " status = " + std::to_string(status));
 	return status;
 }
 
 TError out16(int offset, __u16 value)
 {
 	int status = apci_write16(apci, 0, BAR_REGISTER, offset, value);
-	//std::cout << "out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", "<< to_hex<__u16>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
+	Debug("out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u16>(value) + "); Width = " + std::to_string(widthFromOffset(offset)) + " status = " + std::to_string(status));
 	return status;
 }
 
 TError out32(int offset, __u32 value)
 {
 	int status = apci_write32(apci, 0, BAR_REGISTER, offset, value);
-	//std::cout << "out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", "<< to_hex<__u32>(value) <<"); Width = " + std::to_string(widthFromOffset(offset)) << " status = " << std::to_string(status) << '\n';
+	Debug("out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u32>(value) + "); Width = " + std::to_string(widthFromOffset(offset)) + " status = " + std::to_string(status));
 	return status;
 }
 
@@ -101,7 +101,7 @@ int apciDmaDataReady(int *start_index, int *slots, int *data_discarded) { return
 
 int apciDmaDataDone(int slots) { return apci_dma_data_done(apci, 0, slots); }
 
-int apciDmaStart(){return apci_start_dma (apci);}
+int apciDmaStart() { return apci_start_dma(apci); }
 
 // int apci_writebuf8(int fd, unsigned long device_index, int bar, int bar_offset, unsigned int mmap_offset, int length);
 // int apci_writebuf16(int fd, unsigned long device_index, int bar, int bar_offset, unsigned int mmap_offset, int length);
