@@ -15,6 +15,28 @@
 
 #include "logging.h"
 #include "utilities.h"
+#include "apci.h"
+
+// TODO: write WaitUntilBitsMatch(__u8 offset, __u32 bmMask, __u32 bmPattern);
+int WaitUntilRegisterBitIsLow(__u8 offset, __u32 bitMask)
+{
+	__u32 value = 0;
+	int attempt = 0;
+	do
+	{
+		value = in(offset);
+		Trace("SPI Busy Bit at " + to_hex<__u8>(offset) + " is " + ((value & bitMask) ? "1" : "0"));
+		// if (status < 0)
+		// 	return -errno;
+		if (++attempt > 100)
+		{
+			Error("Timeout waiting for SPI to be not busy, at offset: " + to_hex<__u8>(offset));
+			return -ETIMEDOUT; // TODO: swap "attempt" with "timeout" RTC if benchmark proves RTC is not too slow
+		}
+	} while ((value & bitMask));
+
+	return 0;
+}
 
 bool sanitizePath(std::string &path)
 {

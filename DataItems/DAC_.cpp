@@ -116,6 +116,7 @@ TDAC_Output &TDAC_Output::Go()
     __u32 controlValue = 0x00300000
                        | (this->params.dacChannel << 16)
                        | this->params.dacCounts;
+    WaitUntilRegisterBitIsLow(ofsDacSpiBusy, bmDacSpiBusy);
     out(ofsDac, controlValue);
 
     Debug("Wrote " + to_hex<__u32>(controlValue) + " to DAC @ +0x" + to_hex<__u8>(ofsDac));
@@ -196,6 +197,7 @@ TDAC_OutputV &TDAC_OutputV::Go()
     __u32 controlValue = 0x00300000
                        | (this->params.dacChannel << 16)
                        | this->params.dacCounts;
+    WaitUntilRegisterBitIsLow(ofsDacSpiBusy, bmDacSpiBusy);
     out(ofsDac, controlValue);
 
     Debug("Wrote " + to_hex<__u32>(controlValue) + " to DAC @ +0x" + to_hex<__u8>(ofsDac));

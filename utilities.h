@@ -23,11 +23,9 @@ TDataItem IDs, but that should change.
 
 #include "eNET-AIO16-16F.h" // widthFromOffset()
 #include "TError.h"
-
-/* type definitions */
 using TBytes = std::vector<__u8>;
 
-/* utility functions */
+int WaitUntilRegisterBitIsLow(__u8 offset, __u32 bitMask);
 bool sanitizePath(std::string &path);
 std::string GetTempFileName();
 std::string GetTempFileNameInDir(const std::string& dir, const std::string& prefix);
