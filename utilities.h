@@ -30,6 +30,13 @@ using TBytes = std::vector<__u8>;
 /* utility functions */
 bool sanitizePath(std::string &path);
 std::string GetTempFileName();
+std::string GetTempFileNameInDir(const std::string& dir, const std::string& prefix);
+void EnsureDir(const std::string& path, mode_t mode = 0755);
+void WriteFileAtomic(const std::string& path, const std::string& content, mode_t mode = 0644);
+std::string SanitizeHostname(std::string s);
+bool IsValidHostname(const std::string& host);
+void UpdateEtcHosts127011(const std::string& newHost);
+
 
 template<typename To, typename From>
 To bit_cast(const From& from) {

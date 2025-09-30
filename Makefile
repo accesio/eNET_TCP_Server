@@ -88,8 +88,9 @@ OBJS_FOR_TEST       = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRCS_FOR_TEST
 # Use bash for string splitting in recipes
 SHELL := /bin/bash
 DEPLOY_PAIRS ?= \
-  root@strix.local::/home/pb \
-  root@acces-enet.local::/home/acces
+  root@acces-enet.local::/home/acces \
+  root@acces-enet-2.local::/home/acces \
+  root@strix.local::/home/pb
 
 # Subdirectory (under each pair's DIR) to mirror sources into
 REMOTE_SUBDIR ?= eNET_TCP_Server
@@ -126,7 +127,7 @@ ifeq ($(VERBOSE),1)
   PRINT_COMPILE = @printf "$(CYAN)Compiling %23s$(RESET) " "$<"; \
                   (echo "  $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@") $(FMT_WRAP)
 else
-  PRINT_COMPILE = @printf "$(CYAN)Compiling %23s$(RESET) " "$<"
+  PRINT_COMPILE = @printf "$(CYAN)Compiling %23s$(RESET) \n" "$<"
 endif
 
 LINK_BANNER_QUIET = @printf "$(GREEN)Linking %-$(WIDTH)s($(words $^) objs)$(RESET)\n" "$@"

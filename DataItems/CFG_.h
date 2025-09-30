@@ -4,9 +4,8 @@
 #include "TDataItem.h"
 
 
-// 1) Define a struct for TCFG_Hostname if you like, or leave empty
 struct HostnameParams {
-	char hostname[256]; // Or a known max size
+	char hostname[256];
 };
 
 class TCFG_Hostname : public TDataItem<HostnameParams>
