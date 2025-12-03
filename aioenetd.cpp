@@ -213,7 +213,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.7.2"
+#define VersionString "0.7.3"
 
 int apci = -1;
 volatile sig_atomic_t done = 0;
@@ -360,6 +360,7 @@ void Intro(int argc, char **argv)
 	if (env)
 	{
 		std::string lvl = env;
+		Log("AIOENET_LOG_LEVEL='" + lvl + "'");
 		std::transform(lvl.begin(), lvl.end(), lvl.begin(), ::tolower);
 		SetLogLevel(LogLevel::Error);
 		if (lvl == "trace")
@@ -372,6 +373,10 @@ void Intro(int argc, char **argv)
 			SetLogLevel(LogLevel::Warning);
 		else if (lvl == "error")
 			SetLogLevel(LogLevel::Error);
+	} else
+	{
+		SetLogLevel(LogLevel::Info);
+		Log("AIOENET_LOG_LEVEL not set, defaulting to 'debInfoug'");
 	}
 
 	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -608,9 +613,9 @@ void SendControlHello(int Socket)
 	Payload.push_back(d2);
 	Log("DID[TCP_ConnectionID] = ", d2->AsBytes(true));
 
-	//__u32 dacRangeDefault = 0x3031E142;
+	//__u32 dacRangeDefault = 0x3031E142; "B±10"
 	//__u32 dacRangeDefault = 0x35303055;
-	for (__u8 channel = 0; channel < 4; channel++)
+	for (__u8 channel = 0; channel < Config.NUM_DACs; channel++)
 	{
 		data.clear();
 		data.push_back(channel);

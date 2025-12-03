@@ -219,6 +219,154 @@ TBytes TBRD_Features::calcPayload(bool bAsReply)
 }
 // ——— TBRD_Model ———————————————————————————————————————————————————————
 
+static void trim_whitespace(char *s)
+{
+    char *p = s;
+    char *q;
+
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (p != s) memmove(s, p, strlen(p) + 1);
+
+    q = s + strlen(s);
+    while (q > s && isspace((unsigned char)q[-1])) q--;
+    *q = '\0';
+}
+
+static void str_to_upper(char *s)
+{
+    for (; *s; ++s) *s = (char)toupper((unsigned char)*s);
+}
+
+static bool is_valid_dac_range(const char *code)
+{
+    // code must already be uppercase, trimmed
+    return strcmp(code, "5B")  == 0 ||
+           strcmp(code, "10B") == 0 ||
+           strcmp(code, "5U")  == 0 ||
+           strcmp(code, "10U") == 0;
+}
+
+/**
+ * Parse eNET-AI* model string to determine DAC count.
+ *
+ * Returns 0 on success, -1 on error.
+ * On success, *num_dacs is 0, 2, or 4.
+ * On error, *num_dacs is set to -1 and errbuf (if non-NULL) gets a message.
+ */
+int enet_ai_parse_dac_count(const char *model_in, __u8 *num_dacs, char *errbuf, size_t errbuf_sz)
+{
+    char buf[256];
+    char *p;
+    char *code_body;
+    char *saveptr = NULL;
+    char *parts0, *parts1, *tok;
+    bool has_dacs = false;
+    bool seen_4ao = false;
+    char found_range[16] = {0};
+
+    if (!model_in || !num_dacs) return -1;
+    *num_dacs = -1;
+
+    if (errbuf && errbuf_sz) errbuf[0] = '\0';
+
+    // Copy and normalize into local buffer
+    snprintf(buf, sizeof(buf), "%s", model_in);
+    trim_whitespace(buf);
+
+    p = buf;
+
+    // Optional prefix "\000027"
+    if (strncmp(p, "\\000027", 7) == 0) p += 7;
+
+    trim_whitespace(p);
+
+    // Must start with "eNET-AI" (case-insensitive)
+    if (strncasecmp(p, "eNET-AI", 7) != 0) {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz, "Model does not start with 'eNET-AI': '%s'", p);
+        return -1;
+    }
+
+    code_body = p + 7;  // after "eNET-AI"
+    if (*code_body == '\0') {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz, "Model missing core after 'eNET-AI': '%s'", p);
+        return -1;
+    }
+
+    // Work in-place: split code_body on '-'
+    // Example code_body: "O16-16F-5U-4AO" or "16-16A"
+    parts0 = strtok_r(code_body, "-", &saveptr);
+    parts1 = strtok_r(NULL, "-", &saveptr);
+    if (!parts0 || !parts1) {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz, "Not enough model components after 'eNET-AI' in '%s'", p);
+        return -1;
+    }
+
+    // DAC presence: "O" prefix => AIO (has DACs), otherwise AI-only
+    // core is parts0, e.g. "O16" or "16"
+    if (toupper((unsigned char)parts0[0]) == 'O') has_dacs = true;
+
+    // Scan unordered option codes starting at parts[2]
+    while ((tok = strtok_r(NULL, "-", &saveptr)) != NULL) {
+        char opt[32];
+
+        snprintf(opt, sizeof(opt), "%s", tok);
+        trim_whitespace(opt);
+        str_to_upper(opt);
+        if (opt[0] == '\0') continue;
+
+        if (strcmp(opt, "4AO") == 0) {
+            seen_4ao = true;
+            continue;
+        }
+
+        if (is_valid_dac_range(opt)) {
+            if (found_range[0] == '\0') {
+                snprintf(found_range, sizeof(found_range), "%s", opt);
+            } else {
+                if (errbuf && errbuf_sz)
+                    snprintf(errbuf, errbuf_sz, "Duplicate DAC range codes '%s' and '%s'", found_range, opt);
+                *num_dacs = -1;
+                return -1;
+            }
+            continue;
+        }
+
+        // All other option codes are ignored here
+    }
+
+    // Now check for internal consistency and derive DAC count
+    if (has_dacs) {
+        // AIO: must have a DAC range, and 2 or 4 DACs depending on 4AO
+        if (found_range[0] == '\0') {
+            if (errbuf && errbuf_sz)
+                snprintf(errbuf, errbuf_sz, "AIO model missing DAC range (expected -5B/-10B/-5U/-10U) in '%s'", model_in);
+            *num_dacs = -1;
+            return -1;
+        }
+
+        *num_dacs = seen_4ao ? 4 : 2;
+        return 0;
+    } else {
+        // AI-only core: any DAC-specific option is a contradiction
+        if (found_range[0] != '\0' || seen_4ao) {
+            if (errbuf && errbuf_sz)
+                snprintf(errbuf, errbuf_sz, "Model is AI-only (no 'O' in core '%s') but has DAC options (%s%s%s)",
+                         parts0,
+                         found_range[0] ? "range=" : "",
+                         found_range[0] ? found_range : "",
+                         seen_4ao ? " 4AO present" : "");
+            *num_dacs = -1;
+            return -1;
+        }
+
+        *num_dacs = 0;
+        return 0;
+    }
+}
+
 TDataItemBase &TBRD_Model::Go()
 {
     // parse incoming bytes as ASCII
@@ -227,6 +375,14 @@ TDataItemBase &TBRD_Model::Go()
 
     // update in-memory config
     Config.Model = val;
+
+    // todo: Parse model string and set various cfg.parameters as needed
+    char errbuf[256];
+    if (enet_ai_parse_dac_count(val.c_str(), &Config.NUM_DACs, errbuf, sizeof(errbuf)) != 0) {
+        Error("TBRD_Model::Go() invalid model string re: DACs '" + val + "': " + errbuf);
+    }else {
+        Debug("TBRD_Model::Go() parsed NUM_DACs = " + std::to_string(Config.NUM_DACs));
+    }
 
     // persist
     if (!SaveBrdConfig(CONFIG_CURRENT)) {
