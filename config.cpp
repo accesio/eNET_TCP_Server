@@ -440,6 +440,8 @@ int WriteConfigString(std::string key, std::string value, std::string which)
 	{
 		Error("WriteConfigString(" + path + ") failed: " + std::to_string(-rc));
 	}
+	else
+		Debug("Wrote config key " + key + " in " + which + " as " + value);
 	return rc;
 }
 

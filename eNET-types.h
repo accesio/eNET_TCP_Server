@@ -17,7 +17,7 @@ TDataItem IDs, but that should change.
 #include <linux/types.h>
 #else // define our base types for compiling on Windows
 typedef uint8_t __u8;
-typedef uint16_t __u16;
+typedef __u16 __u16;
 typedef uint32_t __u32;
 #endif
 
@@ -32,12 +32,12 @@ typedef uint32_t __u32;
 #include "TError.h"
 
 /* type definitions */
-using TBytes = std::vector<std::uint8_t>;
+using TBytes = std::vector<__u8>;
 typedef __u8 TMessageId;
 typedef __u32 TMessagePayloadSize;
 typedef __u8 TCheckSum;
 typedef __u16 TDataId;
-using TDataItemLength = std::uint16_t;
+using TDataItemLength = __u16;
 using TDataId = __u16;
 using TDataItemLength=__u16;
 

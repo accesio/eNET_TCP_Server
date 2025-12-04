@@ -48,15 +48,12 @@ std::string TADC_BaseClock::AsString(bool bAsReply)
 
 // -------------------- TADC_StreamStart --------------------
 
-TADC_StreamStart::TADC_StreamStart(DataItemIds id, const TBytes &FromBytes)
+TADC_StreamStart::TADC_StreamStart(DataItemIds id, TBytes FromBytes)
     : TDataItem<ADC_StreamStartParams>(id, FromBytes)
 {
-    // If you want to parse a 4-byte connection ID, do so here
-    // For example:
     if (FromBytes.size() == 4)
     {
         int cid = *reinterpret_cast<const int *>(FromBytes.data());
-        // If there's a global "AdcStreamingConnection" logic
         if (AdcStreamingConnection == -1)
         {
             AdcStreamingConnection = cid;
@@ -73,7 +70,7 @@ TADC_StreamStart::TADC_StreamStart(DataItemIds id, const TBytes &FromBytes)
 
 TADC_StreamStart &TADC_StreamStart::Go()
 {
-    Trace("ADC_StreamStart::Go(), ADC Streaming Data will be sent on ConnectionID: " + std::to_string(AdcStreamingConnection));
+    Debug("ADC_StreamStart::Go(), ADC Streaming Data will be sent on ConnectionID: " + std::to_string(AdcStreamingConnection));
 
     // Example code from your snippet
     auto status = apciDmaTransferSize(RING_BUFFER_SLOTS, BYTES_PER_TRANSFER);
@@ -86,37 +83,55 @@ TADC_StreamStart &TADC_StreamStart::Go()
     AdcStreamTerminate = 0;
     if (AdcWorkerThreadID == -1)
     {
-        AdcWorkerThreadID = pthread_create(&worker_thread, NULL, &worker_main, &AdcStreamingConnection);
+        int rc = pthread_create(&worker_thread, NULL, &worker_main, &AdcStreamingConnection);
+        if (rc != 0) {
+            Error("ADC_StreamStart::Go(): pthread_create(worker) failed: " +
+                std::to_string(rc) + ", " + strerror(rc));
+            throw std::logic_error("failed to start ADC worker thread");
+        }
+        AdcWorkerThreadID = 0; // “running”
     }
-    apciDmaStart();
 
+    apciDmaStart();
+    Debug("ADC_StreamStart::Go(): apciDmaStart() called");
     return *this;
 }
 
-// std::string TADC_StreamStart::AsString(bool bAsReply)
-// {
-//     std::string msg = this->getDIdDesc(this->DId);
-//     if (bAsReply)
-//     {
-//         msg += ", ConnectionID = " + to_hex<int>(this->params.argConnectionID);
-//     }
-//     return msg;
-// }
+std::string TADC_StreamStart::AsString(bool bAsReply)
+{
+    std::string msg = this->getDIdDesc(this->DId);
+    if (bAsReply)
+    {
+        msg += ", ConnectionID = " + to_hex<int>(this->params.argConnectionID);
+    }
+    return msg;
+}
 
 // -------------------- TADC_StreamStop --------------------
+TADC_StreamStop::TADC_StreamStop(DataItemIds id, TBytes bytes)
+    : TDataItemBase(id)
+{
+}
 
 TADC_StreamStop &TADC_StreamStop::Go()
 {
-    Trace("ADC_StreamStop::Go(): terminating ADC Streaming");
+    Debug("ADC_StreamStop::Go(): requesting stop; conn=" + std::to_string(AdcStreamingConnection));
     AdcStreamTerminate = 1;
     apciCancelWaitForIRQ();
-    AdcStreamingConnection = -1;
-    AdcWorkerThreadID = -1;
-    // possibly join or cancel the worker_thread
-    Trace("ADC_StreamStop::Go() exiting");
+    Debug("ADC_StreamStop::Go() exiting");
     return *this;
 }
+TBytes TADC_StreamStop::calcPayload(bool bAsReply)
+{
+    (void)bAsReply;
+    return TBytes{};   // no payload on replies for Stop
+}
 
+std::string TADC_StreamStop::AsString(bool bAsReply)
+{
+    (void)bAsReply;
+    return getDIdDesc(this->DId);
+}
 // --------------------------------------------------------------------------
 // TADC_Differential1 Implementation
 // --------------------------------------------------------------------------

@@ -34,7 +34,8 @@ bool AdcLoggerTerminate = false;
 
 void *log_main(void *arg)
 {
-	Trace("Thread started");
+	AdcLoggerTerminate = false;
+	Debug("ADC log_main Thread started");
 	AdcLogTimeout.tv_sec = 1;
 	int conn = *(int *)arg;
 	int ring_read_index = 0;
@@ -59,8 +60,6 @@ void *log_main(void *arg)
 		{
 			AdcStreamTerminate = true;
 			apci_cancel_irq(apci, 1);
-			AdcStreamingConnection = -1;
-			AdcWorkerThreadID = -1;
 			AdcLoggerTerminate = true;
 			continue;
 		}
@@ -72,13 +71,14 @@ void *log_main(void *arg)
 		ring_read_index %= RING_BUFFER_SLOTS;
 	};
 
-	Trace("Thread ended");
+	Debug("ADC log_main Thread ended");
 	return 0;
 }
 
 void *worker_main(void *arg)
 {
-	Trace("Thread started");
+	done = 0;
+	Debug("ADC worker_main Thread started");
 	int *conn_fd = (int *)arg;
 	int num_slots, first_slot, data_discarded, status = 0;
 	bool logger_started = false;
@@ -93,7 +93,7 @@ void *worker_main(void *arg)
 	}
 
 	void *mmap_addr = mmap(NULL, DMA_BUFF_SIZE, PROT_READ, MAP_SHARED, apci, 0);
-	if (mmap_addr == NULL)
+	if (mmap_addr == MAP_FAILED)
 	{
 		Error("mmap failed");
 		return (void *)-1;
@@ -105,7 +105,15 @@ void *worker_main(void *arg)
 			AdcLoggerTerminate = false;
 			logger_started = true;
 			Trace("No Logger Thread Found: Starting Logger thread.");
-			AdcLoggerThreadID = pthread_create(&AdcLogger_thread, NULL, &log_main, conn_fd);
+
+			int rc2 = pthread_create(&AdcLogger_thread, NULL, &log_main, conn_fd);
+			if (rc2 != 0) {
+				Error("Failed to start logger thread: " +
+					std::to_string(rc2) + ", " + strerror(rc2));
+				logger_started = false;
+			} else {
+				AdcLoggerThreadID = 0; // “running”
+			}
 		}
 
 		while (done == 0)
@@ -147,24 +155,31 @@ void *worker_main(void *arg)
 				apci_dma_data_done(apci, 1, 1);
 			}
 		}
-		Trace("Thread ended");
+		Debug("ADC worker_main Thread ended");
 	}
 	catch (const std::logic_error &e)
 	{
 		Error(e.what());
 	}
-	Trace("Setting AdcStreamingConnection to idle");
+	Debug("Setting AdcStreamingConnection to idle");
 	apci_write8(apci, 1, BAR_REGISTER, 0x12, 0); // turn off ADC start modes
+
 	AdcLoggerTerminate = 1;
 	sem_post(&full); // wake logger if it’s waiting
+
 	if (logger_started) {
 		pthread_join(AdcLogger_thread, NULL);
 		logger_started = false;
+		AdcLoggerThreadID = -1;
 	}
 
 	pthread_mutex_destroy(&mutex);
 	sem_destroy(&full);
 	sem_destroy(&empty);
-	Trace("ADC Log Thread exiting.");
+
+	AdcStreamingConnection = -1;
+	AdcWorkerThreadID = -1;
+
+	Debug("ADC Log Thread exiting.");
 	return 0;
 }

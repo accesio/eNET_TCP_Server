@@ -48,21 +48,21 @@ __u32 in(int offset)
 TError out8(int offset, __u8 value)
 {
 	int status = apci_write8(apci, 0, BAR_REGISTER, offset, value);
-	Debug("out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u8>(value) );
+	Debug("out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u8>(value) + ")" );
 	return status;
 }
 
 TError out16(int offset, __u16 value)
 {
 	int status = apci_write16(apci, 0, BAR_REGISTER, offset, value);
-	Debug("out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u16>(value) );
+	Debug("out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u16>(value) + ")" );
 	return status;
 }
 
 TError out32(int offset, __u32 value)
 {
 	int status = apci_write32(apci, 0, BAR_REGISTER, offset, value);
-	Debug("out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u32>(value) );
+	Debug("out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u32>(value) + ")" );
 	return status;
 }
 

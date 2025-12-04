@@ -70,6 +70,16 @@ public:
 #pragma GCC push_options
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
+std::shared_ptr<TDataItemBase> construct_ADC_StreamStart(DataItemIds id, TBytes FromBytes)
+{
+    return std::make_shared<TADC_StreamStart>(id, FromBytes);
+}
+
+std::shared_ptr<TDataItemBase> construct_ADC_StreamStop(DataItemIds id, TBytes FromBytes)
+{
+    return std::make_shared<TADC_StreamStop>(id, FromBytes);
+}
+
 const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	{
 		//{INVALID, { 9, 9, 9,( [](DataItemIds x, TBytes bytes) { return construct<TDataItem>(x, bytes); }), "DAC_Calibrate1(u8 iDAC, single Offset, single Scale)", nullptr}},
@@ -181,6 +191,10 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 
 						Config.dacScaleCoefficients[dacnum] = scale;
 						Config.dacOffsetCoefficients[dacnum] = offset;
+						Debug("DAC " + std::to_string(dacnum) + ", scale = " + std::to_string(scale));
+						Debug("DAC " + std::to_string(dacnum) + ", offset = " + std::to_string(offset));
+						WriteConfigString("DAC_ScaleCh" + std::to_string(dacnum), to_hex<__u32>(bit_cast<__u32>(scale)));
+						WriteConfigString("DAC_OffsetCh" + std::to_string(dacnum), to_hex<__u32>(bit_cast<__u32>(offset)));
 
 						Debug("inside lambda: DAC " + std::to_string(dacnum) +
 								", scale = " + std::to_string(scale) +
@@ -198,6 +212,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 						std::memcpy(&offset, p + 1, sizeof(float)); // bytes 1..4
 
 						Config.dacOffsetCoefficients[dacnum] = offset;
+						Debug("DAC " + std::to_string(dacnum) + ", offset = " + std::to_string(offset));
+						WriteConfigString("DAC_OffsetCh" + std::to_string(dacnum), to_hex<__u32>(bit_cast<__u32>(offset)));
 
 						Debug("inside lambda: DAC " + std::to_string(dacnum) +
 							", offset = " + std::to_string(offset));
@@ -213,21 +229,26 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 							float v;
 							std::memcpy(&v, &buf[dacnum*sizeof(float)], sizeof(float));
 							Config.dacOffsetCoefficients[dacnum] = v;
+							Debug("DAC " + std::to_string(dacnum) + ", offset = " + std::to_string(v));
+							WriteConfigString("DAC_OffsetCh" + std::to_string(dacnum), to_hex<__u32>(bit_cast<__u32>(v)));
+
 							Debug("inside lambda: DAC " + std::to_string(dacnum) + ", offset = " + std::to_string(Config.dacOffsetCoefficients[dacnum]));
 						} }),
 		DATA_ITEM(DAC_Scale1, TDataItemRaw, 5, 5, 5, "DAC_Scale1(u8 iDac, single Scale)",
 				  [](const TBytes &buf)
 				  {
-					  const __u8 *p = buf.data();
-					  __u8 dacnum = p[0];
-					  GUARD(dacnum < 4, ERR_DId_BAD_PARAM, dacnum);
+						const __u8 *p = buf.data();
+						__u8 dacnum = p[0];
+						GUARD(dacnum < 4, ERR_DId_BAD_PARAM, dacnum);
 
-					  float scale;
-					  std::memcpy(&scale, p + 1, sizeof(float)); // bytes 1..4
+						float scale;
+						std::memcpy(&scale, p + 1, sizeof(float)); // bytes 1..4
 
-					  Config.dacScaleCoefficients[dacnum] = scale;
+						Config.dacScaleCoefficients[dacnum] = scale;
+						Debug("DAC " + std::to_string(dacnum) + ", scale = " + std::to_string(scale));
+						WriteConfigString("DAC_ScaleCh" + std::to_string(dacnum), to_hex<__u32>(bit_cast<__u32>(scale)));
 
-					  Debug("inside lambda: DAC " + std::to_string(dacnum) +
+						Debug("inside lambda: DAC " + std::to_string(dacnum) +
 							", scale = " + std::to_string(scale));
 				  }),
 
@@ -235,19 +256,22 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(DAC_ScaleAll, TDataItemRaw, 8, 8, 16, "DAC_ScaleAll(single scale0, scale1[, scale2, scale3])",
 				  [](const TBytes &buf)
 				  {
-					  const __u8 *p = buf.data();
-					  size_t n = buf.size() / sizeof(float);
-					  if (n > 4)
-						  n = 4;
+						const __u8 *p = buf.data();
+						size_t n = buf.size() / sizeof(float);
+						if (n > 4)
+							n = 4;
 
-					  for (size_t dacnum = 0; dacnum < n; ++dacnum)
-					  {
-						  float scale;
-						  std::memcpy(&scale, p + dacnum * sizeof(float), sizeof(float));
-						  Config.dacScaleCoefficients[dacnum] = scale;
-						  Debug("inside lambda: DAC " + std::to_string(dacnum) +
-								", scale = " + std::to_string(scale));
-					  }
+						for (size_t dacnum = 0; dacnum < n; ++dacnum)
+						{
+							float scale;
+							std::memcpy(&scale, p + dacnum * sizeof(float), sizeof(float));
+							Config.dacScaleCoefficients[dacnum] = scale;
+							Debug("DAC " + std::to_string(dacnum) + ", scale = " + std::to_string(scale));
+							WriteConfigString("DAC_ScaleCh" + std::to_string(dacnum), to_hex<__u32>(bit_cast<__u32>(scale)));
+
+							Debug("inside lambda: DAC " + std::to_string(dacnum) +
+									", scale = " + std::to_string(scale));
+						}
 				  }),
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)
@@ -317,9 +341,12 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
 		DIdNYI(ADC_Raw1),
 		DIdNYI(ADC_RawAll), // ADC_GetScanRaw
-		DATA_ITEM(ADC_StreamStart, TDataItemRaw, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
-		DATA_ITEM(ADC_StreamStop, TDataItemRaw, 0, 0, 0, "ADC_StreamStop()", nullptr),
-
+		// DATA_ITEM(ADC_StreamStart, TDataItemRaw, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
+		// DATA_ITEM(ADC_StreamStop, TDataItemRaw, 0, 0, 0, "ADC_StreamStop()", nullptr),
+		DATA_ITEM(ADC_StreamStart, TADC_StreamStart, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
+		DATA_ITEM(ADC_StreamStop, TADC_StreamStop, 0, 0, 0, "ADC_StreamStop()", nullptr),
+		// { DataItemIds::ADC_StreamStart,{ 4, 4, 4, &construct_ADC_StreamStart,"ADC_StreamStart((u32)AdcConnectionId)", nullptr } },
+		// { DataItemIds::ADC_StreamStop,{ 0, 0, 0, &construct_ADC_StreamStop,"ADC_StreamStop()", nullptr } },
 		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)

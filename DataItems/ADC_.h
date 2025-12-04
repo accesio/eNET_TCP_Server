@@ -30,33 +30,28 @@ public:
 
 // -------------------- TADC_StreamStart --------------------
 struct ADC_StreamStartParams {
-    int argConnectionID = -1;
+    __u32 argConnectionID = (__u32)-1;
 };
 
 class TADC_StreamStart : public TDataItem<ADC_StreamStartParams>
 {
 public:
-    // You can define a constructor if you want partial parsing:
-    TADC_StreamStart(DataItemIds id, const TBytes &FromBytes);
+    TADC_StreamStart(DataItemIds id, TBytes FromBytes);
 
-    // Overridden methods
     virtual TADC_StreamStart &Go() override;
-//    virtual std::string AsString(bool bAsReply = false) override;
+    virtual std::string AsString(bool bAsReply = false) override;
 };
 
 // -------------------- TADC_StreamStop --------------------
-struct ADC_StreamStopParams {};
-class TADC_StreamStop : public TDataItem<ADC_StreamStopParams>
+
+class TADC_StreamStop : public TDataItemBase
 {
 public:
-    // No fields, so only the base constructor needed
-    TADC_StreamStop(DataItemIds id, const TBytes &FromBytes)
-      : TDataItem<ADC_StreamStopParams>(id, FromBytes) {}
+    TADC_StreamStop(DataItemIds id, TBytes FromBytes);
 
-    // Overridden methods
-//    virtual TBytes calcPayload(bool bAsReply=false) override;
+    virtual TBytes calcPayload(bool bAsReply=false) override;
     virtual TADC_StreamStop &Go() override;
-//    virtual std::string AsString(bool bAsReply = false) override;
+    virtual std::string AsString(bool bAsReply = false) override;
 };
 
 

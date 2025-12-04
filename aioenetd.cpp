@@ -213,7 +213,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.7.3"
+#define VersionString "0.7.5"
 
 int apci = -1;
 volatile sig_atomic_t done = 0;
