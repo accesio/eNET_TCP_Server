@@ -307,7 +307,7 @@ void InitConfig(TConfig &config)
 	config.FpgaVersionCode = 0xDEADBA57;
 	config.numberOfSubmuxes = 0;
 	config.adcDifferential = 0b00000000;
-	config.NUM_DACs = 2;
+	config.NUM_DACs = 4;
 	for (int i = 0; i < 16; i++)
 	{
 		if (i < 4)
@@ -514,6 +514,7 @@ void LoadCalConfig(std::string which)
 
 void LoadDacConfig(std::string which)
 {
+	HandleError(ReadConfigU8("BRD_NUM_DACs", Config.NUM_DACs, which));
 	HandleError(ReadConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
 	HandleError(ReadConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
 	HandleError(ReadConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
@@ -663,6 +664,7 @@ bool SaveCalConfig(std::string which)
 
 bool SaveDacConfig(std::string which)
 {
+	HandleError(WriteConfigU8("BRD_NUM_DACs", Config.NUM_DACs, which));
 	HandleError(WriteConfigU32("DAC_RangeCh0", Config.dacRanges[0], which));
 	HandleError(WriteConfigU32("DAC_RangeCh1", Config.dacRanges[1], which));
 	HandleError(WriteConfigU32("DAC_RangeCh2", Config.dacRanges[2], which));
