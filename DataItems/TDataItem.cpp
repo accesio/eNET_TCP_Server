@@ -380,7 +380,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	#pragma region CFG_
 #endif
 		DATA_ITEM(CFG_, TDataItemDoc, 0, 0, 0, "Documentation: list of CFG_ DataItems", nullptr),
-		DATA_ITEM(CFG_Hostname, TDataItemRaw, 1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
+		DATA_ITEM(CFG_Hostname, TCFG_Hostname, 1, 20, 253, "CFG_Hostname({valid Hostname})", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)
 	#pragma region SYS_
