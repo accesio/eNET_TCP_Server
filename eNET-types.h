@@ -65,10 +65,11 @@ enum class DataItemIds : TDataId
 	BRD_NumberOfSubmuxes = 0x21,
 	BRD_SubmuxScale = 0x23,
 	BRD_SubmuxOffset = 0x24,
+	BRD_GetNumberOfAdcChannels = 0x30,
 	BRD_GetNumberOfSubmuxes = 0x31,
 	BRD_GetSubmuxScale = 0x33,
 	BRD_GetSubmuxOffset = 0x34,
-	BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC, // TBD, long list
+	BRD_stuff_needed_for_control_and_diagnostics_of_Linux_TCPIP_WDG_DEF_ETC, // TBD, long list -- put in SYS_
 	BRD_REBOOT = 0xFF,
 
 	REG_ = 0x100, // Query Only.
@@ -183,6 +184,8 @@ enum class DataItemIds : TDataId
 	CFG_Hostname = 0x9001,
 	SYS_UploadFileName = 0xEF01,
 	SYS_UploadFileData = 0xEF02,
+	SYS_Error = 0xEFF0,
+	SYS_ItemError = 0xEFF1,
 	DOC_Get = 0xFFFF,
 };
 #pragma endregion

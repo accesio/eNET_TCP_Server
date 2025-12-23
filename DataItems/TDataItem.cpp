@@ -97,6 +97,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(BRD_GetModel, TBRD_GetModel, 0, 0, 0, "BRD_GetModel() → ASCII", nullptr),
 		DATA_ITEM(BRD_SerialNumber, TBRD_SerialNumber, 12, 12, 14, "BRD_SetSerialNumber(ASCII SN)", nullptr),
 		DATA_ITEM(BRD_GetSerialNumber, TBRD_GetSerialNumber, 0, 0, 0, "BRD_GetSerialNumber() → ASCII", nullptr),
+		DATA_ITEM(BRD_GetNumberOfAdcChannels, TBRD_GetNumberOfAdcChannels, 0, 0, 0, "BRD_GetNumberOfAdcChannels() → u8"),
 		DATA_ITEM(BRD_NumberOfSubmuxes, TBRD_NumberOfSubmuxes, 1, 1, 1, "BRD_NumberOfSubmuxes(u8 count)", nullptr),
 		DATA_ITEM(BRD_SubmuxScale, TBRD_SubmuxScale, 6, 6, 6, "BRD_SubmuxScale(u8 submuxIndex, u8 gainGroupIndex, f32 Scale)", nullptr),
 		DATA_ITEM(BRD_SubmuxOffset, TBRD_SubmuxOffset, 6, 6, 6, "BRD_SubmuxOffset(u8 submuxIndex, u8 gainGroupIndex, f32 Offset)", nullptr),
@@ -387,6 +388,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 #endif
 		DATA_ITEM(SYS_UploadFileName, TSYS_UploadFileName, 1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
 		DATA_ITEM(SYS_UploadFileData, TSYS_UploadFileData, 1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
+		DATA_ITEM(SYS_Error, TSYS_Error, 0, 12, 12, "SYS_Error() → u32 Stage, u32 error code, u32 info", nullptr),
+		DATA_ITEM(SYS_ItemError, TSYS_ItemError, 0, 12, 12, "SYS_ItemError() → u16 itemIndex, u16 DId, u32 error code, u32 info", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)
 	#pragma region PWM_

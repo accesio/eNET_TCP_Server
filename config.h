@@ -58,6 +58,7 @@ using TConfig = struct TConfigStruct {
 	std::string submuxTypes[maxSubmuxes];
 	float submuxScaleFactors[maxSubmuxes][gainGroupsPerSubmux]; // set by TBRD_SubmuxScale
 	float submuxOffsets[maxSubmuxes][gainGroupsPerSubmux];      // set by TBRD_SubmuxOffset
+	__u8 adcChannels;
 	__u8 adcDifferential; // bit map bit0=adcCh0, set == differential // J2H: TODO: may want to invert this; may want 16 of them, may want 128 of them, may want 16+128 of them
 	__u32 adcRangeCodes[16];
 	float adcScaleCoefficients[8];

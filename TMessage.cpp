@@ -280,7 +280,6 @@ TMessage &TMessage::addDataItem(PTDataItemBase item)
 
 void TMessage::appendLengthBytes(TBytes& bytes, TMessagePayloadSize length)
 {
-	if (length>0)
     for (uint i = 0; i < sizeof(TMessagePayloadSize); i++)
     {
         __u8 lsb = length & 0xFF;

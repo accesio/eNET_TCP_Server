@@ -28,6 +28,7 @@ public:
     virtual std::string AsString(bool bAsReply = false) override;
 };
 
+
 // -------------------- TADC_StreamStart --------------------
 struct ADC_StreamStartParams {
     __u32 argConnectionID = (__u32)-1;

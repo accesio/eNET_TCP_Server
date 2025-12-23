@@ -234,6 +234,27 @@ public:
 
 };
 
+// ---------------- TBRD_GetNumberOfAdcChannels ----------------
+struct BRD_GetNumberOfAdcChannelsParams {
+    __u8 numAdcChan = 16; // default
+};
+class TBRD_GetNumberOfAdcChannels : public TDataItem<BRD_GetNumberOfAdcChannelsParams>
+{
+public:
+    TBRD_GetNumberOfAdcChannels()
+    : TDataItem<BRD_GetNumberOfAdcChannelsParams>(DataItemIds::BRD_GetNumberOfAdcChannels, {})
+    {
+        // optional: parse an empty TBytes
+    }
+    TBRD_GetNumberOfAdcChannels(DataItemIds id, const TBytes &FromBytes);
+
+    // Overridden methods
+    virtual TBytes calcPayload(bool bAsReply=false) override;
+    virtual TBRD_GetNumberOfAdcChannels &Go() override;
+    virtual std::string AsString(bool bAsReply = false) override;
+};
+
+
 struct SubmuxScaleParams {
     __u8 submuxIndex;
     __u8 gainGroupIndex;

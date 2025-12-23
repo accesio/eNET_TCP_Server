@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <cstring>
 #include <errno.h> // for errno
 #include <fcntl.h>
 #include <filesystem>
@@ -11,8 +13,10 @@
 #include <unistd.h>
 
 #include "SYS_.h"
+#include "../TError.h"
+#include "../utilities.h"
 
-#define PATH_ROOT "/home/pb/eNET_TCP_Server/"
+#define PATH_ROOT "/home/acces/eNET_TCP_Server/"
 
 std::string generateBackupFilenameWithBuildTime(std::string base) {
 	std::string build_date = __DATE__; // Format: Mmm dd yyyy
@@ -273,4 +277,125 @@ TSYS_UploadFileData & TSYS_UploadFileData::Go()
         Error(e.what());
     }
     return *this;
+}
+
+// ---------------- TSYS_Error and TSYS_ItemError Utilities ----------------
+
+static inline __u16 ReadU16LE(const TBytes &b, size_t ofs)
+{
+	if (ofs + 2 > b.size()) return 0;
+	return static_cast<__u16>(static_cast<__u16>(b[ofs]) | (static_cast<__u16>(b[ofs + 1]) << 8));
+}
+
+static inline __u32 ReadU32LE(const TBytes &b, size_t ofs)
+{
+	if (ofs + 4 > b.size()) return 0;
+	return static_cast<__u32>(static_cast<__u32>(b[ofs]) | (static_cast<__u32>(b[ofs + 1]) << 8) | (static_cast<__u32>(b[ofs + 2]) << 16) | (static_cast<__u32>(b[ofs + 3]) << 24));
+}
+
+static inline void WriteU16LE(TBytes &out, __u16 v)
+{
+	out.push_back(static_cast<__u8>(v & 0xFF));
+	out.push_back(static_cast<__u8>((v >> 8) & 0xFF));
+}
+
+static inline void WriteU32LE(TBytes &out, __u32 v)
+{
+	out.push_back(static_cast<__u8>(v & 0xFF));
+	out.push_back(static_cast<__u8>((v >> 8) & 0xFF));
+	out.push_back(static_cast<__u8>((v >> 16) & 0xFF));
+	out.push_back(static_cast<__u8>((v >> 24) & 0xFF));
+}
+
+static inline const char *SafeErrMsgFromCode(__u32 code)
+{
+	const __u32 idx = static_cast<__u32>(-code);
+	for (__u32 i = 0; err_msg[i]; i++)
+	{
+		if (i == idx) return err_msg[i];
+	}
+	return "Unknown error";
+}
+
+// ---------------- TSYS_Error ----------------
+
+TSYS_Error::TSYS_Error(DataItemIds id, const TBytes &FromBytes)
+	: TDataItem<SYS_ErrorParams>(id, FromBytes)
+{
+	this->params.Stage = ReadU32LE(FromBytes, 0);
+	this->params.ErrorCode = ReadU32LE(FromBytes, 4);
+	this->params.Info = ReadU32LE(FromBytes, 8);
+}
+
+TSYS_Error::TSYS_Error(__u32 stage, TError errorCode, __u32 info)
+	: TDataItem<SYS_ErrorParams>(DataItemIds::SYS_Error, {})
+{
+	this->params.Stage = stage;
+	this->params.ErrorCode = static_cast<__u32>(errorCode);
+	this->params.Info = info;
+}
+
+TSYS_Error &TSYS_Error::Go()
+{
+	this->resultCode = ERR_SUCCESS;
+	return *this;
+}
+
+TBytes TSYS_Error::calcPayload(bool /*bAsReply*/)
+{
+	TBytes out;
+	out.reserve(12);
+	WriteU32LE(out, this->params.Stage);
+	WriteU32LE(out, this->params.ErrorCode);
+	WriteU32LE(out, this->params.Info);
+	return out;
+}
+
+std::string TSYS_Error::AsString(bool /*bAsReply*/)
+{
+	const __u32 idx = static_cast<__u32>(-this->params.ErrorCode);
+	return "SYS_Error(Stage=" + to_hex<__u32>(this->params.Stage) + ", ErrorCode=" + to_hex<__u32>(this->params.ErrorCode) + " (idx=" + std::to_string(idx) + " " + SafeErrMsgFromCode(this->params.ErrorCode) + "), Info=" + to_hex<__u32>(this->params.Info) + ")";
+}
+
+// ---------------- TSYS_ItemError ----------------
+
+TSYS_ItemError::TSYS_ItemError(DataItemIds id, const TBytes &FromBytes)
+	: TDataItem<SYS_ItemErrorParams>(id, FromBytes)
+{
+	this->params.ItemIndex = ReadU16LE(FromBytes, 0);
+	this->params.DId = ReadU16LE(FromBytes, 2);
+	this->params.ErrorCode = ReadU32LE(FromBytes, 4);
+	this->params.Info = ReadU32LE(FromBytes, 8);
+}
+
+TSYS_ItemError::TSYS_ItemError(__u16 itemIndex, DataItemIds originalDid, TError errorCode, __u32 info)
+	: TDataItem<SYS_ItemErrorParams>(DataItemIds::SYS_ItemError, {})
+{
+	this->params.ItemIndex = itemIndex;
+	this->params.DId = static_cast<__u16>(originalDid);
+	this->params.ErrorCode = static_cast<__u32>(errorCode);
+	this->params.Info = info;
+}
+
+TSYS_ItemError &TSYS_ItemError::Go()
+{
+	this->resultCode = ERR_SUCCESS;
+	return *this;
+}
+
+TBytes TSYS_ItemError::calcPayload(bool /*bAsReply*/)
+{
+	TBytes out;
+	out.reserve(12);
+	WriteU16LE(out, this->params.ItemIndex);
+	WriteU16LE(out, this->params.DId);
+	WriteU32LE(out, this->params.ErrorCode);
+	WriteU32LE(out, this->params.Info);
+	return out;
+}
+
+std::string TSYS_ItemError::AsString(bool /*bAsReply*/)
+{
+	const __u32 idx = static_cast<__u32>(-this->params.ErrorCode);
+	return "SYS_ItemError(ItemIndex=" + std::to_string(this->params.ItemIndex) + ", DId=0x" + to_hex<__u16>(this->params.DId) + ", ErrorCode=" + to_hex<__u32>(this->params.ErrorCode) + " (idx=" + std::to_string(idx) + " " + SafeErrMsgFromCode(this->params.ErrorCode) + "), Info=" + to_hex<__u32>(this->params.Info) + ")";
 }

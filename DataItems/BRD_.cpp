@@ -247,6 +247,96 @@ static bool is_valid_dac_range(const char *code)
 }
 
 /**
+ * Parse eNET-AI* model string to determine ADC channel count.
+ *
+ * Returns 0 on success, -1 on error.
+ * On success, *adc_channels is set to the numeric prefix of the 2nd component:
+ *   eNET-AIO16-16F-...   => 16
+ *   eNET-AIO16-64MA      => 64
+ *   eNET-AI12-128E       => 128
+ *
+ * On error, *adc_channels is set to 0 (safe "unknown" default).
+ */
+int enet_ai_parse_adc_channel_count(const char *model_in, __u8 *adc_channels,
+                                    char *errbuf, size_t errbuf_sz)
+{
+    char buf[256];
+    char *p;
+    char *code_body;
+    char *saveptr = NULL;
+    char *parts0, *parts1;
+    char tmp[64];
+    char *end = NULL;
+    long n;
+
+    if (!model_in || !adc_channels) return -1;
+    *adc_channels = 0;
+
+    if (errbuf && errbuf_sz) errbuf[0] = '\0';
+
+    // Copy and normalize into local buffer
+    snprintf(buf, sizeof(buf), "%s", model_in);
+    trim_whitespace(buf);
+
+    p = buf;
+
+    // Optional prefix "\000027"
+    if (strncmp(p, "\\000027", 7) == 0) p += 7;
+
+    trim_whitespace(p);
+
+    // Must start with "eNET-AI" (case-insensitive)
+    if (strncasecmp(p, "eNET-AI", 7) != 0) {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz, "Model does not start with 'eNET-AI': '%s'", p);
+        return -1;
+    }
+
+    code_body = p + 7;  // after "eNET-AI"
+    if (*code_body == '\0') {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz, "Model missing core after 'eNET-AI': '%s'", p);
+        return -1;
+    }
+
+    // Split on '-' : parts0 = core (e.g. O16 or 16), parts1 = channel/rate block (e.g. 16F, 64MA, 128E)
+    parts0 = strtok_r(code_body, "-", &saveptr);
+    parts1 = strtok_r(NULL, "-", &saveptr);
+    if (!parts0 || !parts1) {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz, "Not enough model components after 'eNET-AI' in '%s'", p);
+        return -1;
+    }
+
+    (void)parts0; // not used here
+
+    snprintf(tmp, sizeof(tmp), "%s", parts1);
+    trim_whitespace(tmp);
+
+    // Parse the leading integer in parts1
+    n = strtol(tmp, &end, 10);
+    if (end == tmp) {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz,
+                     "Model missing channel count in 2nd component '%s' (expected like '16F', '64MA', '128E')",
+                     tmp);
+        return -1;
+    }
+
+    // Hardware can address up to 0..127 channels with submuxes (=> 128 channels max).:contentReference[oaicite:2]{index=2}
+    if (n <= 0 || n > 128) {
+        if (errbuf && errbuf_sz)
+            snprintf(errbuf, errbuf_sz,
+                     "Parsed channel count %ld out of range (1..128) from component '%s'",
+                     n, tmp);
+        return -1;
+    }
+
+    *adc_channels = (__u8)n;
+    return 0;
+}
+
+/**
  * Parse eNET-AI* model string to determine DAC count.
  *
  * Returns 0 on success, -1 on error.
@@ -384,6 +474,13 @@ TDataItemBase &TBRD_Model::Go()
         Debug("TBRD_Model::Go() parsed NUM_DACs = " + std::to_string(Config.NUM_DACs));
     }
 
+    char errbuf2[256];
+    if (enet_ai_parse_adc_channel_count(val.c_str(), &Config.adcChannels, errbuf2, sizeof(errbuf2)) != 0) {
+        Error("TBRD_Model::Go() invalid model string re: ADC channel count '" + val + "': " + errbuf2);
+    } else {
+        Debug("TBRD_Model::Go() parsed adcChannels = " + std::to_string(Config.adcChannels));
+    }
+
     // persist
     if (!SaveBrdConfig(CONFIG_CURRENT)) {
         Error("TBRD_Model::Go() failed to SaveConfig");
@@ -423,6 +520,56 @@ std::string TBRD_GetModel::AsString(bool bAsReply)
     } else {
         return "BRD_GetModel()";
     }
+}
+
+
+TBRD_GetNumberOfAdcChannels::TBRD_GetNumberOfAdcChannels(DataItemIds id, const TBytes &buf)
+    : TDataItem<BRD_GetNumberOfAdcChannelsParams>(id, buf)
+{
+    // Accept either:
+    //   - 0 bytes (typical "get" request)
+    //   - 1 byte  (optional: if ever passed as a parsed payload)
+    GUARD((buf.size() == 0) || (buf.size() == 1), ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
+
+    if (buf.size() == 1) {
+        this->params.numAdcChan = buf[0];
+    }
+}
+
+// -------------------- TBRD_GetNumberOfAdcChannels --------------------
+TBytes TBRD_GetNumberOfAdcChannels::calcPayload(bool bAsReply)
+{
+    (void)bAsReply;
+
+    TBytes bytes;
+
+    // Return the channel count as a single byte
+    stuff(bytes, this->params.numAdcChan);
+
+    Trace("TBRD_GetNumberOfAdcChannels::calcPayload built: ", bytes);
+    return bytes;
+}
+
+TBRD_GetNumberOfAdcChannels &TBRD_GetNumberOfAdcChannels::Go()
+{
+    Trace("BRD_GetNumberOfAdcChannels Go() reading Config.adcChannels");
+
+    // Per your note: just return Config.adcChannels
+    this->params.numAdcChan = Config.adcChannels;
+
+    return *this;
+}
+
+std::string TBRD_GetNumberOfAdcChannels::AsString(bool bAsReply)
+{
+    std::stringstream dest;
+
+    // Keep it similar to the style in TADC_BaseClock
+    dest << "BRD_GetNumberOfAdcChannels()"
+         << (bAsReply ? " -> " : " ? ")
+         << static_cast<unsigned>(this->params.numAdcChan);
+
+    return dest.str();
 }
 
 // ——— TBRD_SerialNumber —————————————————————————————————————————————

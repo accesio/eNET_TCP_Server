@@ -88,8 +88,8 @@ Messages can generate three categories of Errors: "Syntax Errors", "Semantic Err
 		etc
 	Syntax Errors are caught, and reported, while the TByte Message is being parsed, before any Actions are taken.
 	Syntax Errors are likely to *cause* the parser to think additional Syntax Errors exist in the TBytes of the Message,
-		so only the first detected Syntax Error is reported, via an MId == "E" Response Message to the socket/client, with
-		a single TDataItem of type DId == SyntaxError (FFFF).
+		so only the first detected Syntax Error is reported, via an MId == "X" Response Message to the socket/client, with
+		a single TDataItem of type DId == SYS_Error (EFF0).
 	The MId for the Response to Messages that encounter a Syntax Error (during parse) is "X" "syntaX".
 	The payload in an X Response will contain one or more TDataItems with details about the detected Syntax Error.
 
@@ -104,7 +104,7 @@ Messages can generate three categories of Errors: "Syntax Errors", "Semantic Err
 	The MId for the Response to Messages that encounter Semantic or Execution errors is "E" "Error".
 	A Response to a Message that contains one or more Semantic Errors among its TDataItems will result in an "E" Response Message,
 		with one TDataItem in the E Reponse per TDataItem in the Message, but the TDataItem generated for TDataItems that had
-		Semantic Errors will so indicate via a special DId.
+		Semantic Errors will so indicate via a special DId, SYS_ItemError (EFF1).
 
 *	Operational Errors occur from hardware faults, temporary or permanent.  Examples include:
 		DAC SPI-Bus "Wait For Not Busy" Timeout duration exceeded

@@ -188,7 +188,9 @@ from discord code-review conversation with Daria; these do not belong in this so
 
 #include <algorithm>
 #include <arpa/inet.h>
+#include <cctype>
 #include <chrono>
+#include <cstring>
 #include <fcntl.h>
 #include <filesystem>
 #include <netinet/in.h>
@@ -225,6 +227,11 @@ int AdcListenPort = ControlListenPort + 1;
 pthread_t action_thread;
 pthread_t controlListener_thread;
 pthread_t adcListener_thread;
+
+enum class SysErrStage : __u32 { Parse = 1, Execute = 2 };
+
+static inline __u32 ErrIndex(TError rc) { return static_cast<__u32>(-rc); }
+
 
 // // Function to serve static files
 // static void serve_static(struct mg_connection *nc, struct mg_http_message *hm) {
@@ -634,6 +641,7 @@ void SendControlHello(int Socket)
 	PTDataItem deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
 	PTDataItem adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
 	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
+	PTDataItem adcChans = std::unique_ptr<TBRD_GetNumberOfAdcChannels>(new TBRD_GetNumberOfAdcChannels());
 	try
 	{
 		features->Go();
@@ -644,6 +652,8 @@ void SendControlHello(int Socket)
 		Payload.push_back(adcBaseClock);
 		fpgaId->Go();
 		Payload.push_back(fpgaId);
+		adcChans->Go();
+		Payload.push_back(adcChans);
 	}
 	catch (const std::logic_error &e)
 	{
@@ -709,23 +719,150 @@ void Disconnect(int aClient)
 	//     Error("INTERNAL ERROR: Attempted to remove socket not in ClientList");
 }
 
-bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
+static bool TryParseGuardWhat(const char *what, __u32 &errIndex, __u32 &info)
 {
-	TError result;
-	TBytes buf(theBuffer, theBuffer + bytesRead);
+	if (!what) return false;
+	std::string s(what);
 
-	parsedMessage = TMessage::FromBytes(buf, result);
-	Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:");
-	if (result != ERR_SUCCESS)
+	// Expected GUARD format contains "): -<digits>" and ends with "= <hex>"
+	auto p = s.find("): -");
+	if (p == std::string::npos) return false;
+	p += 4;
+
+	size_t q = p;
+	while (q < s.size() && std::isdigit(static_cast<unsigned char>(s[q]))) q++;
+	if (q == p) return false;
+
+	try { errIndex = static_cast<__u32>(std::stoul(s.substr(p, q - p), nullptr, 10)); }
+	catch (...) { return false; }
+
+	auto eq = s.rfind('=');
+	if (eq != std::string::npos)
 	{
-		Error("TMessage::fromBytes(buf) returned " + std::to_string(-result) + ": " + err_msg[-result]);
-		return false;
+		std::string hex = s.substr(eq + 1);
+		while (!hex.empty() && std::isspace(static_cast<unsigned char>(hex.front()))) hex.erase(hex.begin());
+		while (!hex.empty() && std::isspace(static_cast<unsigned char>(hex.back()))) hex.pop_back();
+		if (!hex.empty() && (hex.rfind("0x", 0) == 0 || hex.rfind("0X", 0) == 0)) hex.erase(0, 2);
+		try { info = static_cast<__u32>(std::stoul(hex, nullptr, 16)); } catch (...) { /* leave info as-is */ }
 	}
-	Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:\n		  " + parsedMessage.AsString());
 	return true;
 }
 
-// new version of threadReceiver written by ChatGPT to accumulate and chunk incoming packets
+static PTDataItemBase BuildDataItem(DataItemIds did, const TBytes &payload)
+{
+	TBytes di;
+	stuff<__u16>(di, static_cast<__u16>(did));
+	stuff<__u16>(di, static_cast<__u16>(payload.size()));
+	di.insert(di.end(), payload.begin(), payload.end());
+
+	TError r = ERR_SUCCESS;
+	try
+	{
+		PTDataItemBase item = TDataItemBase::fromBytes(di, r);
+		if (r == ERR_SUCCESS) return item;
+	}
+	catch (const std::logic_error &e)
+	{
+		Error(std::string("BuildDataItem(") + to_hex<__u16>(static_cast<__u16>(did)) + ") threw: " + e.what());
+	}
+	return nullptr;
+}
+
+static PTDataItemBase BuildSysError(SysErrStage stage, __u32 errIndex, __u32 info, const std::string &text)
+{
+	TBytes payload;
+	stuff<__u32>(payload, static_cast<__u32>(stage));
+	stuff<__u32>(payload, errIndex);
+	stuff<__u32>(payload, info);
+	if (!text.empty()) payload.insert(payload.end(), text.begin(), text.end());
+	return BuildDataItem(DataItemIds::SYS_Error, payload);
+}
+
+static PTDataItemBase BuildSysItemError(__u16 itemIndex, DataItemIds originalDid, __u32 errIndex, __u32 info, const std::string &text)
+{
+	TBytes payload;
+	stuff<__u16>(payload, itemIndex);
+	stuff<__u16>(payload, static_cast<__u16>(originalDid));
+	stuff<__u32>(payload, errIndex);
+	stuff<__u32>(payload, info);
+	if (!text.empty()) payload.insert(payload.end(), text.begin(), text.end());
+	return BuildDataItem(DataItemIds::SYS_ItemError, payload);
+}
+
+// bool GotMessage(char theBuffer[], int bytesRead, TMessage &parsedMessage)
+// {
+// 	TError result;
+// 	TBytes buf(theBuffer, theBuffer + bytesRead);
+// 	try
+// 	{
+// 		parsedMessage = TMessage::FromBytes(buf, result);
+// 		Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:");
+// 		if (result != ERR_SUCCESS)
+// 		{
+// 			Error("TMessage::fromBytes(buf) returned " + std::to_string(-result) + ": " + err_msg[-result]);
+// 			return false;
+// 		}
+// 	}
+// 	catch (const std::logic_error &e)
+// 	{
+// 		Error("TMessage::fromBytes(buf) threw exception: " + std::string(e.what()));
+// 		// todo: discard offending bytes, send 'X', continue cleanly
+// 		return false;
+// 	}
+// 	Log("Received " + std::to_string(bytesRead) + " bytes on Control connection:\n		  " + parsedMessage.AsString());
+// 	return true;
+// }
+
+bool GotMessage(const char *theBuffer, int bytesRead, TMessage &outMessage)
+{
+	TError result = ERR_SUCCESS;
+	TBytes buf(theBuffer, theBuffer + bytesRead);
+
+	try
+	{
+		outMessage = TMessage::FromBytes(buf, result);
+	}
+	catch (const std::logic_error &e)
+	{
+		__u32 errIndex = ErrIndex(ERR_MSG_PARSE);
+		__u32 info = 0;
+		TryParseGuardWhat(e.what(), errIndex, info);
+
+		TMessage x('X');
+		if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, errIndex, info, e.what())) x.addDataItem(di);
+		outMessage = x;
+		return true;
+	}
+
+	if (result != ERR_SUCCESS)
+	{
+		TMessage x('X');
+		__u32 errIndex = ErrIndex(result);
+		__u32 info = static_cast<__u32>(bytesRead);
+		if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, errIndex, info, "")) x.addDataItem(di);
+		outMessage = x;
+		return true;
+	}
+
+	// Optional but recommended: reject client-sent 'R','E','X','H' as “wrong direction”.
+	// If you don’t want this yet, remove this switch.
+	switch (outMessage.getMId())
+	{
+		case 'Q': case 'C': case 'M':
+			return true;
+		default:
+		{
+			TMessage x('X');
+			__u32 errIndex = ErrIndex(ERR_MSG_ID_UNKNOWN);
+			__u32 info = static_cast<__u32>(outMessage.getMId());
+			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, errIndex, info, "Client sent non-request MId")) x.addDataItem(di);
+			outMessage = x;
+			return true;
+		}
+	}
+}
+
+
 ssize_t ReceiveFromSocket(int aSocket, std::vector<char> &buffer)
 {
 	char tempBuffer[65536];
@@ -744,11 +881,43 @@ int CheckDisconnect(ssize_t bytesRead, int aSocket)
 	return false;
 }
 
+void ProcessMessages(std::vector<char> &buffer, int aSocket)
+{
+	for (;;)
+	{
+		if (buffer.size() < (sizeof(TMessageId) + sizeof(TMessagePayloadSize))) return;
+
+		__u32 payloadLenLe = 0;
+		std::memcpy(&payloadLenLe, buffer.data() + 1, sizeof(payloadLenLe));
+		__u32 payloadLen = le32toh(payloadLenLe);
+
+		if (payloadLen > maxPayloadLength)
+		{
+			TMessage x('X');
+			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, ErrIndex(ERR_MSG_LEN_MISMATCH), payloadLen, "Payload length exceeds maxPayloadLength")) x.addDataItem(di);
+			ActionQueue.enqueue(new TActionQueueItem{aSocket, x});
+			buffer.clear();
+			Disconnect(aSocket);
+			return;
+		}
+
+		const size_t frameLen = sizeof(TMessageId) + sizeof(TMessagePayloadSize) + payloadLen + sizeof(TCheckSum);
+		if (buffer.size() < frameLen) return;
+
+		TMessage msg;
+		(void)GotMessage(buffer.data(), static_cast<int>(frameLen), msg);
+		ActionQueue.enqueue(new TActionQueueItem{aSocket, msg});
+
+		buffer.erase(buffer.begin(), buffer.begin() + frameLen);
+	}
+}
+
+
 void ProcessMessage(std::vector<char> &buffer, int aSocket)
 {
-	static __u32 expectedMessageLength = 0;
+	__u32 expectedMessageLength = 0;
 
-	if (expectedMessageLength == 0 && buffer.size() >= 5)
+	if (buffer.size() >= 5)
 	{
 		expectedMessageLength = *reinterpret_cast<__u32 *>(&buffer[1]);
 		expectedMessageLength = le32toh(expectedMessageLength);
@@ -824,7 +993,7 @@ void *threadReceiver(void *arg)
 		try
 		{
 			Debug("control receiver got " + std::to_string(bytesRead) + " bytes");
-			ProcessMessage(buffer, controlSocket);
+			ProcessMessages(buffer, controlSocket);
 		}
 		catch (const std::logic_error &e)
 		{
@@ -902,26 +1071,47 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 
 bool RunMessage(TMessage &aMessage)
 {
-	Trace("Executing Message DataItems[].Go(), " + std::to_string(aMessage.DataItems.size()) + " total DataItems");
-	try
+	bool anyError = false;
+
+	for (size_t i = 0; i < aMessage.DataItems.size(); i++)
 	{
-		for (auto anItem : aMessage.DataItems)
+		PTDataItemBase &item = aMessage.DataItems[i];
+		DataItemIds originalDid = item ? item->getDId() : DataItemIds::INVALID;
+
+		try
 		{
-			// Debug("About to execute " + anItem->AsString(true)+": ", anItem->AsBytes(true));
-			anItem->Go();
-			// if an error happens what do we do? This is a "run-time" error
+			if (item) item->Go();
+
+			TError rc = item ? item->getResultCode() : ERR_MSG_PARSE;
+			if (rc != ERR_SUCCESS)
+			{
+				anyError = true;
+				__u32 errIndex = ErrIndex(rc);
+				if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, 0, "")) item = errItem;
+			}
 		}
-		aMessage.setMId('R'); // FIX: should be performed based on anItem.getResultCode() indicating no errors
+		catch (const std::logic_error &e)
+		{
+			anyError = true;
+			__u32 errIndex = ErrIndex(ERR_MSG_PARSE);
+			__u32 info = 0;
+			TryParseGuardWhat(e.what(), errIndex, info);
+			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, info, e.what())) item = errItem;
+		}
+		catch (const std::exception &e)
+		{
+			anyError = true;
+			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, e.what())) item = errItem;
+		}
+		catch (...)
+		{
+			anyError = true;
+			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, "unknown exception")) item = errItem;
+		}
 	}
-	catch (const std::logic_error &e)
-	{
-		aMessage.setMId('X');
-		Error("EXCEPTION! " + std::string(e.what()));
-		Log("Error Message built: \n		  " + aMessage.AsString(true));
-		return false;
-	}
-	Log("Control Reply Message built: \n		  " + aMessage.AsString(true));
-	return true;
+
+	aMessage.setMId(anyError ? 'E' : 'R');
+	return !anyError;
 }
 
 void SendResponse(int Client, TMessage &aMessage)
@@ -939,18 +1129,42 @@ void SendResponse(int Client, TMessage &aMessage)
 	}
 }
 
+// void *ActionThread(TActionQueue *Q)
+// {
+// 	for (; done == 0;)
+// 	{
+// 		TActionQueueItem *anAction = Q->dequeue();
+// 		if (!anAction)
+// 			continue; // should only occur if done != 0, "poison pill"
+
+// 		Log("---DEQUEUED---");
+// 		RunMessage(anAction->theMessage);
+// 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
+// 															  // free(anAction);
+// 	}
+// 	return nullptr;
+// }
+
 void *ActionThread(TActionQueue *Q)
 {
 	for (; done == 0;)
 	{
 		TActionQueueItem *anAction = Q->dequeue();
-		if (!anAction)
-			continue; // should only occur if done != 0, "poison pill"
+		if (!anAction) continue;
 
 		Log("---DEQUEUED---");
-		RunMessage(anAction->theMessage);
-		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
-															  // free(anAction);
+
+		const TMessageId mid = anAction->theMessage.getMId();
+		if (mid == 'Q' || mid == 'C' || mid == 'M')
+		{
+			RunMessage(anAction->theMessage);
+		}
+		// else: 'X' (or anything else) is already a reply message
+
+		SendResponse(anAction->Socket, anAction->theMessage);
+
+		// You probably want to delete this; it currently leaks.
+		// delete anAction;
 	}
 	return nullptr;
 }

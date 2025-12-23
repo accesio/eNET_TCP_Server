@@ -596,6 +596,7 @@ void LoadSubmuxConfig(std::string which)
 void LoadBrdConfig(std::string which)
 {
 	HandleError(ReadConfigString("BRD_Model", Config.Model, which));
+	HandleError(ReadConfigU8("BRD_NumberOfAdcChannels", Config.adcChannels, which));
 	HandleError(ReadConfigString("BRD_Description", Config.Description, which));
 	HandleError(ReadConfigString("BRD_SerialNumber", Config.SerialNumber, which));
 }
@@ -749,6 +750,7 @@ bool SaveBrdConfig(std::string which)
 {
 	HandleError(WriteConfigString("BRD_Description", Config.Description, which));
 	HandleError(WriteConfigString("BRD_Model", Config.Model, which));
+	HandleError(WriteConfigU8("BRD_NumberOfAdcChannels", Config.adcChannels, which));
 	HandleError(WriteConfigString("BRD_SerialNumber", Config.SerialNumber, which));
 	return true;
 }
