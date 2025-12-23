@@ -341,13 +341,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DIdNYI(ADC_Counts1),
 		DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
 		DIdNYI(ADC_Raw1),
-		DIdNYI(ADC_RawAll), // ADC_GetScanRaw
-		// DATA_ITEM(ADC_StreamStart, TDataItemRaw, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
-		// DATA_ITEM(ADC_StreamStop, TDataItemRaw, 0, 0, 0, "ADC_StreamStop()", nullptr),
+		DATA_ITEM(ADC_VoltsAll, TADC_VoltsAll, 0, 0, 0, "ADC_VoltsAll() → float[] (scan conversions, incl. oversamples)", nullptr),
 		DATA_ITEM(ADC_StreamStart, TADC_StreamStart, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
 		DATA_ITEM(ADC_StreamStop, TADC_StreamStop, 0, 0, 0, "ADC_StreamStop()", nullptr),
-		// { DataItemIds::ADC_StreamStart,{ 4, 4, 4, &construct_ADC_StreamStart,"ADC_StreamStart((u32)AdcConnectionId)", nullptr } },
-		// { DataItemIds::ADC_StreamStop,{ 0, 0, 0, &construct_ADC_StreamStop,"ADC_StreamStop()", nullptr } },
 		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)
@@ -493,7 +489,7 @@ TDataItemLength TDataItemBase::getMaxLength(DataItemIds id)
 
 int TDataItemBase::isValidDataItemID(DataItemIds id)
 {
-	Debug("DataItemId: " + to_hex<__u16>((static_cast<__u16>(id))));
+	Trace("DataItemId: " + to_hex<__u16>((static_cast<__u16>(id))));
 	auto item = DIdDict.find(id);
 	return (item != DIdDict.end());
 }

@@ -8,7 +8,7 @@ __u8 in8(int offset)
 {
 	__u8 value = 0;
 	int status = apci_read8(apci, 0, BAR_REGISTER, offset, &value);
-	Debug("in8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ") ? " + to_hex<__u8>(value));
+	Trace("in8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ") ? " + to_hex<__u8>(value));
 	return status ? -1 : value;
 }
 
@@ -16,7 +16,7 @@ __u16 in16(int offset)
 {
 	__u16 value = 0;
 	int status = apci_read16(apci, 0, BAR_REGISTER, offset, &value);
-	Debug("in16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ") ? " + to_hex<__u16>(value));
+	Trace("in16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ") ? " + to_hex<__u16>(value));
 	return status ? -1 : value;
 }
 
@@ -24,7 +24,7 @@ __u32 in32(int offset)
 {
 	__u32 value = 0;
 	int status = apci_read32(apci, 0, BAR_REGISTER, offset, &value);
-	Debug("in32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ") ? " + to_hex<__u32>(value));
+	Trace("in32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ") ? " + to_hex<__u32>(value));
 
 	return status ? -1 : value;
 }
@@ -48,21 +48,21 @@ __u32 in(int offset)
 TError out8(int offset, __u8 value)
 {
 	int status = apci_write8(apci, 0, BAR_REGISTER, offset, value);
-	Debug("out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u8>(value) + ")" );
+	Trace("out8(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u8>(value) + ")" );
 	return status;
 }
 
 TError out16(int offset, __u16 value)
 {
 	int status = apci_write16(apci, 0, BAR_REGISTER, offset, value);
-	Debug("out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u16>(value) + ")" );
+	Trace("out16(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u16>(value) + ")" );
 	return status;
 }
 
 TError out32(int offset, __u32 value)
 {
 	int status = apci_write32(apci, 0, BAR_REGISTER, offset, value);
-	Debug("out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u32>(value) + ")" );
+	Trace("out32(" + to_hex<__u8>(static_cast<__u8>(offset)) + ", " + to_hex<__u32>(value) + ")" );
 	return status;
 }
 

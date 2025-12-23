@@ -813,6 +813,25 @@ static PTDataItemBase BuildSysItemError(__u16 itemIndex, DataItemIds originalDid
 // 	return true;
 // }
 
+
+ssize_t ReceiveFromSocket(int aSocket, std::vector<char> &buffer)
+{
+	char tempBuffer[65536];
+	ssize_t bytesRead = recv(aSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
+	if (bytesRead > 0)
+	{
+		buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
+	}
+	return bytesRead;
+}
+
+int CheckDisconnect(ssize_t bytesRead, int aSocket)
+{
+	if (bytesRead == 0)
+		return true;
+	return false;
+}
+
 bool GotMessage(const char *theBuffer, int bytesRead, TMessage &outMessage)
 {
 	TError result = ERR_SUCCESS;
@@ -831,54 +850,8 @@ bool GotMessage(const char *theBuffer, int bytesRead, TMessage &outMessage)
 		TMessage x('X');
 		if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, errIndex, info, e.what())) x.addDataItem(di);
 		outMessage = x;
-		return true;
 	}
-
-	if (result != ERR_SUCCESS)
-	{
-		TMessage x('X');
-		__u32 errIndex = ErrIndex(result);
-		__u32 info = static_cast<__u32>(bytesRead);
-		if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, errIndex, info, "")) x.addDataItem(di);
-		outMessage = x;
-		return true;
-	}
-
-	// Optional but recommended: reject client-sent 'R','E','X','H' as “wrong direction”.
-	// If you don’t want this yet, remove this switch.
-	switch (outMessage.getMId())
-	{
-		case 'Q': case 'C': case 'M':
-			return true;
-		default:
-		{
-			TMessage x('X');
-			__u32 errIndex = ErrIndex(ERR_MSG_ID_UNKNOWN);
-			__u32 info = static_cast<__u32>(outMessage.getMId());
-			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, errIndex, info, "Client sent non-request MId")) x.addDataItem(di);
-			outMessage = x;
-			return true;
-		}
-	}
-}
-
-
-ssize_t ReceiveFromSocket(int aSocket, std::vector<char> &buffer)
-{
-	char tempBuffer[65536];
-	ssize_t bytesRead = recv(aSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
-	if (bytesRead > 0)
-	{
-		buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
-	}
-	return bytesRead;
-}
-
-int CheckDisconnect(ssize_t bytesRead, int aSocket)
-{
-	if (bytesRead == 0)
-		return true;
-	return false;
+	return true;
 }
 
 void ProcessMessages(std::vector<char> &buffer, int aSocket)
@@ -904,39 +877,39 @@ void ProcessMessages(std::vector<char> &buffer, int aSocket)
 		const size_t frameLen = sizeof(TMessageId) + sizeof(TMessagePayloadSize) + payloadLen + sizeof(TCheckSum);
 		if (buffer.size() < frameLen) return;
 
-		TMessage msg;
-		(void)GotMessage(buffer.data(), static_cast<int>(frameLen), msg);
-		ActionQueue.enqueue(new TActionQueueItem{aSocket, msg});
+		TMessage *aMessage = new TMessage;
+		(void)GotMessage(buffer.data(), static_cast<int>(frameLen), *aMessage);
+		ActionQueue.enqueue(new TActionQueueItem{aSocket, *aMessage});
 
 		buffer.erase(buffer.begin(), buffer.begin() + frameLen);
 	}
 }
 
 
-void ProcessMessage(std::vector<char> &buffer, int aSocket)
-{
-	__u32 expectedMessageLength = 0;
+// void ProcessMessage(std::vector<char> &buffer, int aSocket)
+// {
+// 	__u32 expectedMessageLength = 0;
 
-	if (buffer.size() >= 5)
-	{
-		expectedMessageLength = *reinterpret_cast<__u32 *>(&buffer[1]);
-		expectedMessageLength = le32toh(expectedMessageLength);
-		Debug("-- Expected Length: " + std::to_string(expectedMessageLength));
-	}
+// 	if (buffer.size() >= 5)
+// 	{
+// 		expectedMessageLength = *reinterpret_cast<__u32 *>(&buffer[1]);
+// 		expectedMessageLength = le32toh(expectedMessageLength);
+// 		Debug("-- Expected Length: " + std::to_string(expectedMessageLength));
+// 	}
 
-	if (buffer.size() >= expectedMessageLength + 5 + 1)
-	{
-		TMessage *aMessage = new TMessage;
-		if (GotMessage(buffer.data(), expectedMessageLength + 5 + 1, *aMessage))
-		{
-			TActionQueueItem *action = new TActionQueueItem{aSocket, *aMessage};
-			ActionQueue.enqueue(action);
-			Debug(action->theMessage.AsString(true));
-		}
-		buffer.erase(buffer.begin(), buffer.begin() + expectedMessageLength + 5 + 1);
-		expectedMessageLength = 0;
-	}
-}
+// 	if (buffer.size() >= expectedMessageLength + 5 + 1)
+// 	{
+// 		TMessage *aMessage = new TMessage;
+// 		if (GotMessage(buffer.data(), expectedMessageLength + 5 + 1, *aMessage))
+// 		{
+// 			TActionQueueItem *action = new TActionQueueItem{aSocket, *aMessage};
+// 			ActionQueue.enqueue(action);
+// 			Debug(action->theMessage.AsString(true));
+// 		}
+// 		buffer.erase(buffer.begin(), buffer.begin() + expectedMessageLength + 5 + 1);
+// 		expectedMessageLength = 0;
+// 	}
+// }
 
 // J2H: In progress
 void *threadReceiver(void *arg)
@@ -992,7 +965,7 @@ void *threadReceiver(void *arg)
 
 		try
 		{
-			Debug("control receiver got " + std::to_string(bytesRead) + " bytes");
+			Trace("control receiver got " + std::to_string(bytesRead) + " bytes");
 			ProcessMessages(buffer, controlSocket);
 		}
 		catch (const std::logic_error &e)
@@ -1069,55 +1042,114 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 	// ReceiverThreadQueue.enqueue(receive_thread);
 }
 
+// bool RunMessage(TMessage &aMessage)
+// {
+// 	bool anyError = false;
+// 	Trace("RunMessage start");
+// 	for (size_t i = 0; i < aMessage.DataItems.size(); i++)
+// 	{
+// 		Debug("RunMessage Item: " + to_hex<__u16>(__u16(i)) + " / " + to_hex<__u16>(__u16(aMessage.DataItems.size()-1)) + " = ?");// + to_hex<__u16>(__u16(item ? item->getDId())));
+// 		PTDataItemBase &item = aMessage.DataItems[i];
+// 		Trace("PTDataItemBase &item = aMessage.DataItems[i]; passed");
+// 		DataItemIds originalDid = DataItemIds::INVALID;
+// 		if (item) {
+// 			originalDid = item->getDId(); // throwing Segmentation Fault, intermittently
+// 		}
+// 		else Debug("Item is NULL");
+// 		try
+// 		{
+// 			if (item) item->Go();
+
+// 			TError rc = item ? item->getResultCode() : ERR_MSG_PARSE;
+// 			if (rc != ERR_SUCCESS)
+// 			{
+// 				anyError = true;
+// 				__u32 errIndex = ErrIndex(rc);
+// 				if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, 0, "")) item = errItem;
+// 			}
+// 		}
+// 		catch (const std::logic_error &e)
+// 		{
+// 			anyError = true;
+// 			__u32 errIndex = ErrIndex(ERR_MSG_PARSE);
+// 			__u32 info = 0;
+// 			TryParseGuardWhat(e.what(), errIndex, info);
+// 			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, info, e.what())) item = errItem;
+// 			Error("Logic Exception in RunMessage");
+// 		}
+// 		catch (const std::exception &e)
+// 		{
+// 			anyError = true;
+// 			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, e.what())) item = errItem;
+// 			Error("Exception in RunMessage");
+// 		}
+// 		catch (...)
+// 		{
+// 			anyError = true;
+// 			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, "unknown exception")) item = errItem;
+// 			Error("Unknown Exception in RunMessage");
+// 		}
+// 	}
+
+// 	aMessage.setMId(anyError ? 'E' : 'R');
+// 	return !anyError;
+// }
+
 bool RunMessage(TMessage &aMessage)
 {
-	bool anyError = false;
+    bool anyError = false;
 
-	for (size_t i = 0; i < aMessage.DataItems.size(); i++)
-	{
-		PTDataItemBase &item = aMessage.DataItems[i];
-		DataItemIds originalDid = item ? item->getDId() : DataItemIds::INVALID;
+    for (size_t i = 0; i < aMessage.DataItems.size(); ++i)
+    {
+        auto item = aMessage.DataItems[i];
+        DataItemIds originalDid = DataItemIds::INVALID;
 
-		try
-		{
-			if (item) item->Go();
+        if (item) originalDid = item->getDId();
 
-			TError rc = item ? item->getResultCode() : ERR_MSG_PARSE;
-			if (rc != ERR_SUCCESS)
-			{
-				anyError = true;
-				__u32 errIndex = ErrIndex(rc);
-				if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, 0, "")) item = errItem;
-			}
-		}
-		catch (const std::logic_error &e)
-		{
-			anyError = true;
-			__u32 errIndex = ErrIndex(ERR_MSG_PARSE);
-			__u32 info = 0;
-			TryParseGuardWhat(e.what(), errIndex, info);
-			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, info, e.what())) item = errItem;
-		}
-		catch (const std::exception &e)
-		{
-			anyError = true;
-			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, e.what())) item = errItem;
-		}
-		catch (...)
-		{
-			anyError = true;
-			if (PTDataItemBase errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, "unknown exception")) item = errItem;
-		}
-	}
+        try
+        {
+            if (item) item->Go();
 
-	aMessage.setMId(anyError ? 'E' : 'R');
-	return !anyError;
+            TError rc = item ? item->getResultCode() : ERR_MSG_PARSE;
+            if (rc != ERR_SUCCESS)
+            {
+                anyError = true;
+                __u32 errIndex = ErrIndex(rc);
+                if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, 0, ""))
+                    aMessage.DataItems[i] = errItem; // write back by index
+            }
+        }
+        catch (const std::logic_error &e)
+        {
+            anyError = true;
+            __u32 errIndex = ErrIndex(ERR_MSG_PARSE);
+            __u32 info = 0;
+            TryParseGuardWhat(e.what(), errIndex, info);
+            if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, info, e.what()))
+                aMessage.DataItems[i] = errItem;
+        }
+        catch (const std::exception &e)
+        {
+            anyError = true;
+            if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, e.what()))
+                aMessage.DataItems[i] = errItem;
+        }
+        catch (...)
+        {
+            anyError = true;
+            if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, "unknown exception"))
+                aMessage.DataItems[i] = errItem;
+        }
+    }
+    aMessage.setMId(anyError ? 'E' : 'R');
+    return !anyError;
 }
+
 
 void SendResponse(int Client, TMessage &aMessage)
 {
-	TBytes rbuf = aMessage.AsBytes(true);									  // valgrind
-	ssize_t bytesSent = send(Client, rbuf.data(), rbuf.size(), MSG_NOSIGNAL); // valgrind
+	TBytes rbuf = aMessage.AsBytes(true);
+	ssize_t bytesSent = send(Client, rbuf.data(), rbuf.size(), MSG_NOSIGNAL);
 	if (bytesSent == -1)
 	{
 		Error("! TCP Send of Reply to Control failed, bytesSent != Message Length (" + std::to_string(bytesSent) + " != " + std::to_string(rbuf.size()) + ")");
@@ -1129,21 +1161,6 @@ void SendResponse(int Client, TMessage &aMessage)
 	}
 }
 
-// void *ActionThread(TActionQueue *Q)
-// {
-// 	for (; done == 0;)
-// 	{
-// 		TActionQueueItem *anAction = Q->dequeue();
-// 		if (!anAction)
-// 			continue; // should only occur if done != 0, "poison pill"
-
-// 		Log("---DEQUEUED---");
-// 		RunMessage(anAction->theMessage);
-// 		SendResponse(anAction->Socket, anAction->theMessage); // move to send threads?
-// 															  // free(anAction);
-// 	}
-// 	return nullptr;
-// }
 
 void *ActionThread(TActionQueue *Q)
 {
@@ -1152,7 +1169,7 @@ void *ActionThread(TActionQueue *Q)
 		TActionQueueItem *anAction = Q->dequeue();
 		if (!anAction) continue;
 
-		Log("---DEQUEUED---");
+		Trace("---DEQUEUED---");
 
 		const TMessageId mid = anAction->theMessage.getMId();
 		if (mid == 'Q' || mid == 'C' || mid == 'M')

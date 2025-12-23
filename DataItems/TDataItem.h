@@ -80,7 +80,7 @@ public:
     explicit TDataItemBase(DataItemIds dId)
         : DId(dId)
     {
-        Debug("TDataItemBase(DId) constructor");
+        Trace("TDataItemBase(DId) constructor");
     }
 
     virtual ~TDataItemBase() {}
@@ -173,7 +173,7 @@ public:
         : TDataItemBase(dId),
           rawBytes(bytes)
     {
-        Debug("TDataItem<ParamStruct>(dId, bytes) constructor");
+        Trace("TDataItem<ParamStruct>(dId, bytes) constructor");
 
         // By default, copy entire `bytes` into `params` if it fits
         if (bytes.size() >= sizeof(ParamStruct)) {
@@ -181,7 +181,7 @@ public:
         }
         else {
             // We'll let the derived class handle partial or custom parsing if it wants
-            Debug("ParamStruct is bigger than rawBytes; derived constructor may fix this." + to_hex<size_t>(bytes.size()) + " > " + to_hex<size_t>(sizeof(ParamStruct)));
+            Trace("ParamStruct is bigger than rawBytes; derived constructor may fix this." + to_hex<size_t>(bytes.size()) + " > " + to_hex<size_t>(sizeof(ParamStruct)));
         }
     }
 

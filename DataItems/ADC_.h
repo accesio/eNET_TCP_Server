@@ -227,3 +227,19 @@ public:
     virtual std::string AsString(bool bAsReply = false) override;
 };
 
+
+
+
+// No request payload (caller must have already configured ranges, start/end channel, oversamples, etc.)
+struct ADC_VoltsAllParams
+{
+    // Intentionally empty. (Yes, empty structs have size 1 in C++; we still accept 0-byte payloads.)
+};
+
+class TADC_VoltsAll : public TDataItem<ADC_VoltsAllParams>
+{
+public:
+    TADC_VoltsAll(DataItemIds dId, const TBytes &data);
+
+    TDataItemBase &Go() override;
+};

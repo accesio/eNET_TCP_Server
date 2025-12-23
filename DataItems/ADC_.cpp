@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include "ADC_.h"
 #include "../apci.h"
 #include "../logging.h"
@@ -132,9 +134,9 @@ std::string TADC_StreamStop::AsString(bool bAsReply)
     (void)bAsReply;
     return getDIdDesc(this->DId);
 }
-// --------------------------------------------------------------------------
+//
 // TADC_Differential1 Implementation
-// --------------------------------------------------------------------------
+//
 TADC_Differential1::TADC_Differential1(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_Differential1Params>(id, data)
 {
@@ -179,9 +181,9 @@ std::string TADC_Differential1::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_DifferentialAll Implementation
-// --------------------------------------------------------------------------
+//
 TADC_DifferentialAll::TADC_DifferentialAll(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_DifferentialAllParams>(id, data)
 {
@@ -231,9 +233,9 @@ std::string TADC_DifferentialAll::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_Range1 Implementation
-// --------------------------------------------------------------------------
+//
 TADC_Range1::TADC_Range1(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_Range1Params>(id, data)
 {
@@ -269,9 +271,9 @@ std::string TADC_Range1::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_RangeAll Implementation
-// --------------------------------------------------------------------------
+//
 TADC_RangeAll::TADC_RangeAll(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_RangeAllParams>(id, data)
 {
@@ -316,9 +318,9 @@ std::string TADC_RangeAll::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_Span1 Implementation (Scale calibration for one range)
-// --------------------------------------------------------------------------
+//
 TADC_Scale1::TADC_Scale1(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_Span1Params>(id, data)
 {
@@ -361,9 +363,9 @@ std::string TADC_Scale1::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_ScaleAll Implementation
-// --------------------------------------------------------------------------
+//
 TADC_ScaleAll::TADC_ScaleAll(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_SpanAllParams>(id, data)
 {
@@ -416,9 +418,9 @@ std::string TADC_ScaleAll::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_Offset1 Implementation (Offset calibration for one range)
-// --------------------------------------------------------------------------
+//
 TADC_Offset1::TADC_Offset1(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_Offset1Params>(id, data)
 {
@@ -458,9 +460,9 @@ std::string TADC_Offset1::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_OffsetAll Implementation
-// --------------------------------------------------------------------------
+//
 TADC_OffsetAll::TADC_OffsetAll(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_OffsetAllParams>(id, data)
 {
@@ -513,9 +515,9 @@ std::string TADC_OffsetAll::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_Calibration1 Implementation (both scale and offset for one range)
-// --------------------------------------------------------------------------
+//
 TADC_Calibration1::TADC_Calibration1(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_Calibration1Params>(id, data)
 {
@@ -564,13 +566,11 @@ std::string TADC_Calibration1::AsString(bool /*bAsReply*/)
     return ss.str();
 }
 
-// --------------------------------------------------------------------------
+//
 // TADC_CalibrationAll Implementation
-// --------------------------------------------------------------------------
 
-// --------------------------------------------------------------------------
 // TADC_CalibrationAll Constructor (from interleaved TBytes)
-// --------------------------------------------------------------------------
+//
 TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds id, const TBytes &data)
     : TDataItem<ADC_CalibrationAllParams>(id, data)
 {
@@ -598,9 +598,9 @@ TADC_CalibrationAll::TADC_CalibrationAll(DataItemIds id, const float scales[8], 
     }
 }
 
-// --------------------------------------------------------------------------
+//
 // Go(): Write calibration values for all 8 ranges
-// --------------------------------------------------------------------------
+//
 TDataItemBase &TADC_CalibrationAll::Go()
 {
     for (int i = 0; i < 8; i++)
@@ -615,9 +615,9 @@ TDataItemBase &TADC_CalibrationAll::Go()
     return *this;
 }
 
-// --------------------------------------------------------------------------
+//
 // calcPayload(): Return the interleaved scale/offset pairs as bytes
-// --------------------------------------------------------------------------
+//
 TBytes TADC_CalibrationAll::calcPayload(bool bAsReply)
 {
     TBytes bytes;
@@ -637,9 +637,9 @@ TBytes TADC_CalibrationAll::calcPayload(bool bAsReply)
     return bytes;
 }
 
-// --------------------------------------------------------------------------
+//
 // AsString(): Provide an explicit string representation per range
-// --------------------------------------------------------------------------
+//
 std::string TADC_CalibrationAll::AsString(bool bAsReply)
 {
     std::stringstream ss;
@@ -655,127 +655,212 @@ std::string TADC_CalibrationAll::AsString(bool bAsReply)
     return ss.str();
 }
 
-// #include "ADC_.h"
-// #include "../apci.h"
-// #include "../logging.h"
-// #include "../eNET-AIO16-16F.h"
-// #include "../adc.h"
 
-// extern int apci;
+struct TAdcScanCfg
+{
+    __u8  startCh     = 0;
+    __u8  endCh       = 0;
+    __u8  oversamples = 0;
 
-// TADC_BaseClock::TADC_BaseClock(TBytes buf)
-// {
-// 	this->setDId(ADC_BaseClock);
-// 	GUARD((buf.size() == 0) || (buf.size() == 4), ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
-// }
+    __u32 nChannels   = 0;
+    __u32 perChannel  = 0;   // = oversamples + 1
+    __u32 expected    = 0;   // = nChannels * perChannel
+};
 
-// TBytes TADC_BaseClock::calcPayload(bool bAsReply)
-// {
-// 	TBytes bytes;
-// 	stuff(bytes, this->baseClock);
-// 	Trace("TADC_BaseClock::calcPayload built: ", bytes);
-// 	return bytes;
-// };
+static inline TAdcScanCfg ADC_ReadScanCfg()
+{
+    TAdcScanCfg cfg;
+    cfg.startCh     = static_cast<__u8>(in(ofsAdcStartChannel) & 0xFFu);   // +13
+    cfg.endCh       = static_cast<__u8>(in(ofsAdcStopChannel)  & 0xFFu);   // +14
+    cfg.oversamples = static_cast<__u8>(in(ofsAdcOversamples)  & 0xFFu);   // +15
 
-// TADC_BaseClock &TADC_BaseClock::Go()
-// {
-// 	Trace("ADC_BaseClock Go()");
-// 	this->baseClock = in(ofsAdcBaseClock);
-// 	return *this;
-// }
+    if (cfg.endCh >= cfg.startCh)
+    {
+        cfg.nChannels  = static_cast<__u32>(cfg.endCh - cfg.startCh + 1u);
+        cfg.perChannel = static_cast<__u32>(cfg.oversamples) + 1u;
+        cfg.expected   = cfg.nChannels * cfg.perChannel;
+    }
+    else
+    {
+        // Invalid configuration; expected stays 0.
+        // (Return an error from the caller if you prefer.)
+    }
+    return cfg;
+}
 
-// std::string TADC_BaseClock::AsString(bool bAsReply)
-// {
-// 	std::stringstream dest;
 
-// 	dest << "ADC_BaseClock()";
-// 	if (bAsReply)
-// 	{
-// 		dest << " → " << this->baseClock;
-// 	}
-// 	Trace("Built: " + dest.str());
-// 	return dest.str();
-// }
 
-// TADC_StreamStart::TADC_StreamStart(TBytes buf)
-// {
-// 	this->setDId(ADC_StreamStart);
-// 	GUARD((buf.size() == 0) || (buf.size() == 4), ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
+static inline float AdcRawToVolts(__u32 raw)
+{
+    // FIFO format summary (per register reference):
+    // bit31 INV, bit30 SE, bits29:28 G1:G0, bit27 BIP, bits26:20 Channel, bits15:0 Counts.
+    const bool inv = (raw & 0x80000000u) != 0;
+    if (inv)
+        return std::numeric_limits<float>::quiet_NaN();
 
-// 	if (buf.size() == 4)
-// 	{
-// 		if (-1 == AdcStreamingConnection)
-// 		{
-// 			this->argConnectionID = (int)*(__u32 *)buf.data();
-// 			AdcStreamingConnection = this->argConnectionID;
-// 		}
-// 		else
-// 		{
-// 			Error("ADC Busy");
-// 			throw std::logic_error("ADC Busy already, on Connection: "+std::to_string(AdcStreamingConnection));
-// 		}
-// 	}
-// 	Trace("AdcStreamingConnection: "+std::to_string(AdcStreamingConnection));
-// }
+    const __u8 gainCode = static_cast<__u8>((raw >> 28) & 0x03u);
+    const bool bipolar  = (raw & (1u << 27)) != 0;
+    const __u16 counts  = static_cast<__u16>(raw & 0xFFFFu);
 
-// TBytes TADC_StreamStart::calcPayload(bool bAsReply)
-// {
-// 	TBytes bytes;
-// 	stuff(bytes, this->argConnectionID);
-// 	Trace("TADC_StreamStart::calcPayload built: ", bytes);
-// 	return bytes;
-// };
+    // Gain mapping per register reference wording: 00=>10V, 01=>5V, 10=>2.5V, 11=>1V (max input).
+    double fsVolts = 10.0;
+    switch (gainCode)
+    {
+        case 0: fsVolts = 10.0; break;
+        case 1: fsVolts =  5.0; break;
+        case 2: fsVolts =  2.5; break;
+        case 3: fsVolts =  1.0; break;
+    }
 
-// TADC_StreamStart &TADC_StreamStart::Go()
-// {
-// 	Trace("ADC_StreamStart::Go(), ADC Streaming Data will be sent on ConnectionID: "+std::to_string(AdcStreamingConnection));
-// 	auto status = apciDmaTransferSize(RING_BUFFER_SLOTS, BYTES_PER_TRANSFER);
-// 	if (status)
-// 	{
-// 		Error("Error setting apciDmaTransferSize: "+std::to_string(status));
-// 		throw std::logic_error(err_msg[-status]);
-// 	}
+    // Counts are offset-binary. In bipolar ranges, 0x8000 is 0V.
+    double v = 0.0;
+    if (!bipolar)
+    {
+        v = (static_cast<double>(counts) * fsVolts) / 65535.0;
+    }
+    else
+    {
+        // offset-binary bipolar: 0x8000 is ~0V
+        v = ((static_cast<double>(counts) - 32768.0) * fsVolts) / 32768.0;
+    }
 
-// 	AdcStreamTerminate = 0;
-// 	if (AdcWorkerThreadID == -1)
-// 	{
-// 		AdcWorkerThreadID = pthread_create(&worker_thread, NULL, &worker_main, &AdcStreamingConnection);
-// 	}
-// 	apciDmaStart();
-// 	return *this;
-// };
+    return static_cast<float>(v);
+}
 
-// std::string TADC_StreamStart::AsString(bool bAsReply)
-// {
-// 	std::string msg = this->getDIdDesc();
-// 	if (bAsReply)
-// 	{
-// 		msg += ", ConnectionID = " + to_hex<int>(this->argConnectionID);
-// 	}
-// 	return msg;
-// };
+static TError ADC_SetScanStartMode()
+{
+    return out(ofsAdcTriggerOptions, static_cast<__u8>(0x04)); // "Write 0x04 to +12 // Software Scan Start Mode"
+}
 
-// TADC_StreamStop::TADC_StreamStop(TBytes buf)
-// {
-// 	this->setDId(ADC_StreamStop);
-// 	GUARD(buf.size() == 0, ERR_MSG_PAYLOAD_DATAITEM_LEN_MISMATCH, 0);
-// }
+static void ADC_DrainFIFO()
+{
+    // drain any stale FIFO data before starting this scan. // todo? convert to clear fifo operation?
+    while (in(ofsAdcFifoCount) > 0)
+        (void)in(ofsAdcDataFifo);
+}
 
-// TBytes TADC_StreamStop::calcPayload(bool bAsReply)
-// {
-// 	TBytes bytes;
-// 	return bytes;
-// };
+static void ADC_StartSoftwareADC()
+{
+    out(ofsAdcSoftwareStart, static_cast<__u8>(0x00)); // 4) Start one scan by writing 0x00 to +16
+}
 
-// TADC_StreamStop &TADC_StreamStop::Go()
-// {
-// 	Trace("ADC_StreamStop::Go(): terminating ADC Streaming");
-// 	AdcStreamTerminate = 1;
-// 	apciCancelWaitForIRQ();
-// 	AdcStreamingConnection = -1;
-// 	AdcWorkerThreadID = -1;
-// 	// pthread_cancel(worker_thread);
-// 	// pthread_join(worker_thread, NULL);
-// 	Trace("ADC_StreamStop::Go() exiting");
-// 	return *this;
-// };
+static TError ADC_DrainAdcFifoRaw(std::vector<__u32>& raw, size_t expected)
+{
+    raw.clear();
+    raw.reserve(expected);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    // Your heuristic is OK; but base+per-sample is often nicer:
+    const auto timeout = std::chrono::milliseconds(2 + expected);
+
+    while (raw.size() < expected)
+    {
+        const __u32 available = in(ofsAdcFifoCount); // +24 (32-bit)
+        if (available == 0)
+        {
+            if (std::chrono::steady_clock::now() - t0 > timeout)
+            {
+                // Use whatever your project’s timeout error convention is:
+                // return TError::Timeout(...); or return -ETIMEDOUT; etc.
+                return static_cast<TError>(-1);
+            }
+            // Optional: yield/sleep to avoid a tight spin.
+            // std::this_thread::yield();
+            continue;
+        }
+
+        __u32 toRead = available;
+        while (toRead-- && raw.size() < expected)
+        {
+            const __u32 v = in(ofsAdcDataFifo); // +1C (32-bit)
+            if ((v & 0x80000000u) == 0)         // INV bit (discard if set)
+                raw.push_back(v);
+        }
+    }
+
+    return static_cast<TError>(0);
+}
+
+static TError ADC_AcquireScanRaw(std::vector<__u32>& raw, TAdcScanCfg& cfgOut)
+{
+    cfgOut = ADC_ReadScanCfg();
+    if (cfgOut.expected == 0)
+        return static_cast<TError>(-1); // invalid config
+
+    TError err = ADC_SetScanStartMode();
+    if (err) return err;
+
+    ADC_DrainFIFO();
+    ADC_StartSoftwareADC();
+    return ADC_DrainAdcFifoRaw(raw, cfgOut.expected);
+}
+
+static void ADC_ReduceRawToVoltsPerChannel(const std::vector<__u32>& raw, const TAdcScanCfg& cfg, std::vector<float>& voltsOut)
+{
+    voltsOut.clear();
+    voltsOut.reserve(cfg.nChannels);
+
+    const size_t per = static_cast<size_t>(cfg.perChannel);
+
+    for (__u32 ch = 0; ch < cfg.nChannels; ++ch)
+    {
+        const size_t base = static_cast<size_t>(ch) * per;
+
+        if (base + per > raw.size())
+        {
+            voltsOut.push_back(std::numeric_limits<float>::quiet_NaN());
+            continue;
+        }
+
+        if (cfg.oversamples == 0)
+        {
+            voltsOut.push_back(AdcRawToVolts(raw[base]));
+        }
+        else if (cfg.oversamples == 1)
+        {
+            const float v0 = AdcRawToVolts(raw[base + 0]);
+            const float v1 = AdcRawToVolts(raw[base + 1]);
+            voltsOut.push_back((v0 + v1) * 0.5f);
+        }
+        else // Drop first, average the rest: base+1 ... base+oversamples
+        {
+            double sum = 0.0;
+            unsigned n = 0;
+
+            for (size_t k = 1; k < per; ++k)
+            {
+                const float v = AdcRawToVolts(raw[base + k]);
+                if (!std::isnan(v))
+                {
+                    sum += v;
+                    ++n;
+                }
+            }
+            voltsOut.push_back(n ? static_cast<float>(sum / n) : std::numeric_limits<float>::quiet_NaN());
+        }
+    }
+}
+
+TDataItemBase& TADC_VoltsAll::Go()
+{
+    TAdcScanCfg cfg{};
+    std::vector<__u32> raw;
+    TError err = ADC_AcquireScanRaw(raw, cfg);
+
+    if (err)
+    {
+        // however you report errors in your project:
+        // this->setError(err);
+        // Or leave rawBytes empty, etc.
+        return *this;
+    }
+
+    std::vector<float> volts;
+    ADC_ReduceRawToVoltsPerChannel(raw, cfg, volts);
+
+    // Pack floats into reply payload
+    this->rawBytes.resize(volts.size() * sizeof(float));
+    std::memcpy(this->rawBytes.data(), volts.data(), this->rawBytes.size());
+
+    return *this;
+}

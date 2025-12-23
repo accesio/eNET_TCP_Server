@@ -90,7 +90,7 @@ TREG_Read1 &TREG_Read1::setOffset(int ofs)
     int w = widthFromOffset(ofs);
     if (w == 0)
     {
-        Error("Invalid offset");
+        Error("Invalid offset passed to TREG_Read1::setOffset");
         throw std::logic_error("Invalid offset passed to TREG_Read1::setOffset");
     }
     this->params.offset = ofs;
@@ -101,9 +101,8 @@ TREG_Read1 &TREG_Read1::setOffset(int ofs)
 TBytes TREG_Read1::calcPayload(bool bAsReply)
 {
     TBytes bytes;
-    // store offset
     bytes.push_back(static_cast<__u8>(this->params.offset));
-    Debug("offset = " + to_hex<__u8>((__u8)this->params.offset) + " bytes now holds: ", bytes);
+    Trace("offset = " + to_hex<__u8>((__u8)this->params.offset) + " bytes now holds: ", bytes);
 
     if (bAsReply)
     {
