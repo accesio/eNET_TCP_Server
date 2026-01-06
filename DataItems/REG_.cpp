@@ -171,13 +171,13 @@ TREG_Writes::~TREG_Writes()
 TREG_Writes::TREG_Writes(const TBytes &buf)
     : TDataItem<REG_WritesParams>(DataItemIds::INVALID, buf)
 {
-    Debug("CHAINING1");
+    Trace("CHAINING1");
 }
 
 TREG_Writes::TREG_Writes(DataItemIds id, const TBytes &FromBytes)
     : TDataItem<REG_WritesParams>(id, FromBytes)
 {
-    Debug("CHAINING2");
+    Trace("CHAINING2");
 }
 
 TREG_Writes &TREG_Writes::Go()

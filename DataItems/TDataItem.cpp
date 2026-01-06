@@ -336,12 +336,12 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(ADC_Calibration1, TADC_Calibration1, 9, 9, 9, "ADC_Calibration1(u8 rangeIndex, float scale, float offset)", nullptr),
 		DATA_ITEM(ADC_CalibrationAll, TADC_CalibrationAll, 16 * sizeof(float), 16 * sizeof(float), 16 * sizeof(float), "ADC_CalibrationAll(8 scales followed by 8 offsets)", nullptr),
 
-		DIdNYI(ADC_Volts1),
-		DIdNYI(ADC_VoltsAll), // ADC_GetScanV
-		DIdNYI(ADC_Counts1),
-		DIdNYI(ADC_CountsAll), // ADC_GetScanCounts
 		DIdNYI(ADC_Raw1),
-		DATA_ITEM(ADC_VoltsAll, TADC_VoltsAll, 0, 0, 0, "ADC_VoltsAll() → float[] (scan conversions, incl. oversamples)", nullptr),
+		DIdNYI(ADC_Counts1),
+		DIdNYI(ADC_Volts1),
+		DATA_ITEM(ADC_RawAll,    TADC_RawAll,    0, 0, 0, "ADC_RawAll() -> nChannels * u32", nullptr),
+		DATA_ITEM(ADC_CountsAll, TADC_CountsAll, 0, 0, 0, "ADC_CountsAll() -> nChannels * u16", nullptr),
+		DATA_ITEM(ADC_VoltsAll, TADC_VoltsAll, 0, 0, 0, "ADC_VoltsAll() → float[nChannels]", nullptr),
 		DATA_ITEM(ADC_StreamStart, TADC_StreamStart, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
 		DATA_ITEM(ADC_StreamStop, TADC_StreamStop, 0, 0, 0, "ADC_StreamStop()", nullptr),
 		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),

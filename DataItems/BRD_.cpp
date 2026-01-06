@@ -567,7 +567,7 @@ std::string TBRD_GetNumberOfAdcChannels::AsString(bool bAsReply)
     // Keep it similar to the style in TADC_BaseClock
     dest << "BRD_GetNumberOfAdcChannels()"
          << (bAsReply ? " -> " : " ? ")
-         << static_cast<unsigned>(this->params.numAdcChan);
+         << static_cast<unsigned>(Config.adcChannels);
 
     return dest.str();
 }

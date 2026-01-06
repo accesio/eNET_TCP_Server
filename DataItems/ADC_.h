@@ -227,6 +227,34 @@ public:
     virtual std::string AsString(bool bAsReply = false) override;
 };
 
+// No request payload (caller must have already configured ranges, start/end channel, oversamples, etc.)
+struct ADC_RawAllParams  // Intentionally empty.
+{
+};
+
+class TADC_RawAll : public TDataItem<ADC_RawAllParams>
+{
+public:
+    TADC_RawAll(DataItemIds dId, const TBytes &data);
+
+    TDataItemBase &Go() override;
+    std::string AsString(bool bAsReply = false) override;
+};
+
+
+// No request payload (caller must have already configured ranges, start/end channel, oversamples, etc.)
+struct ADC_CountsAllParams // Intentionally empty.
+{
+};
+
+class TADC_CountsAll : public TDataItem<ADC_CountsAllParams>
+{
+public:
+    TADC_CountsAll(DataItemIds dId, const TBytes &data);
+
+    TDataItemBase &Go() override;
+    std::string AsString(bool bAsReply = false) override;
+};
 
 
 
@@ -242,4 +270,5 @@ public:
     TADC_VoltsAll(DataItemIds dId, const TBytes &data);
 
     TDataItemBase &Go() override;
+    std::string AsString(bool bAsReply = false) override;  // <-- REQUIRED
 };
