@@ -879,7 +879,7 @@ static TError ADC_DrainAdcFifoRaw(std::vector<__u32>& raw, size_t expected)
 
 static TError ADC_AcquireScanRaw(std::vector<__u32>& raw, TAdcScanCfg& cfgOut)
 {
-    out(ofsAdcOversamples, 3);
+    out(ofsAdcOversamples, 0);
     cfgOut = ADC_ReadScanCfg();
     if (cfgOut.expected == 0)
         return static_cast<TError>(-1); // invalid config
