@@ -305,6 +305,7 @@ void InitConfig(TConfig &config)
 	config.Description = "eNET-untested Description";
 	config.SerialNumber = "eNET-unset Serial Number";
 	config.FpgaVersionCode = 0xDEADBA57;
+	config.adcChannels = 16;
 	config.numberOfSubmuxes = 0;
 	config.adcDifferential = 0b00000000;
 	config.NUM_DACs = 4;
