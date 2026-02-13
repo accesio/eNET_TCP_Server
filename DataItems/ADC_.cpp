@@ -798,7 +798,7 @@ static inline float AdcRawToVolts(__u32 raw)
     {
         case 0: fsVolts = 10.0; break;
         case 1: fsVolts =  5.0; break;
-        case 2: fsVolts =  2.5; break;
+        case 2: fsVolts =  2.0; break;
         case 3: fsVolts =  1.0; break;
     }
 
