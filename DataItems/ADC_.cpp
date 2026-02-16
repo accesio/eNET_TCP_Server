@@ -819,9 +819,9 @@ static inline float AdcRawToVolts(__u32 raw)
 
 static TError ADC_SetScanStartMode()
 {
-    // throw away one conversion result to avoid 0x80000000 reading from first FIFO read after BRD_Reset()
-    out(ofsAdcTriggerOptions, 0);
-    out(ofsAdcSoftwareStart, 0);
+    // // throw away one conversion result to avoid 0x80000000 reading from first FIFO read after BRD_Reset()
+    // out(ofsAdcTriggerOptions, 0);
+    // out(ofsAdcSoftwareStart, 0);
     return out(ofsAdcTriggerOptions, static_cast<__u8>(0x04)); // "Write 0x04 to +12 // Software Scan Start Mode"
 }
 
