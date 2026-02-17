@@ -486,8 +486,20 @@ void LoadDacCalConfig(std::string which)
 	HandleError(ReadConfigFloat("DAC_OffsetCh2", Config.dacOffsetCoefficients[2], which));
 	HandleError(ReadConfigFloat("DAC_OffsetCh3", Config.dacOffsetCoefficients[3], which));
 }
+
+void ApplyAdcCalConfig()
+{
+	TRACE;
+	for (int cal = 0; cal < 8; ++cal)
+	{
+		out(ofsAdcCalScale + cal * ofsAdcCalScaleStride, *reinterpret_cast<__u32 *>(&Config.adcScaleCoefficients[cal]));
+		out(ofsAdcCalOffset + cal * ofsAdcCalOffsetStride, *reinterpret_cast<__u32 *>(&Config.adcOffsetCoefficients[cal]));
+	}
+}
+
 void LoadAdcCalConfig(std::string which)
 {
+	TRACE;
 	HandleError(ReadConfigFloat("ADC_ScaleRange0", Config.adcScaleCoefficients[0], which));
 	HandleError(ReadConfigFloat("ADC_ScaleRange1", Config.adcScaleCoefficients[1], which));
 	HandleError(ReadConfigFloat("ADC_ScaleRange2", Config.adcScaleCoefficients[2], which));
@@ -610,14 +622,14 @@ void LoadConfig(std::string which)
 		std::ifstream in("/etc/hostname");
 		std::getline(in, Config.Hostname);
 		in.close();
-		Debug("Hostname == " + Config.Hostname);
+		Debug("Hostname == " + Config.Hostname + ", Config = 0" + which);
 	}
 
 	LoadBrdConfig(which);
-	LoadCalConfig(which);
 	LoadDacConfig(which);
 	LoadAdcConfig(which);
 	LoadSubmuxConfig(which);
+	LoadCalConfig(which);
 }
 
 /* SAVE CONFIGURATION STRUCT TO DISK */
@@ -768,15 +780,6 @@ bool SaveConfig(std::string which)
 	SaveSubmuxConfig(which);
 
 	return true;
-}
-
-void ApplyAdcCalConfig()
-{
-	for (int cal = 0; cal < 8; ++cal)
-	{
-		out(ofsAdcCalScale + cal * ofsAdcCalScaleStride, *reinterpret_cast<__u32 *>(&Config.adcScaleCoefficients[cal]));
-		out(ofsAdcCalOffset + cal * ofsAdcCalOffsetStride, *reinterpret_cast<__u32 *>(&Config.adcOffsetCoefficients[cal]));
-	}
 }
 
 void ApplyConfig()

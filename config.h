@@ -92,6 +92,7 @@ bool SaveSubmuxConfig(std::string which = CONFIG_CURRENT);
 bool SaveConfig(std::string which = CONFIG_CURRENT);
 int WriteConfigString(std::string key, std::string value, std::string which = CONFIG_CURRENT);
 
+void ApplyAdcCalConfig();
 void ApplyConfig();
 
 

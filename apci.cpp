@@ -3,6 +3,7 @@
 #include <iostream>
 #include "eNET-AIO16-16F.h"
 #include "logging.h"
+#include "config.h"
 
 __u8 in8(int offset)
 {
@@ -70,8 +71,12 @@ TError out(int offset, __u32 value)
 {
 	switch (widthFromOffset(offset))
 	{
-	case 8:
-		return out8(offset, static_cast<__u8>(value));
+	case 8:{
+			TError status = out8(offset, static_cast<__u8>(value));
+			if (offset == 0 && (value & (bmResetEverything | bmResetAdc)))
+				ApplyAdcCalConfig();
+			return status;
+		}
 	case 16:
 		return out16(offset, static_cast<__u16>(value));
 	case 32:

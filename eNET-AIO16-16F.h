@@ -123,6 +123,7 @@ constexpr int BAR_REGISTER = 1;
 #define ofsDeviceID             0xA8
 
 #define ofsAdcBaseClock         0xAC
+
 #define ofsAdcCalScale          0xC0
     #define ofsAdcCalScaleStride    8
 #define ofsAdcCalOffset         0xC4

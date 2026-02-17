@@ -215,7 +215,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.7.5"
+#define VersionString "0.8.0"
 
 int apci = -1;
 volatile sig_atomic_t done = 0;
@@ -277,6 +277,7 @@ int main(int argc, char *argv[])
 	InitConfig(Config);
 	InitializeConfigFiles(Config);
 
+	OpenDevFile(); // sets apci
 	try
 	{
 		LoadConfig();
@@ -286,7 +287,6 @@ int main(int argc, char *argv[])
 		Error(e.what());
 	};
 	ApplyConfig();
-	OpenDevFile(); // sets apci
 
 	pthread_create(&action_thread, NULL, (void *(*)(void *)) & ActionThread, &ActionQueue);
 	pthread_create(&controlListener_thread, NULL, ControlListenerThread, (void *)AF_INET6);

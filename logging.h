@@ -33,6 +33,7 @@ void LogImpl(LogLevel level, std::string intro, TBytes bytes, bool crlf = true, 
 #define LOG_ERROR(...)   LOG_IF(LogLevel::Error, __VA_ARGS__)
 
 #define Trace(...)   LOG_TRACE(__VA_ARGS__)
+#define TRACE        LOG_TRACE("")
 #define Debug(...)   LOG_DEBUG(__VA_ARGS__)
 #define Log(...)     LOG_INFO(__VA_ARGS__)
 #define Warn(...)    LOG_WARNING(__VA_ARGS__)

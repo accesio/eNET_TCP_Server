@@ -3,6 +3,7 @@
 #include "../eNET-AIO16-16F.h"
 #include "../logging.h"
 #include "../utilities.h"
+#include "../config.h"
 #include "TDataItem.h"
 
 

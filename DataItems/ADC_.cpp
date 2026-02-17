@@ -542,6 +542,7 @@ TDataItemBase &TADC_Calibration1::Go()
     out(addrOffset, *reinterpret_cast<__u32 *>(&this->params.offset));
     Config.adcScaleCoefficients[this->params.rangeIndex] = this->params.scale;
     Config.adcOffsetCoefficients[this->params.rangeIndex] = this->params.offset;
+    SaveAdcCalConfig();
     return *this;
 }
 TBytes TADC_Calibration1::calcPayload(bool /*bAsReply*/)
