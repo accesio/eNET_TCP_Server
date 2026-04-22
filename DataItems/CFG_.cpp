@@ -16,7 +16,7 @@ TCFG_Hostname::TCFG_Hostname(DataItemIds id, const TBytes &buf)
 
     if (!buf.empty())
     {
-        size_t copyLen = std::min(buf.size(), sizeof(this->params.hostname) - 1);
+        size_t copyLen = std::min(buf.size(), sizeof(this->params.hostname));
         std::memcpy(this->params.hostname, buf.data(), copyLen);
         // The array is guaranteed null-terminated now
     }
