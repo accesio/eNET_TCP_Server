@@ -89,7 +89,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 	#pragma region BRD_
 #endif
 		DATA_ITEM(BRD_, TDataItemDoc, 0, 0, 0, "Documentation: list of BRD_ DataItems", nullptr),
-		DATA_ITEM(BRD_Reset, TDataItemRaw, 0, 0, 0, "BRD_Reset()", nullptr),
+		//DATA_ITEM(BRD_Reset, TDataItemRaw, 0, 0, 0, "BRD_Reset()", nullptr),
+		DATA_ITEM(BRD_Reset, TBRD_Reset, 0, 1, 16, "BRD_Reset([0|1|gentle|FORCE]) → u8 mode", nullptr),
 		DATA_ITEM(BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32", nullptr),
 		DATA_ITEM(BRD_Features, TBRD_Features, 0, 4, 4, "BRD_Features() → u8"),
 		DATA_ITEM(BRD_FpgaID, TBRD_FpgaId, 0, 4, 4, "BRD_FpgaID() → u32"),

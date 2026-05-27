@@ -2,9 +2,25 @@
 #pragma GCC sanitize ("")   // empty disables all -fsanitize flags for this TU
 #pragma GCC optimize ("O0")
 
+#include <algorithm>
+#include <cerrno>
+#include <cctype>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+
 #include "BRD_.h"
 #include "../config.h"
 #include "../utilities.h"   // For stuff<>, etc.
+
+enum class DaemonResetRequest : int {
+    None   = 0,
+    Gentle = 1,
+    Force  = 2
+};
+
+void RequestDaemonReset(DaemonResetRequest request);
+DaemonResetRequest GetDaemonResetRequest();
 
 // =================== TReadOnlyConfig<T> ===================
 
@@ -216,6 +232,153 @@ TBytes TBRD_Features::calcPayload(bool bAsReply)
     // Otherwise, do 1 byte:
     stuff<__u32>(bytes, this->params.config);
     return bytes;
+}
+// =================== TBRD_Reset ===================
+namespace {
+
+static std::string normalize_reset_mode_text(const TBytes &buf)
+{
+    std::string mode(buf.begin(), buf.end());
+
+    while (!mode.empty()) {
+        unsigned char ch = static_cast<unsigned char>(mode.back());
+        if (ch != '\0' && !std::isspace(ch)) break;
+        mode.pop_back();
+    }
+
+    std::size_t first = 0;
+    while (first < mode.size()) {
+        unsigned char ch = static_cast<unsigned char>(mode[first]);
+        if (ch != '\0' && !std::isspace(ch)) break;
+        ++first;
+    }
+    if (first != 0) mode.erase(0, first);
+
+    std::transform(mode.begin(), mode.end(), mode.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
+    return mode;
+}
+
+static TError schedule_reset_command(const char *modeName, const char *command)
+{
+    errno = 0;
+    int status = std::system(command);
+    if (status == -1) {
+        Error("BRD_Reset(" + std::string(modeName) + ") failed to launch command shell: "
+              + std::strerror(errno));
+        return ERR_NYI;
+    }
+
+    if (status != 0) {
+        Error("BRD_Reset(" + std::string(modeName) + ") command shell returned status "
+              + std::to_string(status));
+        return ERR_NYI;
+    }
+
+    return ERR_SUCCESS;
+}
+
+// Use systemd-run when present so a self-restart request is handed to systemd
+// outside the aioenetd service cgroup.  The fallback keeps the original request
+// simple for images that do not include systemd-run.
+static constexpr const char *kGentleResetCommand =
+    "PATH=/usr/sbin:/usr/bin:/sbin:/bin; "
+    "( systemd-run --quiet --unit=aioenetd-self-restart-$$ --on-active=1s "
+    "/bin/systemctl restart aioenetd.service "
+    "|| ( sleep 1; systemctl --no-block restart aioenetd.service ) ) >/dev/null 2>&1 &";
+
+static constexpr const char *kForceResetCommand =
+    "PATH=/usr/sbin:/usr/bin:/sbin:/bin; "
+    "( systemd-run --quiet --unit=aioenetd-self-reboot-$$ --on-active=1s "
+    "/bin/systemctl reboot "
+    "|| ( sleep 1; ( systemctl --no-block reboot || reboot ) ) ) >/dev/null 2>&1 &";
+
+} // namespace
+
+TBRD_Reset::TBRD_Reset(DataItemIds id, const TBytes &buf)
+    : TDataItem<BRD_ResetParams>(id, buf)
+{
+    this->params.mode = BRD_RESET_MODE_GENTLE;
+
+    if (buf.empty()) {
+        return;
+    }
+
+    // Binary-compatible compact encoding: 0 = gentle, 1 = FORCE.
+    // Also accept ASCII '0' and '1' for convenience.
+    if (buf.size() == 1) {
+        if (buf[0] == BRD_RESET_MODE_GENTLE || buf[0] == '0') {
+            this->params.mode = BRD_RESET_MODE_GENTLE;
+            return;
+        }
+        if (buf[0] == BRD_RESET_MODE_FORCE || buf[0] == '1') {
+            this->params.mode = BRD_RESET_MODE_FORCE;
+            return;
+        }
+    }
+
+    std::string mode = normalize_reset_mode_text(buf);
+    if (mode == "GENTLE" || mode == "RESTART" || mode == "0") {
+        this->params.mode = BRD_RESET_MODE_GENTLE;
+    }
+    else if (mode == "FORCE" || mode == "REBOOT" || mode == "1") {
+        this->params.mode = BRD_RESET_MODE_FORCE;
+    }
+    else {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        Error("BRD_Reset: invalid mode payload; expected empty, 0/1, gentle, or FORCE; got "
+              + to_hex(buf));
+    }
+}
+
+const char *TBRD_Reset::ModeName() const
+{
+    switch (this->params.mode) {
+        case BRD_RESET_MODE_GENTLE: return "gentle";
+        case BRD_RESET_MODE_FORCE:  return "FORCE";
+        default:                    return "invalid";
+    }
+}
+
+TBRD_Reset &TBRD_Reset::Go()
+{
+    if (this->resultCode != ERR_SUCCESS) {
+        return *this;
+    }
+
+    if (!SaveConfig(CONFIG_CURRENT)) {
+        Error("BRD_Reset(" + std::string(this->ModeName())
+            + "): SaveConfig(CONFIG_CURRENT) failed");
+        this->resultCode = ERR_NYI;
+        return *this;
+    }
+
+    if (this->params.mode == BRD_RESET_MODE_FORCE) {
+        RequestDaemonReset(DaemonResetRequest::Force);
+    }
+    else {
+        RequestDaemonReset(DaemonResetRequest::Gentle);
+    }
+    return *this;
+}
+
+TBytes TBRD_Reset::calcPayload(bool bAsReply)
+{
+    if (!bAsReply) {
+        return this->rawBytes;
+    }
+
+    // Reply with the mode that was accepted/scheduled: 0 = gentle, 1 = FORCE.
+    return TBytes{this->params.mode};
+}
+
+std::string TBRD_Reset::AsString(bool bAsReply)
+{
+    std::string s = "BRD_Reset(" + std::string(this->ModeName()) + ")";
+    if (bAsReply) {
+        s += (this->resultCode == ERR_SUCCESS) ? " -> scheduled" : " -> ERROR " + std::to_string(this->resultCode);
+    }
+    return s;
 }
 // ——— TBRD_Model ———————————————————————————————————————————————————————
 

@@ -189,14 +189,17 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <algorithm>
 #include <arpa/inet.h>
 #include <cctype>
+#include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
 #include <netinet/in.h>
 #include <signal.h>
+#include <sys/reboot.h>
+#include <sys/wait.h>
 #include <unistd.h>
-#include <cstdlib>
 
 #include "apci.h"
 #include "logging.h"
@@ -215,7 +218,18 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.8.0"
+#define VersionString "0.8.1"
+
+// Cross-module daemon reset request interface.
+// Implemented in aioenetd.cpp; called by DataItems/BRD_.cpp.
+enum class DaemonResetRequest : int {
+    None   = 0,
+    Gentle = 1,
+    Force  = 2
+};
+
+static volatile sig_atomic_t daemonResetRequest = static_cast<sig_atomic_t>(DaemonResetRequest::None);
+static volatile sig_atomic_t forceRebootFallbackArmed = 0;
 
 int apci = -1;
 volatile sig_atomic_t done = 0;
@@ -269,6 +283,160 @@ static inline __u32 ErrIndex(TError rc) { return static_cast<__u32>(-rc); }
 //             break;
 //     }
 // }
+static std::string SystemStatusString(int status)
+{
+    if (status == -1) {
+        return "system() failed: " + std::string(std::strerror(errno));
+    }
+
+    if (WIFEXITED(status)) {
+        return "exit=" + std::to_string(WEXITSTATUS(status));
+    }
+
+    if (WIFSIGNALED(status)) {
+        return "signal=" + std::to_string(WTERMSIG(status));
+    }
+
+    return "raw status=" + std::to_string(status);
+}
+
+static bool EmergencySysRqReboot()
+{
+    int fd = open("/proc/sysrq-trigger", O_WRONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return false;
+    }
+
+    const char cmd = 'b'; // immediate reboot
+    const ssize_t wrote = write(fd, &cmd, 1);
+    close(fd);
+
+    return wrote == 1;
+}
+
+static void ForceRebootNow(const char *reason)
+{
+    const char *why = reason ? reason : "unspecified reason";
+
+    Log(std::string("FORCE reboot requested: ") + why);
+
+    /*
+        First try the civilized path.  --no-block asks systemd/init to start
+        rebooting but does not require this process to wait for the transaction.
+    */
+    sync();
+
+    errno = 0;
+    int status = std::system(
+        "PATH=/usr/sbin:/usr/bin:/sbin:/bin; "
+        "systemctl --no-block reboot >/dev/null 2>&1"
+    );
+
+    if (status != 0) {
+        Error("FORCE reboot: systemctl --no-block reboot did not report success: "
+              + SystemStatusString(status));
+    }
+
+    /*
+        Give systemd a brief chance to take over.  If it does, this process will
+        usually be killed before reaching the harder fallbacks.
+    */
+    sleep(5);
+
+    /*
+        Harder path: ask the kernel to reboot directly.  This requires CAP_SYS_BOOT,
+        which aioenetd should normally have if it is running as the privileged
+        hardware daemon.
+    */
+    sync();
+
+    errno = 0;
+    if (reboot(RB_AUTOBOOT) != 0) {
+        Error(std::string("FORCE reboot: reboot(RB_AUTOBOOT) failed: ")
+              + std::strerror(errno));
+    }
+
+    /*
+        Last resort: emergency SysRq reboot.  This intentionally bypasses normal
+        userspace shutdown.  It belongs only in FORCE mode.
+    */
+    if (!EmergencySysRqReboot()) {
+        Error("FORCE reboot: writing 'b' to /proc/sysrq-trigger failed");
+    }
+
+    /*
+        If we somehow got here, all reboot mechanisms failed.  Do not return to
+        normal daemon execution after a FORCE reset request.
+    */
+    _exit(127);
+}
+
+static void ArmForceRebootFallback()
+{
+    if (forceRebootFallbackArmed) {
+        return;
+    }
+
+    forceRebootFallbackArmed = 1;
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        Error(std::string("BRD_Reset(FORCE): failed to fork reboot fallback: ")
+              + std::strerror(errno));
+        return;
+    }
+
+    if (pid == 0) {
+        /*
+            Child process.  Keep this deliberately simple: this process exists
+            only as an out-of-band reboot hammer if the normal main()/exit_handler()
+            path stalls.
+
+            Do not Log(), malloc heavily, take locks, or call std::system() here.
+            The parent is multithreaded, so the forked child should stay minimal.
+        */
+        setsid();
+
+        /*
+            Give the parent enough time to:
+              1. send the BRD_Reset reply,
+              2. leave ActionThread,
+              3. run exit_handler(),
+              4. reach ForceRebootNow().
+        */
+        sleep(12);
+
+        /*
+            No sync() here by design.  The normal path already syncs.  This fallback
+            is for the case where normal shutdown is wedged, and sync() may wedge too.
+        */
+        (void)reboot(RB_AUTOBOOT);
+        (void)EmergencySysRqReboot();
+
+        _exit(127);
+    }
+
+    Log("BRD_Reset(FORCE): armed out-of-process reboot fallback pid "
+        + std::to_string(pid));
+}
+
+void RequestDaemonReset(DaemonResetRequest request)
+{
+    if (request == DaemonResetRequest::Force) {
+        daemonResetRequest = static_cast<sig_atomic_t>(DaemonResetRequest::Force);
+        ArmForceRebootFallback();
+    }
+    else if (daemonResetRequest != static_cast<sig_atomic_t>(DaemonResetRequest::Force)) {
+        daemonResetRequest = static_cast<sig_atomic_t>(request);
+    }
+
+    done = 1;
+}
+
+DaemonResetRequest GetDaemonResetRequest()
+{
+    return static_cast<DaemonResetRequest>(daemonResetRequest);
+}
 
 int main(int argc, char *argv[])
 {
@@ -313,9 +481,31 @@ int main(int argc, char *argv[])
 
 	// mg_mgr_free(&mgr);
 
-	// TODO:  if (bReboot) syscall("reboot"); // for isp-fpga and upgrader
+	DaemonResetRequest resetRequest = GetDaemonResetRequest();
 
 	exit_handler(0);
+
+	if (resetRequest == DaemonResetRequest::Gentle) {
+		/*
+			BRD_Reset(gentle):
+			exit_handler() has already run, so threads are joined, APci is closed,
+			DAQ hardware was reset to safe state, and config was saved.  Now restart
+			this daemon image in-place.
+		*/
+		execv("/proc/self/exe", argv);
+		Error(std::string("BRD_Reset(gentle): execv(/proc/self/exe) failed: ")
+			+ std::strerror(errno));
+
+		execv(argv[0], argv);
+		Error(std::string("BRD_Reset(gentle): execv(argv[0]) failed: ")
+			+ std::strerror(errno));
+
+		return 127;
+	}
+	else if (resetRequest == DaemonResetRequest::Force) {
+		ForceRebootNow("BRD_Reset(FORCE)");
+	}
+
 	return 0;
 }
 

@@ -79,6 +79,30 @@ public:
     virtual TBytes calcPayload(bool bAsReply=false) override;
 };
 
+// BRD_Reset modes.  The zero-byte legacy BRD_Reset() request defaults to
+// BRD_RESET_MODE_GENTLE for backwards-compatible parsing plus useful behavior.
+enum : __u8 {
+    BRD_RESET_MODE_GENTLE = 0,
+    BRD_RESET_MODE_FORCE  = 1
+};
+
+struct BRD_ResetParams {
+    __u8 mode = BRD_RESET_MODE_GENTLE;
+};
+
+class TBRD_Reset : public TDataItem<BRD_ResetParams>
+{
+public:
+    explicit TBRD_Reset(DataItemIds id, const TBytes &buf);
+    TBRD_Reset() = delete;
+
+    virtual TBRD_Reset &Go() override;
+    virtual TBytes calcPayload(bool bAsReply = false) override;
+    virtual std::string AsString(bool bAsReply = false) override;
+
+private:
+    const char *ModeName() const;
+};
 
 // Set the device’s Model string (ASCII, 12–40 bytes)
 class TBRD_Model : public TDataItem<GenericParams>
