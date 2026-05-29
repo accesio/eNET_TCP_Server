@@ -285,13 +285,13 @@ static constexpr const char *kGentleResetCommand =
     "PATH=/usr/sbin:/usr/bin:/sbin:/bin; "
     "( systemd-run --quiet --unit=aioenetd-self-restart-$$ --on-active=1s "
     "/bin/systemctl restart aioenetd.service "
-    "|| ( sleep 1; systemctl --no-block restart aioenetd.service ) ) >/dev/null 2>&1 &";
+    "|| ( sleep 2; systemctl --no-block restart aioenetd.service ) ) >/dev/null 2>&1 &";
 
 static constexpr const char *kForceResetCommand =
     "PATH=/usr/sbin:/usr/bin:/sbin:/bin; "
     "( systemd-run --quiet --unit=aioenetd-self-reboot-$$ --on-active=1s "
     "/bin/systemctl reboot "
-    "|| ( sleep 1; ( systemctl --no-block reboot || reboot ) ) ) >/dev/null 2>&1 &";
+    "|| ( sleep 2; ( systemctl --no-block reboot || reboot ) ) ) >/dev/null 2>&1 &";
 
 } // namespace
 

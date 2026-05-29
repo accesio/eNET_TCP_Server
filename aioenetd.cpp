@@ -218,7 +218,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.8.1"
+#define VersionString "0.8.2"
 
 // Cross-module daemon reset request interface.
 // Implemented in aioenetd.cpp; called by DataItems/BRD_.cpp.
@@ -283,6 +283,42 @@ static inline __u32 ErrIndex(TError rc) { return static_cast<__u32>(-rc); }
 //             break;
 //     }
 // }
+
+
+static void SetCloseOnExec(int fd, const char *what)
+{
+    if (fd < 0) {
+        return;
+    }
+
+    int flags = fcntl(fd, F_GETFD);
+    if (flags < 0) {
+        Error(std::string("fcntl(F_GETFD) failed for ")
+              + what + ": " + std::strerror(errno));
+        return;
+    }
+
+    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
+        Error(std::string("fcntl(F_SETFD, FD_CLOEXEC) failed for ")
+              + what + ": " + std::strerror(errno));
+    }
+}
+
+static void CloseFd(int &fd, const char *what)
+{
+    if (fd < 0) {
+        return;
+    }
+
+    int oldFd = fd;
+    fd = -1;
+
+    if (close(oldFd) < 0) {
+        Error(std::string("close(") + what + ") failed for fd "
+              + std::to_string(oldFd) + ": " + std::strerror(errno));
+    }
+}
+
 static std::string SystemStatusString(int status)
 {
     if (status == -1) {
@@ -617,6 +653,62 @@ void OpenDevFile()
 
 void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 {
+    struct sockaddr_in  *addr4 = static_cast<sockaddr_in *>(structaddr);
+    struct sockaddr_in6 *addr6 = static_cast<sockaddr_in6 *>(structaddr);
+    int result = -1;
+
+    Socket = socket(iNET, SOCK_STREAM, 0);
+    if (Socket < 0) {
+        Error(std::string("socket() failed: ") + std::strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    SetCloseOnExec(Socket, "listen socket");
+
+    int opt = 1;
+    if (setsockopt(Socket, SOL_SOCKET, SO_REUSEADDR,
+                   &opt, sizeof(opt)) < 0) {
+        Error(std::string("setsockopt(SO_REUSEADDR) failed: ")
+              + std::strerror(errno));
+        CloseFd(Socket, "listen socket after setsockopt failure");
+        exit(EXIT_FAILURE);
+    }
+
+    if (iNET == AF_INET) {
+        std::memset(addr4, 0, sizeof(*addr4));
+        addr4->sin_family = AF_INET;
+        addr4->sin_port = htons(static_cast<short>(Port));
+        addr4->sin_addr.s_addr = INADDR_ANY;
+
+        result = bind(Socket,
+                      reinterpret_cast<struct sockaddr *>(addr4),
+                      sizeof(sockaddr_in));
+    }
+    else {
+        std::memset(addr6, 0, sizeof(*addr6));
+        addr6->sin6_family = AF_INET6;
+        addr6->sin6_port = htons(static_cast<short>(Port));
+        addr6->sin6_addr = IN6ADDR_ANY_INIT;
+        addr6->sin6_scope_id = 0;
+
+        result = bind(Socket,
+                      reinterpret_cast<struct sockaddr *>(addr6),
+                      sizeof(sockaddr_in6));
+    }
+
+    if (result < 0) {
+        int savedErrno = errno;
+        Error("Bind on port " + std::to_string(Port)
+              + " failed: " + std::strerror(savedErrno));
+
+        CloseFd(Socket, "listen socket after bind failure");
+        exit(EXIT_FAILURE);
+    }
+}
+
+#if 0 // pre-unbind
+void Bind(int &Socket, int &Port, void *structaddr, int iNET)
+{
 	struct sockaddr_in *addr4 = (sockaddr_in *)structaddr;
 	struct sockaddr_in6 *addr6 = (sockaddr_in6 *)structaddr;
 	int result = -1;
@@ -666,6 +758,7 @@ void Bind(int &Socket, int &Port, void *structaddr, int iNET)
 	// if (Port == AdcListenPort)
 	// 	adcSocket = Socket;
 }
+#endif
 
 void Listen(int &Socket, int num)
 {
