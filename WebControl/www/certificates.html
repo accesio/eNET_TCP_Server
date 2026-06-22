@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ETH-DIO-48A Certificates</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">ACCES I/O Products</p>
+      <h1>Certificate Management</h1>
+      <p class="subtitle">HTTPS configuration and certificate-storage placeholder.</p>
+      <nav class="top-nav" aria-label="Control panel navigation">
+        <a href="/">Status</a>
+        <a href="/writes.html">Writes</a>
+        <a href="/certificates.html" aria-current="page">Certificates</a>
+      </nav>
+    </header>
+
+    <section class="card" aria-labelledby="https-heading">
+      <div class="card-header">
+        <h2 id="https-heading">HTTPS Status</h2>
+        <span id="cert-state" class="pill pill-waiting">Loading</span>
+      </div>
+      <dl class="status-grid compact">
+        <div><dt>NetX HTTPS Compiled</dt><dd id="https-compiled">&mdash;</dd></div>
+        <div><dt>Config Enabled</dt><dd id="https-config-enabled">&mdash;</dd></div>
+        <div><dt>HTTP Port</dt><dd id="https-http-port">&mdash;</dd></div>
+        <div><dt>HTTPS Port</dt><dd id="https-port">&mdash;</dd></div>
+        <div><dt>HTTPS Server</dt><dd id="https-running">&mdash;</dd></div>
+        <div><dt>Status</dt><dd id="https-status">&mdash;</dd></div>
+      </dl>
+    </section>
+
+    <section class="card" aria-labelledby="certs-heading">
+      <h2 id="certs-heading">Installed Material</h2>
+      <dl class="status-grid compact">
+        <div><dt>Server Certificate</dt><dd id="cert-installed">&mdash;</dd></div>
+        <div><dt>Private Key</dt><dd id="key-installed">&mdash;</dd></div>
+        <div><dt>Trusted CAs</dt><dd id="ca-count">&mdash;</dd></div>
+        <div><dt>Upload Enabled</dt><dd id="upload-enabled">&mdash;</dd></div>
+        <div><dt>Storage</dt><dd id="cert-storage">&mdash;</dd></div>
+      </dl>
+    </section>
+
+    <section class="card muted-card" aria-labelledby="cert-api-heading">
+      <h2 id="cert-api-heading">Reserved API</h2>
+      <p>
+        <code>GET /api/v1/https</code> and <code>GET /api/v1/certificates</code> are live.
+        Certificate upload/delete POST routes are intentionally reserved until the flash
+        storage format and private-key handling are finalized.
+      </p>
+      <p id="cert-last-update">Last update: &mdash;</p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

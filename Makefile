@@ -72,17 +72,19 @@ LDFLAGS          = $(LDFLAGS_RELEASE)
 SRCDIR    = .
 OBJDIR    = obj
 
-SRCS      := $(wildcard $(SRCDIR)/*.cpp) $(wildcard $(SRCDIR)/DataItems/*.cpp)
-HEADERS   := $(wildcard $(SRCDIR)/*.h)   $(wildcard $(SRCDIR)/DataItems/*.h)
+CPP_SRCS  := $(wildcard $(SRCDIR)/*.cpp) $(wildcard $(SRCDIR)/DataItems/*.cpp) $(wildcard $(SRCDIR)/WebControl/*.cpp)
+C_SRCS    := $(wildcard $(SRCDIR)/WebControl/*.c)
+SRCS      := $(CPP_SRCS) $(C_SRCS)
+HEADERS   := $(wildcard $(SRCDIR)/*.h) $(wildcard $(SRCDIR)/DataItems/*.h) $(wildcard $(SRCDIR)/WebControl/*.h)
 
-SPECIFIC_EXCLUDED_TEST      = $(SRCDIR)/test.cpp
-SPECIFIC_EXCLUDED_AIOENETD  = $(SRCDIR)/aioenetd.cpp
+SPECIFIC_EXCLUDED_AIOENETD  = $(SRCDIR)/test.cpp
+SPECIFIC_EXCLUDED_TEST      = $(SRCDIR)/aioenetd.cpp $(SRCDIR)/WebControl/webctl_aioenetd.cpp $(SRCDIR)/WebControl/webctl_posix_linux.cpp
 
-SRCS_FOR_AIOENETD   = $(filter-out $(SPECIFIC_EXCLUDED_TEST), $(SRCS))
-SRCS_FOR_TEST       = $(filter-out $(SPECIFIC_EXCLUDED_AIOENETD), $(SRCS))
+SRCS_FOR_AIOENETD   = $(filter-out $(SPECIFIC_EXCLUDED_AIOENETD), $(SRCS))
+SRCS_FOR_TEST       = $(filter-out $(SPECIFIC_EXCLUDED_TEST), $(SRCS))
 
-OBJS_FOR_AIOENETD   = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRCS_FOR_AIOENETD))
-OBJS_FOR_TEST       = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRCS_FOR_TEST))
+OBJS_FOR_AIOENETD   = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(filter %.cpp,$(SRCS_FOR_AIOENETD))) $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(filter %.c,$(SRCS_FOR_AIOENETD)))
+OBJS_FOR_TEST       = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(filter %.cpp,$(SRCS_FOR_TEST))) $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(filter %.c,$(SRCS_FOR_TEST)))
 
 # ---------------------- Deploy settings ----------------------
 # Use bash for string splitting in recipes
@@ -182,15 +184,20 @@ release: CXXFLAGS = $(CXXFLAGS_RELEASE)
 release: LDFLAGS = $(LDFLAGS_RELEASE)
 release: aioenetd
 
-# Pattern rule for creating .o files from .cpp
+# Pattern rules for creating .o files
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 	$(PRINT_COMPILE)
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-# Ensure obj/ and obj/DataItems exist
+$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	$(PRINT_COMPILE)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -x c++ -c $< -o $@
+
+# Ensure object directories exist
 $(OBJDIR):
 	@mkdir -p $@
 	@mkdir -p $@/DataItems
+	@mkdir -p $@/WebControl
 
 clean:
 	@printf "$(GREEN)cleaning...$(RESET)\n"

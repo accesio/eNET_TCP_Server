@@ -67,13 +67,33 @@ TError out32(int offset, __u32 value)
 	return status;
 }
 
+static TError WaitBeforeRegisterWrite(int offset)
+{
+	switch (offset)
+	{
+	case ofsDac:
+		return WaitUntilRegisterBitIsLow(ofsDacSpiBusy, bmDacSpiBusy);
+
+	case ofsDioDirections:
+	case ofsDioOutputs:
+		return WaitUntilRegisterBitIsLow(ofsDioSpiBusy, bmDioSpiBusy);
+
+	default:
+		return ERR_SUCCESS;
+	}
+}
+
 TError out(int offset, __u32 value)
 {
+	TError waitStatus = WaitBeforeRegisterWrite(offset);
+	if (waitStatus != ERR_SUCCESS)
+		return waitStatus;
+
 	switch (widthFromOffset(offset))
 	{
 	case 8:{
 			TError status = out8(offset, static_cast<__u8>(value));
-			if (offset == 0 && (value & (bmResetEverything | bmResetAdc)))
+			if (offset == ofsReset && (value & (bmResetEverything | bmResetAdc)))
 				ApplyAdcCalConfig();
 			return status;
 		}
@@ -83,7 +103,6 @@ TError out(int offset, __u32 value)
 		return out32(offset, value);
 	default:
 		return -1;
-		break;
 	}
 }
 

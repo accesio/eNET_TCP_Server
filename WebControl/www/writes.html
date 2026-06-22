@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ETH-DIO-48A DIO Writes</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell shell-wide">
+    <header class="hero">
+      <p class="eyebrow">ACCES I/O Products</p>
+      <h1>DIO Write Controls</h1>
+      <p class="subtitle">Live digital I/O state with group direction and per-bit output control.</p>
+      <nav class="top-nav" aria-label="Control panel navigation">
+        <a href="/">Status</a>
+        <a href="/writes.html" aria-current="page">Writes</a>
+        <a href="/certificates.html">Certificates</a>
+      </nav>
+    </header>
+
+    <section class="card" aria-labelledby="dio-heading">
+      <div class="card-header">
+        <h2 id="dio-heading">Digital I/O</h2>
+        <span id="dio-state" class="pill pill-waiting">Loading</span>
+      </div>
+      <dl class="status-grid compact">
+        <div><dt>Input Mask</dt><dd id="dio-input-mask">&mdash;</dd></div>
+        <div><dt>Output Mask</dt><dd id="dio-output-mask">&mdash;</dd></div>
+        <div><dt>Physical State</dt><dd id="dio-physical-state">&mdash;</dd></div>
+        <div><dt>Output Latch</dt><dd id="dio-output-latch">&mdash;</dd></div>
+      </dl>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Group</th><th>Direction</th><th>Bits</th><th>Pin State</th><th>Output Latch</th></tr>
+          </thead>
+          <tbody id="dio-groups">
+            <tr><td colspan="5">Loading&hellip;</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="dio-write-heading">
+      <div class="card-header">
+        <h2 id="dio-write-heading">DIO Write Controls</h2>
+        <span id="dio-write-state" class="pill pill-waiting">Loading</span>
+      </div>
+      <p class="hint">
+        Direction changes are applied per device I/O Group.  Individual bit controls are enabled only
+        for groups currently configured as outputs.
+      </p>
+      <p id="dio-write-message" class="message message-muted">Loading write capability&hellip;</p>
+      <div id="dio-write-controls" class="write-groups">
+        <p>Loading&hellip;</p>
+      </div>
+    </section>
+
+    <section class="card muted-card" aria-labelledby="write-api-heading">
+      <h2 id="write-api-heading">Write API</h2>
+      <p>
+        This page uses <code>POST /api/v1/io/direction</code> for group direction changes
+        and <code>POST /api/v1/io/outputs</code> for individual output-bit writes.
+      </p>
+      <dl class="status-grid compact">
+        <div><dt>Writes Enabled</dt><dd id="api-writes-enabled">&mdash;</dd></div>
+        <div><dt>Auth Enabled</dt><dd id="api-auth-enabled">&mdash;</dd></div>
+        <div><dt>Last Update</dt><dd id="last-update">&mdash;</dd></div>
+      </dl>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

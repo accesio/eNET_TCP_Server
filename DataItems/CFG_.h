@@ -69,7 +69,7 @@ public:
         {
             Trace(item->second.desc);
             Trace("this->rawBytes = ", this->rawBytes);
-            item->second.go(this->rawBytes.data());
+            item->second.go(this->rawBytes);
         }
         else
         {

@@ -1,0 +1,634 @@
+
+
+===== SYSTEM IDENTITY =====
+
+$ date -u
+Fri Jun 19 15:55:35 UTC 2026
+
+$ uname -a
+Linux acces-enet 6.12.57-ti-g02ecbbc3f6d8 #1 SMP PREEMPT Thu Feb 26 04:30:04 UTC 2026 aarch64 GNU/Linux
+
+$ cat /proc/version
+Linux version 6.12.57-ti-g02ecbbc3f6d8 (oe-user@oe-host) (aarch64-oe-linux-gcc (GCC) 13.4.0, GNU ld (GNU Binutils) 2.42.0.20240723) #1 SMP PREEMPT Thu Feb 26 04:30:04 UTC 2026
+
+$ sh -c 
+for f in \
+    /etc/os-release \
+    /etc/version \
+    /etc/timestamp \
+    /etc/image-version \
+    /etc/build \
+    /etc/issue
+do
+    if [ -r "$f" ]; then
+        echo
+        echo "--- $f"
+        sed -n "1,160p" "$f"
+    fi
+done
+
+
+--- /etc/os-release
+ID=arago
+NAME="Arago"
+VERSION="2025.01"
+VERSION_ID=2025.01
+PRETTY_NAME="Arago 2025.01"
+CPE_NAME="cpe:/o:openembedded:arago:2025.01"
+
+--- /etc/version
+20180309123456
+
+--- /etc/timestamp
+20180309123456
+
+--- /etc/issue
+ _____                    _____           _         _   
+|  _  |___ ___ ___ ___   |  _  |___ ___  |_|___ ___| |_ 
+|     |  _| .'| . | . |  |   __|  _| . | | | -_|  _|  _|
+|__|__|_| |__,|_  |___|  |__|  |_| |___|_| |___|___|_|  
+              |___|                    |___|            
+
+Arago Project \n \l
+
+Arago 2025.01 \n \l
+
+
+$ sh -c 
+ps -p 1 -o pid=,comm=,args= 2>/dev/null ||
+{
+    printf "PID 1: "
+    cat /proc/1/comm 2>/dev/null
+}
+
+PID 1: systemd
+
+$ sh -c systemctl --version 2>/dev/null | head -n 4 || true
+systemd 255 (255.21^)
++PAM -AUDIT -SELINUX -APPARMOR +IMA -SMACK +SECCOMP -GCRYPT -GNUTLS -OPENSSL +ACL +BLKID -CURL -ELFUTILS -FIDO2 -IDN2 -IDN -IPTC +KMOD -LIBCRYPTSETUP +LIBFDISK -PCRE2 -PWQUALITY -P11KIT -QRENCODE -TPM2 -BZIP2 -LZ4 -XZ -ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified
+
+
+===== ROOT FILESYSTEM AND EMMC =====
+
+$ sh -c 
+findmnt -T / -o SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null ||
+grep " / " /proc/mounts
+
+SOURCE         TARGET FSTYPE OPTIONS
+/dev/mmcblk0p1 /      ext4   rw,relatime
+
+$ sh -c 
+lsblk -b \
+    -o NAME,PATH,SIZE,RO,TYPE,FSTYPE,LABEL,UUID,PARTLABEL,PARTUUID,MOUNTPOINTS \
+    2>/dev/null ||
+lsblk -b \
+    -o NAME,SIZE,RO,TYPE,FSTYPE,LABEL,UUID,PARTLABEL,PARTUUID,MOUNTPOINT \
+    2>/dev/null ||
+lsblk
+
+NAME         PATH                    SIZE RO TYPE FSTYPE LABEL UUID                                 PARTLABEL PARTUUID                             MOUNTPOINTS
+mmcblk0      /dev/mmcblk0      7818182656  0 disk                                                                                                  
+`-mmcblk0p1  /dev/mmcblk0p1    7817134080  0 part ext4         fa548320-1a95-4d8d-a04c-ee0b123c732e           7a076551-01                          /
+mmcblk0boot0 /dev/mmcblk0boot0    8388608  1 disk                                                                                                  
+mmcblk0boot1 /dev/mmcblk0boot1    8388608  1 disk                                                                                                  
+
+$ blkid
+/dev/mmcblk0p1: UUID="fa548320-1a95-4d8d-a04c-ee0b123c732e" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="7a076551-01"
+
+$ sh -c 
+if command -v sfdisk >/dev/null 2>&1; then
+    sfdisk -d /dev/mmcblk0
+elif command -v fdisk >/dev/null 2>&1; then
+    fdisk -l /dev/mmcblk0
+fi
+
+label: dos
+label-id: 0x7a076551
+device: /dev/mmcblk0
+unit: sectors
+sector-size: 512
+
+/dev/mmcblk0p1 : start=        2048, size=    15267840, type=83
+
+$ sh -c df -hT / 2>/dev/null || df -h /
+Filesystem           Type            Size      Used Available Use% Mounted on
+/dev/root            ext4            7.1G    806.5M      5.9G  12% /
+
+$ sh -c df -B1 / 2>/dev/null || df -k /
+Filesystem           1K-blocks      Used Available Use% Mounted on
+/dev/root              7414908    825904   6190924  12% /
+
+$ df -i /
+df: invalid option -- 'i'
+BusyBox v1.36.1 () multi-call binary.
+
+Usage: df [-PkmhT] [-t TYPE] [FILESYSTEM]...
+[exit status 1]
+
+$ sh -c 
+du -x -k -d 1 / 2>/dev/null |
+sort -n
+
+4	/media
+4	/mnt
+4	/srv
+12	/root
+16	/lost+found
+1604	/home
+1840	/etc
+2796	/opt
+19064	/var
+32780	/boot
+765888	/usr
+824016	/
+
+$ sh -c 
+if command -v tune2fs >/dev/null 2>&1; then
+    tune2fs -l /dev/mmcblk0p1 |
+    grep -E \
+"Filesystem volume name|Filesystem UUID|Filesystem features|Filesystem state|Errors behavior|Filesystem created|Last mount time|Block count|Free blocks|Block size|Reserved block count"
+fi
+
+Filesystem volume name:   <none>
+Filesystem UUID:          fa548320-1a95-4d8d-a04c-ee0b123c732e
+Filesystem features:      has_journal ext_attr resize_inode dir_index orphan_file filetype needs_recovery extent 64bit flex_bg metadata_csum_seed sparse_super large_file huge_file dir_nlink extra_isize metadata_csum orphan_present
+Filesystem state:         clean
+Errors behavior:          Continue
+Block count:              1908480
+Reserved block count:     95424
+Free blocks:              1647251
+Block size:               4096
+Filesystem created:       Thu May 29 18:48:37 2025
+Last mount time:          Thu Jan  1 00:00:03 1970
+
+$ sh -c 
+echo "--- /etc/fstab"
+cat /etc/fstab 2>/dev/null || true
+
+echo
+echo "--- /proc/cmdline"
+cat /proc/cmdline
+
+--- /etc/fstab
+# stock fstab - you probably want to override this with a machine specific one
+
+/dev/root            /                    auto       defaults              1  1
+proc                 /proc                proc       defaults              0  0
+devpts               /dev/pts             devpts     mode=0620,ptmxmode=0666,gid=5      0  0
+tmpfs                /run                 tmpfs      mode=0755,nodev,nosuid,strictatime 0  0
+tmpfs                /var/volatile        tmpfs      defaults              0  0
+
+# uncomment this if your device has a SD/MMC/Transflash slot
+#/dev/mmcblk0p1       /media/card          auto       defaults,sync,noauto  0  0
+
+
+--- /proc/cmdline
+console=ttyS2,115200n8 earlycon=ns16550a,mmio32,0x02800000 omap2-nand.0:2m(NAND.tiboot3),2m(NAND.tispl),2m(NAND.tiboot3.backup),4m(NAND.u-boot),256k(NAND.u-boot-env),256k(NAND.u-boot-env.backup),-(NAND.file-system) root=PARTUUID=7a076551-01 rw rootfstype=ext4 rootwait mem=1024m
+
+$ sh -c findmnt -R / 2>/dev/null || cat /proc/mounts
+TARGET                       SOURCE         FSTYPE     OPTIONS
+/                            /dev/mmcblk0p1 ext4       rw,relatime
+|-/dev                       devtmpfs       devtmpfs   rw,relatime,size=428568k,nr_inodes=107142,mode=755
+| |-/dev/shm                 tmpfs          tmpfs      rw,nosuid,nodev
+| |-/dev/pts                 devpts         devpts     rw,relatime,gid=5,mode=620,ptmxmode=666
+| |-/dev/hugepages           hugetlbfs      hugetlbfs  rw,nosuid,nodev,relatime,pagesize=2M
+| `-/dev/mqueue              mqueue         mqueue     rw,nosuid,nodev,noexec,relatime
+|-/proc                      proc           proc       rw,relatime
+|-/sys                       sysfs          sysfs      rw,nosuid,nodev,noexec,relatime
+| |-/sys/kernel/security     securityfs     securityfs rw,nosuid,nodev,noexec,relatime
+| |-/sys/fs/cgroup           cgroup2        cgroup2    rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot
+| |-/sys/fs/bpf              bpf            bpf        rw,nosuid,nodev,noexec,relatime,mode=700
+| |-/sys/kernel/debug        debugfs        debugfs    rw,nosuid,nodev,noexec,relatime
+| |-/sys/fs/fuse/connections fusectl        fusectl    rw,nosuid,nodev,noexec,relatime
+| `-/sys/kernel/config       configfs       configfs   rw,nosuid,nodev,noexec,relatime
+|-/run                       tmpfs          tmpfs      rw,nosuid,nodev,size=178532k,nr_inodes=819200,mode=755
+| `-/run/user/0              tmpfs          tmpfs      rw,nosuid,nodev,relatime,size=89264k,nr_inodes=22316,mode=700
+|-/tmp                       tmpfs          tmpfs      rw,nosuid,nodev,size=446332k,nr_inodes=1048576
+`-/var/volatile              tmpfs          tmpfs      rw,relatime
+
+
+===== BOOT FILES AND U-BOOT CONFIGURATION =====
+
+$ sh -c 
+if [ -d /boot ]; then
+    find /boot -xdev -maxdepth 3 -exec ls -ldn {} \; 2>/dev/null
+else
+    echo "/boot does not exist"
+fi
+
+drwxr-xr-x    4 0        0             4096 May 29  2025 /boot
+lrwxrwxrwx    1 0        0               30 May 29  2025 /boot/Image -> Image-6.12.57-ti-g02ecbbc3f6d8
+lrwxrwxrwx    1 0        0               33 May 29  2025 /boot/fitImage -> fitImage-6.12.57-ti-g02ecbbc3f6d8
+drwxr-xr-x    3 0        0             4096 May 29  2025 /boot/dtb
+drwxr-xr-x    2 0        0             4096 May 29  2025 /boot/dtb/ti
+-rw-r--r--    1 0        0             1495 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-pcie0-ep.dtbo
+-rw-r--r--    1 0        0             2488 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-icssg1-dualemac-mii.dtbo
+-rw-r--r--    1 0        0              948 Mar  9  2018 /boot/dtb/ti/k3-am642-eqep.dtbo
+-rw-r--r--    1 0        0            66618 Mar  9  2018 /boot/dtb/ti/k3-am642-evm.dtb
+-rw-r--r--    1 0        0            68837 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-nand.dtb
+-rw-r--r--    1 0        0             2241 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-icssg1-dualemac.dtbo
+-rw-r--r--    1 0        0            64233 Mar  9  2018 /boot/dtb/ti/k3-am642-hummingboard-t.dtb
+-rw-r--r--    1 0        0              823 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-onboard-clkgen-pcie-serdes.dtbo
+-rw-r--r--    1 0        0            69259 Mar  9  2018 /boot/dtb/ti/k3-am642-tqma64xxl-mbax4xxl.dtb
+-rw-r--r--    1 0        0             1613 Mar  9  2018 /boot/dtb/ti/k3-am642-phyboard-electra-gpio-fan.dtbo
+-rw-r--r--    1 0        0            63594 Mar  9  2018 /boot/dtb/ti/k3-am642-sk.dtb
+-rw-r--r--    1 0        0            65825 Mar  9  2018 /boot/dtb/ti/k3-am642-phyboard-electra-rdk.dtb
+-rw-r--r--    1 0        0             1067 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-sk-cpsw3g-pps.dtbo
+-rw-r--r--    1 0        0            64593 Mar  9  2018 /boot/dtb/ti/k3-am642-hummingboard-t-pcie.dtb
+-rw-r--r--    1 0        0            64524 Mar  9  2018 /boot/dtb/ti/k3-am642-hummingboard-t-usb3.dtb
+-rw-r--r--    1 0        0             3194 Mar  9  2018 /boot/dtb/ti/k3-am642-evm-nand.dtbo
+-rw-r--r--    1 0        0             2740 Mar  9  2018 /boot/dtb/ti/k3-am642-phyboard-electra-pcie-usb2.dtbo
+-rw-r--r--    1 0        0             3371 Mar  9  2018 /boot/dtb/ti/k3-am642-sk-pwm.dtbo
+drwxr-xr-x    3 0        0             4096 May 29  2025 /boot/EFI
+drwxr-xr-x    2 0        0             4096 May 29  2025 /boot/EFI/BOOT
+-rwxr-xr-x    1 0        0              177 Mar  9  2018 /boot/EFI/BOOT/grub.cfg
+-rw-r--r--    1 0        0           741376 Mar  9  2018 /boot/EFI/BOOT/bootaa64.efi
+-rw-r--r--    1 0        0         22391296 Mar  9  2018 /boot/Image-6.12.57-ti-g02ecbbc3f6d8
+-rw-r--r--    1 0        0          9822458 Mar  9  2018 /boot/fitImage-6.12.57-ti-g02ecbbc3f6d8
+
+$ sh -c 
+if [ -d /boot ] && command -v sha256sum >/dev/null 2>&1; then
+    find /boot -xdev -type f -exec sha256sum {} \; 2>/dev/null
+fi
+
+fbcd263605fab0ff2358822aeaf1ff4e8749f8783092c28c5ee71bda5ce7aa5e  /boot/dtb/ti/k3-am642-evm-pcie0-ep.dtbo
+fbf398ecbb1d823eb7a0d903aa1bd403017303dda4c852182f22d5b6abd24f18  /boot/dtb/ti/k3-am642-evm-icssg1-dualemac-mii.dtbo
+4be180c09c91ab0e4406074baa0abac3a5752dcdcee5fa78ec6ebea48d62e2b6  /boot/dtb/ti/k3-am642-eqep.dtbo
+de8d04d92718bf08c0f9ce9457f07add4641aa04e7a86d65654309df1e242f9f  /boot/dtb/ti/k3-am642-evm.dtb
+41ad8124c7ca4062ce5657dcb19ad94525f72d9ebea2f1f97dddf41e6d3e65e7  /boot/dtb/ti/k3-am642-evm-nand.dtb
+94451e68280ec62730a93e4db1fabc53186c5dab1827e4a57e323ba45c1f569e  /boot/dtb/ti/k3-am642-evm-icssg1-dualemac.dtbo
+fd745e77255ba84ca663e4d2e08b13eae81a92d554f516be5cf21c34186ec2bb  /boot/dtb/ti/k3-am642-hummingboard-t.dtb
+cc11f62c527ce3bf109bd7a0bacb584e07391f6a99bddf038427dcaa84c65ef1  /boot/dtb/ti/k3-am642-evm-onboard-clkgen-pcie-serdes.dtbo
+b916298f2f57a79a173490ef765ea7f59ced08e1d5633e574ff9347d9e99d103  /boot/dtb/ti/k3-am642-tqma64xxl-mbax4xxl.dtb
+8531cd3b6a5014c9f21b97773364969def768cd0512051b21b5a92407077ec08  /boot/dtb/ti/k3-am642-phyboard-electra-gpio-fan.dtbo
+befab53910b94f20637f2ce967a3b1eaf2e1f40e70457a28d3fa15e64b5ebba0  /boot/dtb/ti/k3-am642-sk.dtb
+e8eaf680ae682ec27924e790f6a60488b07dbb9debf28ee8169fd8c62403300e  /boot/dtb/ti/k3-am642-phyboard-electra-rdk.dtb
+d63542b97763dcc96f387a9cd7cb519dec12f2be811f9b90f9bc934cfa4197b6  /boot/dtb/ti/k3-am642-evm-sk-cpsw3g-pps.dtbo
+dd6d8c2937dcc411d21cdeaa61156ea6677ecc8024bc8c1978247eb9c8dd4579  /boot/dtb/ti/k3-am642-hummingboard-t-pcie.dtb
+09420f307d076d667b5fb48aeab09de9a90ee2e23e93801e93e7a713b53f9cdc  /boot/dtb/ti/k3-am642-hummingboard-t-usb3.dtb
+aee1c05a018d9e1e7a679c02c9f04df03a06109d2d11c9994da06e9b2d1e763c  /boot/dtb/ti/k3-am642-evm-nand.dtbo
+695a7133983c24514c9d32d5fe0330fbad532bdbf8cb06383034e3ee97c7ed61  /boot/dtb/ti/k3-am642-phyboard-electra-pcie-usb2.dtbo
+37ea738696846bc5da29bb82f0020d2912b03735a23c2dd9094b0fa187e7bb38  /boot/dtb/ti/k3-am642-sk-pwm.dtbo
+843fc3e5019bb12ac34f352717342adabc0da65559f23f390fcfc0b803007972  /boot/EFI/BOOT/grub.cfg
+5c890b57807e415c1f2edec0a5fb58a940b0623805656b3d9b8a680552b97f60  /boot/EFI/BOOT/bootaa64.efi
+2a94cc76dbcb6f4352b21d2bf11adc8b8730aeadbb600198912a252b9628a373  /boot/Image-6.12.57-ti-g02ecbbc3f6d8
+245e15091832a415e84773aac5aa2d5d61bb05b4a9935e7921f554cff0be0adf  /boot/fitImage-6.12.57-ti-g02ecbbc3f6d8
+
+$ sh -c 
+for f in \
+    /boot/extlinux/extlinux.conf \
+    /boot/uEnv.txt \
+    /boot/bootenv.txt \
+    /etc/fw_env.config
+do
+    if [ -r "$f" ]; then
+        echo
+        echo "--- $f"
+        sed -n "1,240p" "$f"
+    fi
+done
+
+
+$ sh -c 
+if command -v fw_printenv >/dev/null 2>&1; then
+    fw_printenv 2>&1 |
+    grep -Ei \
+"^(boot|altboot|bootargs|bootcmd|bootcount|bootlimit|console|fdt|dtb|kernel|load|mmc|root|script|uenv|upgrade)"
+else
+    echo "fw_printenv not installed"
+fi
+
+fw_printenv not installed
+
+$ sh -c ls -ln /dev/mmcblk0boot0 /dev/mmcblk0boot1 2>/dev/null || true
+brw-rw----    1 0        6         179,  32 Jun 19 14:16 /dev/mmcblk0boot0
+brw-rw----    1 0        6         179,  64 Jun 19 14:16 /dev/mmcblk0boot1
+
+
+===== KERNEL AND MODULES =====
+
+$ uname -r
+6.12.57-ti-g02ecbbc3f6d8
+
+$ sh -c 
+ls -ldn /lib/modules /lib/modules/* 2>/dev/null || true
+find /lib/modules -maxdepth 2 \
+    \( -name modules.dep -o -name modules.alias -o -name modules.builtin \) \
+    -type f -exec ls -ln {} \; 2>/dev/null
+
+drwxr-xr-x    3 0        0             4096 May 13 20:38 /lib/modules
+drwxr-xr-x    4 0        0             4096 May 13 20:38 /lib/modules/6.12.57-ti-g02ecbbc3f6d8
+-rw-r--r--    1 0        0           358641 Mar  9  2018 /lib/modules/6.12.57-ti-g02ecbbc3f6d8/modules.alias
+-rw-r--r--    1 0        0            64839 Mar  9  2018 /lib/modules/6.12.57-ti-g02ecbbc3f6d8/modules.dep
+-rw-r--r--    1 0        0            16388 Mar  9  2018 /lib/modules/6.12.57-ti-g02ecbbc3f6d8/modules.builtin
+
+
+===== AVAILABLE UPDATE TOOLS =====
+
+$ sh -c 
+for c in \
+    tar gzip sha256sum rsync busybox \
+    getcap setcap getfattr setfattr \
+    scp sftp curl wget \
+    fw_printenv file ldd
+do
+    printf "%-14s " "$c"
+    command -v "$c" 2>/dev/null || echo "NOT FOUND"
+done
+
+tar            /usr/bin/tar
+gzip           /usr/bin/gzip
+sha256sum      /usr/bin/sha256sum
+rsync          NOT FOUND
+busybox        /usr/bin/busybox
+getcap         NOT FOUND
+setcap         NOT FOUND
+getfattr       NOT FOUND
+setfattr       NOT FOUND
+scp            /usr/bin/scp
+sftp           NOT FOUND
+curl           /usr/bin/curl
+wget           /usr/bin/wget
+fw_printenv    NOT FOUND
+file           /usr/bin/file
+ldd            NOT FOUND
+
+$ sh -c tar --version 2>&1 | head -n 5; tar --help 2>&1 | grep -E "xattr|acl|numeric-owner|same-owner|same-permissions|overwrite|unlink" || true
+tar: unrecognized option '--version'
+BusyBox v1.36.1 () multi-call binary.
+
+Usage: tar c|x|t [-ZzJjahmvokO] [-f TARFILE] [-C DIR] [-T FILE] [-X FILE] [LONGOPT]... [FILE]...
+
+$ sh -c rsync --version 2>&1 | head -n 8 || true
+sh: line 1: rsync: command not found
+
+$ sh -c 
+BB=$(command -v busybox 2>/dev/null || true)
+if [ -n "$BB" ]; then
+    echo "BusyBox: $BB"
+    file "$BB" 2>/dev/null || true
+    ldd "$BB" 2>&1 || true
+fi
+
+BusyBox: /usr/bin/busybox
+/usr/bin/busybox: symbolic link to busybox.nosuid
+sh: line 6: ldd: command not found
+
+$ sh -c 
+if command -v getcap >/dev/null 2>&1; then
+    getcap -r /bin /sbin /usr /opt 2>/dev/null
+fi
+
+
+
+===== INIT AND SYSTEM SERVICES =====
+
+$ sh -c 
+echo -n "/sbin/init -> "
+readlink -f /sbin/init 2>/dev/null || ls -l /sbin/init
+
+file /sbin/init 2>/dev/null || true
+ldd /sbin/init 2>&1 || true
+
+/sbin/init -> /usr/lib/systemd/systemd
+/sbin/init: symbolic link to ../lib/systemd/systemd
+sh: line 6: ldd: command not found
+
+$ sh -c 
+systemctl is-system-running 2>/dev/null || true
+systemctl --failed --no-pager 2>/dev/null || true
+
+running
+  UNIT LOAD ACTIVE SUB DESCRIPTION
+
+0 loaded units listed.
+
+$ sh -c 
+systemctl list-unit-files --no-pager 2>/dev/null |
+grep -Ei "aio|enet|ssh|dropbear" || true
+
+aio-production-lock.service              enabled         enabled
+aioenetd.service                         enabled         enabled
+dropbear@.service                        static          -
+dropbearkey.service                      static          -
+dropbear.socket                          enabled         enabled
+
+
+===== AIOENETD =====
+
+$ sh -c 
+systemctl show aioenetd.service \
+    -p FragmentPath \
+    -p ExecStart \
+    -p User \
+    -p Group \
+    -p WorkingDirectory \
+    -p EnvironmentFiles \
+    2>/dev/null || true
+
+ExecStart={ path=bash ; argv[]=bash -c sleep 5 && /opt/aioenet/aioenetd ; ignore_errors=no ; start_time=[Fri 2026-06-19 14:16:09 UTC] ; stop_time=[n/a] ; pid=239 ; code=(null) ; status=0/0 }
+WorkingDirectory=
+User=
+Group=
+FragmentPath=/usr/lib/systemd/system/aioenetd.service
+
+$ sh -c systemctl cat aioenetd.service 2>/dev/null || true
+# /usr/lib/systemd/system/aioenetd.service
+[Unit]
+Description= Service that launches the main server for eNET
+Requires=systemd-modules-load.service
+
+[Service]
+ExecStart=bash -c "sleep 5 && /opt/aioenet/aioenetd"
+
+[Install]
+WantedBy=multi-user.target
+
+$ sh -c systemctl status aioenetd.service --no-pager -l 2>/dev/null || true
+* aioenetd.service - Service that launches the main server for eNET
+     Loaded: loaded (/usr/lib/systemd/system/aioenetd.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-06-19 14:16:09 UTC; 1h 39min ago
+   Main PID: 239 (aioenetd)
+      Tasks: 4 (limit: 1138)
+     Memory: 3.8M (peak: 4.1M)
+        CPU: 2.903s
+     CGroup: /system.slice/aioenetd.service
+             `-239 /opt/aioenet/aioenetd
+
+Jun 19 14:16:09 acces-enet systemd[1]: Started Service that launches the main server for eNET.
+
+$ sh -c pgrep -a aioenetd 2>/dev/null || ps ww | grep "[a]ioenetd" || true
+239 /opt/aioenet/aioenetd
+
+$ sh -c 
+P=$(pidof aioenetd 2>/dev/null | awk "{print \$1}")
+
+if [ -n "$P" ] && [ -e "/proc/$P/exe" ]; then
+    EXE=$(readlink -f "/proc/$P/exe")
+
+    echo "PID:        $P"
+    echo "Executable: $EXE"
+    echo -n "Working directory: "
+    readlink -f "/proc/$P/cwd" 2>/dev/null || true
+
+    ls -ln "$EXE" 2>/dev/null || true
+    file "$EXE" 2>/dev/null || true
+    sha256sum "$EXE" 2>/dev/null || true
+    ldd "$EXE" 2>&1 || true
+fi
+
+PID:        239
+Executable: /home/acces/aioenetd
+Working directory: /
+-rwxrw-rw-    1 1000     1000       1079136 May 29 17:35 /home/acces/aioenetd
+/home/acces/aioenetd: ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, BuildID[sha1]=e1e1c3f7a679ace28e40aa2ccbc127f6dc74add0, for GNU/Linux 5.15.0, with debug_info, not stripped
+b5d19e1fd9b22c34a80c1b9ed96333d53b6aa28962c2163206b19d4e56c87212  /home/acces/aioenetd
+sh: line 15: ldd: command not found
+
+
+===== REMOTE TRANSFER AVAILABILITY =====
+
+$ sh -c 
+ss -lntp 2>/dev/null ||
+netstat -lntp 2>/dev/null ||
+true
+
+
+$ sh -c 
+for s in ssh.service sshd.service dropbear.service; do
+    systemctl show "$s" \
+        -p LoadState -p ActiveState -p FragmentPath -p ExecStart \
+        2>/dev/null
+done
+
+LoadState=not-found
+ActiveState=inactive
+FragmentPath=
+LoadState=not-found
+ActiveState=inactive
+FragmentPath=
+LoadState=not-found
+ActiveState=inactive
+FragmentPath=
+
+
+===== PACKAGE SYSTEM =====
+
+$ sh -c 
+for c in opkg rpm dpkg-query; do
+    if command -v "$c" >/dev/null 2>&1; then
+        echo
+        echo "--- $c"
+        "$c" --version 2>&1 | head -n 5
+    fi
+done
+
+ls -ldn \
+    /var/lib/opkg \
+    /var/lib/rpm \
+    /var/lib/dpkg \
+    2>/dev/null || true
+
+
+--- opkg
+opkg version 0.6.3 (libsolv 0.7.28)
+drwxr-xr-x    3 0        0             4096 May 13 20:39 /var/lib/opkg
+
+
+===== HOST-SPECIFIC PATHS: METADATA ONLY =====
+
+$ hostname
+acces-enet
+
+$ sh -c 
+for p in \
+    /etc/machine-id \
+    /var/lib/dbus/machine-id \
+    /etc/hostname \
+    /etc/hosts \
+    /etc/network \
+    /etc/systemd/network \
+    /etc/NetworkManager/system-connections \
+    /var/lib/NetworkManager \
+    /etc/connman \
+    /var/lib/connman \
+    /etc/ssh \
+    /etc/dropbear \
+    /root/.ssh \
+    /home/root/.ssh \
+    /home/acces \
+    /home/pb \
+    /opt \
+    /etc/aioenetd \
+    /var/lib/aioenetd
+do
+    if [ -e "$p" ]; then
+        echo
+        ls -ldn "$p"
+        du -sk "$p" 2>/dev/null || true
+    fi
+done
+
+
+-rw-r--r--    1 0        0               33 May 29  2025 /etc/machine-id
+4	/etc/machine-id
+
+lrwxrwxrwx    1 0        0               15 May 29  2025 /var/lib/dbus/machine-id -> /etc/machine-id
+0	/var/lib/dbus/machine-id
+
+-rw-r--r--    1 0        0               11 Mar  9  2018 /etc/hostname
+4	/etc/hostname
+
+-rw-r--r--    1 0        0              235 Mar  9  2018 /etc/hosts
+4	/etc/hosts
+
+drwxr-xr-x    4 0        0             4096 May 29  2025 /etc/network
+12	/etc/network
+
+drwxr-xr-x    2 0        0             4096 May 29  2025 /etc/systemd/network
+20	/etc/systemd/network
+
+drwxr-xr-x    2 0        0             4096 May 29 17:12 /etc/dropbear
+8	/etc/dropbear
+
+drwx------    2 0        0             4096 May 29  2025 /root/.ssh
+4	/root/.ssh
+
+drwxr-xr-x    3 1000     1000          4096 May 29  2025 /home/acces
+1600	/home/acces
+
+drwxr-xr-x    5 0        0             4096 May 29  2025 /opt
+2796	/opt
+
+drwxr-xr-x    5 0        0             4096 May 29  2025 /var/lib/aioenetd
+684	/var/lib/aioenetd
+
+$ sh -c 
+for d in \
+    /etc/systemd/network \
+    /etc/NetworkManager/system-connections \
+    /etc/connman \
+    /var/lib/connman \
+    /etc/ssh \
+    /etc/dropbear \
+    /root/.ssh \
+    /home/root/.ssh
+do
+    if [ -d "$d" ]; then
+        echo
+        echo "--- files under $d"
+        find "$d" -maxdepth 2 -type f -exec ls -ln {} \; 2>/dev/null
+    fi
+done
+
+
+--- files under /etc/systemd/network
+-rw-r--r--    1 0        0               38 Mar  9  2018 /etc/systemd/network/60-usb.network
+-rw-r--r--    1 0        0               39 Mar  9  2018 /etc/systemd/network/30-wlan.network
+-rw-r--r--    1 0        0               71 Mar  9  2018 /etc/systemd/network/10-eth.network
+-rw-r--r--    1 0        0              100 Mar  9  2018 /etc/systemd/network/15-eth.network
+
+--- files under /etc/dropbear
+-rw-------    1 0        0              805 May 29 17:12 /etc/dropbear/dropbear_rsa_host_key
+
+--- files under /root/.ssh

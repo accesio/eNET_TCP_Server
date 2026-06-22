@@ -213,12 +213,13 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/REG_.h"
 #include "DataItems/TDataItem.h"
 #include "aioenetd.h"
+#include "WebControl/webctl_aioenetd.h"
 // #define MG_ARCH MG_ARCH_NEWLIB
 // extern "C" {
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.8.2"
+#define VersionString "0.9.2"
 
 // Cross-module daemon reset request interface.
 // Implemented in aioenetd.cpp; called by DataItems/BRD_.cpp.
@@ -233,6 +234,7 @@ static volatile sig_atomic_t forceRebootFallbackArmed = 0;
 
 int apci = -1;
 volatile sig_atomic_t done = 0;
+TActionQueue ActionQueue;
 
 static int ControlListenPort = 18767; // 0x494f, ASCII for "IO"
 
@@ -241,6 +243,8 @@ int AdcListenPort = ControlListenPort + 1;
 pthread_t action_thread;
 pthread_t controlListener_thread;
 pthread_t adcListener_thread;
+pthread_t webListener_thread;
+static bool webListenerStarted = false;
 
 enum class SysErrStage : __u32 { Parse = 1, Execute = 2 };
 
@@ -496,6 +500,11 @@ int main(int argc, char *argv[])
 	pthread_create(&controlListener_thread, NULL, ControlListenerThread, (void *)AF_INET6);
 	pthread_create(&adcListener_thread, NULL, AdcListenerThread, (void *)AF_INET6);
 
+	if (WebCtlAioEnetd_Start(&webListener_thread) == 0)
+		webListenerStarted = true;
+	else
+		Warn("WebControl HTTP listener did not start; continuing without web dashboard");
+
 	// struct mg_mgr mgr;
 	// struct mg_connection *nc;
 
@@ -568,10 +577,13 @@ void exit_handler(int s)
 	// 	close(adcSocket);
 	// 	adcSocket = -1;
 	// }
+	WebCtlAioEnetd_Stop();
 	ActionQueue.enqueue(nullptr);
 
 	sleep(1);
 
+	if (webListenerStarted)
+		pthread_join(webListener_thread, NULL);
 	pthread_join(adcListener_thread, NULL);
 	pthread_join(controlListener_thread, NULL);
 	pthread_join(action_thread, NULL);
@@ -1149,9 +1161,12 @@ void ProcessMessages(std::vector<char> &buffer, int aSocket)
 
 		if (payloadLen > maxPayloadLength)
 		{
-			TMessage x('X');
-			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, ErrIndex(ERR_MSG_LEN_MISMATCH), payloadLen, "Payload length exceeds maxPayloadLength")) x.addDataItem(di);
-			ActionQueue.enqueue(new TActionQueueItem{aSocket, x});
+			auto x = std::make_shared<TMessage>('X');
+			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, ErrIndex(ERR_MSG_LEN_MISMATCH), payloadLen, "Payload length exceeds maxPayloadLength")) x->addDataItem(di);
+			auto action = new TActionQueueItem;
+			action->Socket = aSocket;
+			action->Message = x;
+			ActionQueue.enqueue(action);
 			buffer.clear();
 			Disconnect(aSocket);
 			return;
@@ -1160,9 +1175,12 @@ void ProcessMessages(std::vector<char> &buffer, int aSocket)
 		const size_t frameLen = sizeof(TMessageId) + sizeof(TMessagePayloadSize) + payloadLen + sizeof(TCheckSum);
 		if (buffer.size() < frameLen) return;
 
-		TMessage *aMessage = new TMessage;
+		auto aMessage = std::make_shared<TMessage>();
 		(void)GotMessage(buffer.data(), static_cast<int>(frameLen), *aMessage);
-		ActionQueue.enqueue(new TActionQueueItem{aSocket, *aMessage});
+		auto action = new TActionQueueItem;
+		action->Socket = aSocket;
+		action->Message = aMessage;
+		ActionQueue.enqueue(action);
 
 		buffer.erase(buffer.begin(), buffer.begin() + frameLen);
 	}
@@ -1445,26 +1463,74 @@ void SendResponse(int Client, TMessage &aMessage)
 }
 
 
+int AioEnetd_RunSerialized(const char *name, std::function<int(void)> work, unsigned timeout_ms)
+{
+	(void)name;
+
+	if (!work)
+		return -EINVAL;
+
+	auto donePromise = std::make_shared<std::promise<int>>();
+	auto doneFuture = donePromise->get_future();
+
+	auto action = new TActionQueueItem;
+	action->Socket = -1;
+	action->Work = std::move(work);
+	action->Done = donePromise;
+
+	ActionQueue.enqueue(action);
+
+	if (doneFuture.wait_for(std::chrono::milliseconds(timeout_ms)) != std::future_status::ready)
+		return -ETIMEDOUT;
+
+	return doneFuture.get();
+}
+
 void *ActionThread(TActionQueue *Q)
 {
 	for (; done == 0;)
 	{
-		TActionQueueItem *anAction = Q->dequeue();
+		std::unique_ptr<TActionQueueItem> anAction(Q->dequeue());
 		if (!anAction) continue;
 
 		Trace("---DEQUEUED---");
 
-		const TMessageId mid = anAction->theMessage.getMId();
+		if (anAction->Work)
+		{
+			int workResult = 0;
+			try
+			{
+				workResult = anAction->Work();
+			}
+			catch (const std::exception &e)
+			{
+				Error(std::string("serialized WebControl work threw exception: ") + e.what());
+				workResult = -EFAULT;
+			}
+			catch (...)
+			{
+				Error("serialized WebControl work threw unknown exception");
+				workResult = -EFAULT;
+			}
+
+			if (anAction->Done)
+				anAction->Done->set_value(workResult);
+			continue;
+		}
+
+		if (!anAction->Message)
+			continue;
+
+		TMessage &message = *anAction->Message;
+		const TMessageId mid = message.getMId();
 		if (mid == 'Q' || mid == 'C' || mid == 'M')
 		{
-			RunMessage(anAction->theMessage);
+			RunMessage(message);
 		}
 		// else: 'X' (or anything else) is already a reply message
 
-		SendResponse(anAction->Socket, anAction->theMessage);
-
-		// You probably want to delete this; it currently leaks.
-		// delete anAction;
+		if (anAction->Socket >= 0)
+			SendResponse(anAction->Socket, message);
 	}
 	return nullptr;
 }

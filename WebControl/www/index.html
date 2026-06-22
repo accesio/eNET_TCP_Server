@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ETH-DIO-48A Control Panel</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">ACCES I/O Products</p>
+      <h1>ETH-DIO-48A Control Panel</h1>
+      <p class="subtitle">Device status, digital I/O, and network configuration snapshot.</p>
+      <nav class="top-nav" aria-label="Control panel navigation">
+        <a href="/" aria-current="page">Status</a>
+        <a href="/writes.html">Writes</a>
+        <a href="/certificates.html">Certificates</a>
+      </nav>
+    </header>
+
+    <section class="card" aria-labelledby="unit-heading">
+      <div class="card-header">
+        <h2 id="unit-heading">Unit Information</h2>
+        <span id="connection-state" class="pill pill-waiting">Loading</span>
+      </div>
+
+      <dl class="status-grid">
+        <div class="status-wide">
+		  <dt>UID</dt>
+		  <dd id="unit-uid" class="no-wrap-token">&mdash;</dd>
+		</div>
+        <div><dt>Model</dt><dd id="unit-model">&mdash;</dd></div>
+        <div><dt>Model Code</dt><dd id="unit-model-code">&mdash;</dd></div>
+        <div><dt>Revision</dt><dd id="unit-revision">&mdash;</dd></div>
+        <div><dt>Firmware</dt><dd id="unit-firmware">&mdash;</dd></div>
+        <div><dt>Comm Mode</dt><dd id="unit-comm-mode">&mdash;</dd></div>
+        <div><dt>Uptime</dt><dd id="unit-uptime">&mdash;</dd></div>
+      </dl>
+    </section>
+
+    <section class="card" aria-labelledby="jumpers-heading">
+      <h2 id="jumpers-heading">Option Jumpers</h2>
+      <dl class="status-grid compact">
+        <div><dt>Active Mask</dt><dd id="jumpers-mask">&mdash;</dd></div>
+        <div><dt>OPT0</dt><dd id="jumpers-opt0">&mdash;</dd></div>
+        <div><dt>OPT1</dt><dd id="jumpers-opt1">&mdash;</dd></div>
+        <div><dt>OPT2</dt><dd id="jumpers-opt2">&mdash;</dd></div>
+        <div><dt>OPT3</dt><dd id="jumpers-opt3">&mdash;</dd></div>
+        <div><dt>Network Mode</dt><dd id="jumpers-network-mode">&mdash;</dd></div>
+        <div><dt>Update Enabled</dt><dd id="jumpers-update-enabled">&mdash;</dd></div>
+      </dl>
+    </section>
+
+    <section class="card" aria-labelledby="dio-heading">
+      <div class="card-header">
+        <h2 id="dio-heading">Digital I/O</h2>
+        <span id="dio-state" class="pill pill-waiting">Loading</span>
+      </div>
+      <dl class="status-grid compact">
+        <div><dt>Input Mask</dt><dd id="dio-input-mask">&mdash;</dd></div>
+        <div><dt>Output Mask</dt><dd id="dio-output-mask">&mdash;</dd></div>
+        <div><dt>Physical State</dt><dd id="dio-physical-state">&mdash;</dd></div>
+        <div><dt>Output Latch</dt><dd id="dio-output-latch">&mdash;</dd></div>
+      </dl>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Group</th><th>Direction</th><th>Bits</th><th>Pin State</th><th>Output Latch</th></tr>
+          </thead>
+          <tbody id="dio-groups">
+            <tr><td colspan="5">Loading&hellip;</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="network-heading">
+      <div class="card-header">
+        <h2 id="network-heading">Network / USB</h2>
+        <span id="network-state" class="pill pill-waiting">Loading</span>
+      </div>
+      <dl class="status-grid compact">
+        <div><dt>Active Interface</dt><dd id="network-active-interface">&mdash;</dd></div>
+        <div><dt>Policy Mode</dt><dd id="network-policy-mode">&mdash;</dd></div>
+        <div><dt>Ethernet Link</dt><dd id="network-eth-link">&mdash;</dd></div>
+        <div><dt>DHCP</dt><dd id="network-dhcp">&mdash;</dd></div>
+        <div><dt>IPv4</dt><dd id="network-ipv4">&mdash;</dd></div>
+        <div><dt>Netmask</dt><dd id="network-netmask">&mdash;</dd></div>
+        <div><dt>Gateway</dt><dd id="network-gateway">&mdash;</dd></div>
+        <div><dt>MAC</dt><dd id="network-mac">&mdash;</dd></div>
+        <div><dt>USB Product</dt><dd id="usb-product">&mdash;</dd></div>
+        <div><dt>Pending Config</dt><dd id="network-pending">&mdash;</dd></div>
+      </dl>
+    </section>
+
+    <section class="card muted-card" aria-labelledby="api-heading">
+      <h2 id="api-heading">Web API</h2>
+      <p>
+        The page polls <code>/api/v1/status</code>, <code>/api/v1/io</code>, and
+        <code>/api/v1/network</code>. Write endpoints are compiled in but remain
+        disabled until <code>ETHDIO_WEB_CONTROL_WRITES_ENABLE</code> is set to 1:
+        <code>POST /api/v1/io/outputs</code>, <code>POST /api/v1/io/direction</code>,
+        and the staged network flow under <code>/api/v1/network/*</code>.
+      </p>
+      <dl class="status-grid compact">
+        <div><dt>API Version</dt><dd id="api-version">&mdash;</dd></div>
+        <div><dt>Phase</dt><dd id="api-phase">&mdash;</dd></div>
+        <div><dt>Writes Enabled</dt><dd id="api-writes-enabled">&mdash;</dd></div>
+        <div><dt>Auth Enabled</dt><dd id="api-auth-enabled">&mdash;</dd></div>
+        <div><dt>DIO Bits</dt><dd id="cap-dio-bits">&mdash;</dd></div>
+        <div><dt>I/O Groups</dt><dd id="cap-dio-groups">&mdash;</dd></div>
+        <div><dt>Max Bits / Group</dt><dd id="cap-dio-group-bits">&mdash;</dd></div>
+        <div><dt>Architecture</dt><dd id="system-architecture">&mdash;</dd></div>
+        <div><dt>RTOS</dt><dd id="system-rtos">&mdash;</dd></div>
+        <div><dt>TCP/IP Stack</dt><dd id="system-tcpip">&mdash;</dd></div>
+        <div><dt>WebControl</dt><dd id="system-webcontrol">&mdash;</dd></div>
+        <div><dt>Last Update</dt><dd id="last-update">&mdash;</dd></div>
+      </dl>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

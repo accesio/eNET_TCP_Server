@@ -1,4 +1,8 @@
 #pragma once
+#include <functional>
+#include <future>
+#include <memory>
+#include <signal.h>
 #include <vector>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -8,31 +12,15 @@
 
 using TActionQueueItem = struct TActionQueueItemClass
 {
-	// pthread_t &sender; // which thread is responsible for sending results of the action to the client
-	// TActinQueue &SendQueue; // which queue to stuff Responses into for sending to Clients
-	int Socket; // which client is all this from/for
-	TMessage &theMessage;
+	int Socket = -1; // which client is all this from/for; -1 means internal serialized work
+	std::shared_ptr<TMessage> Message;
+	std::function<int(void)> Work;
+	std::shared_ptr<std::promise<int>> Done;
 };
 
-// using TSendQueueItem = struct TSendQueueItemClass
-// {
-// 	// which TCP-per-client-read thread put this item into the Action Queue
-// 	pthread_t &receiver;
-// 	// which thread is responsible for sending results of the action to the client
-// 	pthread_t &sender;
-// 	// which queue is the sender-thread popping from
-// 	SafeQueue<TSendQueueItemClass> &sendQueue;
-// 	// which client is all this from/for
-// 	int clientref;
-// 	// what TCP port# was this received on
-// 	int portReceive;
-// 	// what TCP port# is this sending out on
-// 	int portSend;
-// };
-
-
 using TActionQueue = SafeQueue<TActionQueueItem *>;
-TActionQueue ActionQueue; // NOTE: This instantiates, but this is a header file! bad bad should be extern, no?
+extern TActionQueue ActionQueue;
+extern volatile sig_atomic_t done;
 
 void OpenDevFile();
 void exit_handler(int s);
@@ -44,3 +32,4 @@ void *ActionThread(TActionQueue *Q);
 void *ControlListenerThread(void *arg);
 void *AdcListenerThread(void *arg);
 
+int AioEnetd_RunSerialized(const char *name, std::function<int(void)> work, unsigned timeout_ms);
