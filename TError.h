@@ -30,6 +30,9 @@ using TError = __u32;
 #define ERR_NYI -13
 #define ERR_ADC_BUSY -14
 #define ERR_ADC_FATAL -15
+#define ERR_DAQ_UNAVAILABLE -16
+#define ERR_LOG_UNAVAILABLE -17
+#define ERR_DATAITEM_TOO_LARGE -18
 
 
 extern const char *err_msg[];

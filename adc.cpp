@@ -10,6 +10,8 @@
 #include "TError.h"
 #include "eNET-AIO16-16F.h"
 #include "apcilib.h"
+#include "daq_state.h"
+#include "socket_util.h"
 #include "adc.h"
 extern volatile sig_atomic_t done;
 static uint32_t ring_buffer[RING_BUFFER_SLOTS][SAMPLES_PER_TRANSFER];
@@ -53,13 +55,14 @@ void *log_main(void *arg)
 		}
 
 		pthread_mutex_lock(&mutex);
-		ssize_t sent = send(conn, ring_buffer[ring_read_index], (sizeof(uint32_t) * SAMPLES_PER_TRANSFER), MSG_NOSIGNAL);
+		ssize_t sent = SendAll(conn, ring_buffer[ring_read_index], (sizeof(uint32_t) * SAMPLES_PER_TRANSFER));
 		pthread_mutex_unlock(&mutex);
 
-		if (sent < 0 && errno == EPIPE)
+		if (sent < 0)
 		{
 			AdcStreamTerminate = true;
-			apci_cancel_irq(apci, 1);
+			if (DaqReady() && apci >= 0)
+				apci_cancel_irq(apci, 1);
 			AdcLoggerTerminate = true;
 			continue;
 		}
@@ -79,6 +82,11 @@ void *worker_main(void *arg)
 {
 	done = 0;
 	Debug("ADC worker_main Thread started");
+	if (!DaqReady() || apci < 0)
+	{
+		Error("ADC worker refused to start because DAQ hardware is unavailable");
+		return reinterpret_cast<void *>(static_cast<intptr_t>(-ENODEV));
+	}
 	int *conn_fd = (int *)arg;
 	int num_slots, first_slot, data_discarded, status = 0;
 	bool logger_started = false;
@@ -162,7 +170,8 @@ void *worker_main(void *arg)
 		Error(e.what());
 	}
 	Debug("Setting AdcStreamingConnection to idle");
-	apci_write8(apci, 1, BAR_REGISTER, 0x12, 0); // turn off ADC start modes
+	if (DaqReady() && apci >= 0)
+		apci_write8(apci, 1, BAR_REGISTER, 0x12, 0); // turn off ADC start modes
 
 	AdcLoggerTerminate = 1;
 	sem_post(&full); // wake logger if it’s waiting

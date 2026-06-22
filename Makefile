@@ -62,7 +62,10 @@ ifneq ($(LIBASAN_A),)
 endif
 LDFLAGS_RELEASE  =
 
-LDLIBS           = -lm -lpthread -latomic -ldl -lfmt
+SYSTEMD_CFLAGS ?= $(shell pkg-config --cflags libsystemd 2>/dev/null)
+SYSTEMD_LIBS   ?= $(shell pkg-config --libs libsystemd 2>/dev/null || echo -lsystemd)
+CPPFLAGS       += $(SYSTEMD_CFLAGS)
+LDLIBS          = -lm -lpthread -latomic -ldl $(SYSTEMD_LIBS)
 
 # By default, we will do "release"
 CXXFLAGS         = $(CXXFLAGS_RELEASE)
@@ -155,17 +158,29 @@ endef
 # ---------------------- Default Target ----------------------
 all: release
 
-LINK_CMD = $(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+BUILD_METADATA_DEPS = build_info.h version.mk tools/link_with_build_info.py
+BUILD_LINK_TOOL = $(SRCDIR)/tools/link_with_build_info.py
+BUILD_NUMBER_FILE ?= build_number.txt
 
 # ---------------------- Build Targets ----------------------
 
-test: $(OBJS_FOR_TEST)
+test: $(OBJS_FOR_TEST) $(BUILD_METADATA_DEPS)
 	$(LINK_BANNER)
-	$(Q)$(LINK_CMD)
+	$(Q)$(BUILD_LINK_TOOL) \
+	  --output $@ --counter "$(BUILD_NUMBER_FILE)" --version-file version.mk \
+	  --generated-cpp $(OBJDIR)/build_info.test.generated.cpp \
+	  --generated-object $(OBJDIR)/build_info.test.generated.o \
+	  --cxx "$(CXX)" --compile-flags="$(CXXFLAGS) $(CPPFLAGS)" \
+	  --link-flags="$(LDFLAGS)" --libs="$(LDLIBS)" -- $(OBJS_FOR_TEST)
 
-aioenetd: $(OBJS_FOR_AIOENETD)
+aioenetd: $(OBJS_FOR_AIOENETD) $(BUILD_METADATA_DEPS)
 	$(LINK_BANNER)
-	$(Q)$(LINK_CMD)
+	$(Q)$(BUILD_LINK_TOOL) \
+	  --output $@ --counter "$(BUILD_NUMBER_FILE)" --version-file version.mk \
+	  --generated-cpp $(OBJDIR)/build_info.aioenetd.generated.cpp \
+	  --generated-object $(OBJDIR)/build_info.aioenetd.generated.o \
+	  --cxx "$(CXX)" --compile-flags="$(CXXFLAGS) $(CPPFLAGS)" \
+	  --link-flags="$(LDFLAGS)" --libs="$(LDLIBS)" --increment -- $(OBJS_FOR_AIOENETD)
 ifneq ($(DEPLOY_AFTER_BUILD),0)
 	$(MAKE) --no-print-directory deploy
 ifeq ($(DEPLOY_SOURCES),1)
@@ -202,6 +217,7 @@ $(OBJDIR):
 clean:
 	@printf "$(GREEN)cleaning...$(RESET)\n"
 	@rm -rf $(OBJDIR) aioenetd test
+	@rm -f "$(BUILD_NUMBER_FILE).lock" aioenetd.new.* test.new.*
 	@printf "$(GREEN)done.$(RESET)\n"
 
 
@@ -276,8 +292,8 @@ deploy-src:
 		if $(RSYNC) $(RSYNC_FLAGS) \
 				--include='*/' \
 				--include='*.cpp' --include='*.c' --include='*.hpp' --include='*.h' \
-				--include='Makefile' \
-				--include='DataItems/***' \
+				--include='Makefile' --include='version.mk' --include='build_number.txt' \
+				--include='DataItems/***' --include='WebControl/***' --include='tools/***' \
 				--exclude='*' \
 				./ "$$host:$$srcdir/"; then \
 			printf "$(GREEN)Sources OK to %s:%s$(RESET)\n" "$$host" "$$srcdir"; ok=1; break; \
@@ -287,12 +303,9 @@ deploy-src:
 		else \
 		printf "$(YELLOW)   rsync not found; using tar over ssh$(RESET)\n"; \
 		if tar czf - \
-				--exclude='.*.swp' \
-				--exclude-vcs \
-				--include='./*.cpp' --include='./*.c' --include='./*.hpp' --include='./*.h' \
-				--include='./Makefile' \
-				--include='./DataItems' --include='./DataItems/**' \
-				--exclude='*' . \
+				--exclude='.*.swp' --exclude-vcs \
+				./*.cpp ./*.h ./Makefile ./version.mk ./build_number.txt \
+				./DataItems ./WebControl ./tools \
 			| $(SSH) "$$host" "tar xzf - -C '$$srcdir'"; then \
 			printf "$(GREEN)Sources OK to %s:%s (tar)$(RESET)\n" "$$host" "$$srcdir"; ok=1; break; \
 		else \
@@ -306,6 +319,7 @@ deploy-src:
 # ---------------------- Automatic dependencies for each compiled .cpp
 -include $(OBJDIR)/*.d
 -include $(OBJDIR)/DataItems/*.d
+-include $(OBJDIR)/WebControl/*.d
 
 .PHONY: help vars
 
@@ -314,7 +328,7 @@ help:
 	@printf "$(GREEN)\nTargets$(RESET)\n"
 	@printf "  $(CYAN)release$(RESET)        Build release (default)\n"
 	@printf "  $(CYAN)debug$(RESET)          Build debug (with sanitizers when available)\n"
-	@printf "  $(CYAN)aioenetd$(RESET)       Link only (no config change)\n"
+	@printf "  $(CYAN)aioenetd$(RESET)       Link daemon and increment successful-build number\n"
 	@printf "  $(CYAN)test$(RESET)           Build the test binary\n"
 	@printf "  $(CYAN)deploy$(RESET)         Service-aware deploy: stop -> stage -> swap -> start\n"
 	@printf "  $(CYAN)deploy-src$(RESET)     Mirror sources (rsync or tar over ssh)\n"
@@ -332,6 +346,7 @@ help:
 vars:
 	@printf "$(GREEN)\nVariables (set with VAR=value)$(RESET)\n"
 	@printf "  CXX=%s\n" "$(CXX)"
+	@printf "  BUILD_NUMBER_FILE=%s\n" "$(BUILD_NUMBER_FILE)"
 	@printf "  SANITIZE=%s\n" "$(SANITIZE)"
 	@printf "  SAN_FLAGS=%s\n" "$(SAN_FLAGS)"
 	@printf "  CXXFLAGS=%s\n" "$(CXXFLAGS)"

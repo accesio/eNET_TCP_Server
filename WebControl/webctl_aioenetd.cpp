@@ -17,6 +17,8 @@
 
 #include "webctl_posix_linux.h"
 #include "../apci.h"
+#include "../build_info.h"
+#include "../daq_state.h"
 #include "../config.h"
 #include "../logging.h"
 
@@ -66,25 +68,26 @@ unsigned AdcResolutionBits()
 void FillCapabilities(WebCtlCapabilities *out)
 {
     std::memset(out, 0, sizeof(*out));
-    out->dio_present = true;
-    out->dio_bits = kDioBits;
-    out->dio_group_count = kDioGroups;
-    out->dio_max_bits_per_group = 1u;
-    out->dio_direction_configurable = true;
-    out->dio_output_writes = true;
+    const bool daqReady = DaqReady();
+    out->dio_present = daqReady;
+    out->dio_bits = daqReady ? kDioBits : 0u;
+    out->dio_group_count = daqReady ? kDioGroups : 0u;
+    out->dio_max_bits_per_group = daqReady ? 1u : 0u;
+    out->dio_direction_configurable = daqReady;
+    out->dio_output_writes = daqReady;
     out->network_present = true;
     out->network_apply = false;
     out->usb_present = false;
     out->firmware_update = false;
     out->https_present = false;
     out->certificate_storage = false;
-    out->adc_present = true;
+    out->adc_present = daqReady;
     out->adc_snapshot = false;
-    out->adc_streaming = true;
-    out->adc_channels = Config.adcChannels != 0u ? Config.adcChannels : 16u;
-    out->adc_resolution_bits = AdcResolutionBits();
-    out->dac_present = Config.NUM_DACs != 0u;
-    out->dac_channels = Config.NUM_DACs;
+    out->adc_streaming = daqReady;
+    out->adc_channels = daqReady ? (Config.adcChannels != 0u ? Config.adcChannels : 16u) : 0u;
+    out->adc_resolution_bits = daqReady ? AdcResolutionBits() : 0u;
+    out->dac_present = daqReady && Config.NUM_DACs != 0u;
+    out->dac_channels = daqReady ? Config.NUM_DACs : 0u;
     out->diagnostics_present = true;
 }
 
@@ -115,7 +118,7 @@ void FillDioSnapshotFromRegisters(WebCtlDioSnapshot *out, uint32_t directions, u
 
 int ReadDioSnapshotLocked(WebCtlDioSnapshot *out)
 {
-    if (apci < 0) return -ENODEV;
+    if (!DaqReady()) return -ENODEV;
     uint32_t directions = in(ofsDioDirections) & kDioMask;
     uint32_t outputs = in(ofsDioOutputs) & kDioMask;
     uint32_t inputs = in(ofsDioInputs) & kDioMask;
@@ -211,10 +214,10 @@ int GetStatus(WebCtlStatusSnapshot *out, void *)
     CopyText(out->unit.uid, sizeof(out->unit.uid), Config.SerialNumber.empty() ? "unknown" : Config.SerialNumber);
     CopyText(out->unit.model, sizeof(out->unit.model), Config.Model.empty() ? "eNET-AIO" : Config.Model);
     out->unit.model_code = Config.features;
-    CopyText(out->unit.revision, sizeof(out->unit.revision), "unknown");
-    CopyText(out->unit.firmware, sizeof(out->unit.firmware), AIOENETD_VERSION);
-    out->unit.firmware_major = 0u;
-    out->unit.firmware_minor = 8u;
+    CopyText(out->unit.revision, sizeof(out->unit.revision), BuildInfo::GitDescribe);
+    CopyText(out->unit.firmware, sizeof(out->unit.firmware), BuildInfo::Version);
+    out->unit.firmware_major = BuildInfo::Major;
+    out->unit.firmware_minor = BuildInfo::Minor;
     CopyText(out->unit.comm_mode, sizeof(out->unit.comm_mode), "ethernet");
     out->unit.uptime_ms = UptimeMilliseconds();
     out->unit.uptime_ticks = out->unit.uptime_ms;
@@ -243,14 +246,17 @@ int GetSystem(WebCtlSystemSnapshot *out, void *)
     CopyText(out->crypto_stack, sizeof(out->crypto_stack), "none");
     CopyText(out->filesystem, sizeof(out->filesystem), "/home/acces/www + embedded fallback");
     CopyText(out->compiler, sizeof(out->compiler), std::string("GCC ") + __VERSION__);
-    CopyText(out->build_date, sizeof(out->build_date), __DATE__);
-    CopyText(out->build_time, sizeof(out->build_time), __TIME__);
+    CopyText(out->build_date, sizeof(out->build_date), BuildInfo::BuildDate);
+    CopyText(out->build_time, sizeof(out->build_time), BuildInfo::BuildTime);
     CopyText(out->web_control, sizeof(out->web_control), "WebControl/v1");
     CopyText(out->device_shim, sizeof(out->device_shim), "webctl_aioenetd");
     CopyText(out->transport_shim, sizeof(out->transport_shim), "webctl_posix_linux");
     utsname u{};
     if (uname(&u) == 0) {
         std::string extra = "    \"linux\": { \"sysname\": \"" + std::string(u.sysname) + "\", \"release\": \"" + std::string(u.release) + "\", \"machine\": \"" + std::string(u.machine) + "\" },\r\n";
+        const DaqStateSnapshot daq = GetDaqStateSnapshot();
+        extra += "    \"build\": { \"version\": \"" + std::string(BuildInfo::Version) + "\", \"build\": " + std::to_string(BuildInfo::Build) + ", \"git\": \"" + BuildInfo::GitDescribe + "\", \"built_utc\": \"" + BuildInfo::BuildUtc + "\" },\r\n";
+        extra += "    \"daq\": { \"ready\": " + std::string(DaqReady() ? "true" : "false") + ", \"status\": \"" + DaqStatusName(daq.status) + "\", \"errno\": " + std::to_string(daq.lastErrno) + " },\r\n";
         extra += "    \"hardware\": { \"fpga_id\": \"" + to_hex<__u32>(Config.FpgaVersionCode) + "\", \"features\": \"" + to_hex<__u8>(Config.features) + "\", \"adc_channels\": " + std::to_string(Config.adcChannels) + ", \"dac_channels\": " + std::to_string(Config.NUM_DACs) + " }";
         CopyText(out->extra_json, sizeof(out->extra_json), extra);
     }
@@ -266,7 +272,7 @@ int DioWriteOutputs(const WebCtlDioWriteRequest *request, WebCtlDioWriteResult *
 {
     if (request == nullptr || result == nullptr || out == nullptr) return -EINVAL;
     return AioEnetd_RunSerialized("webctl dio_write", [request, result, out]() {
-        if (apci < 0) return -ENODEV;
+        if (!DaqReady()) return -ENODEV;
         uint32_t directions = in(ofsDioDirections) & kDioMask;
         uint32_t latch = in(ofsDioOutputs) & kDioMask;
         uint32_t prior = in(ofsDioInputs) & kDioMask;
@@ -304,7 +310,7 @@ int DioSetDirection(const WebCtlDioDirectionRequest *request, WebCtlDioSnapshot 
 {
     if (request == nullptr || out == nullptr) return -EINVAL;
     return AioEnetd_RunSerialized("webctl dio_direction", [request, out]() {
-        if (apci < 0) return -ENODEV;
+        if (!DaqReady()) return -ENODEV;
         uint32_t directions = in(ofsDioDirections) & kDioMask;
         if (request->has_input_mask) directions = static_cast<uint32_t>(request->input_mask) & kDioMask;
         else if (request->has_output_mask) directions = (~static_cast<uint32_t>(request->output_mask)) & kDioMask;

@@ -52,25 +52,22 @@ std::string TADC_BaseClock::AsString(bool bAsReply)
 TADC_StreamStart::TADC_StreamStart(DataItemIds id, TBytes FromBytes)
     : TDataItem<ADC_StreamStartParams>(id, FromBytes)
 {
-    if (FromBytes.size() == 4)
-    {
-        int cid = *reinterpret_cast<const int *>(FromBytes.data());
-        if (AdcStreamingConnection == -1)
-        {
-            AdcStreamingConnection = cid;
-            this->params.argConnectionID = cid;
-        }
-        else
-        {
-            Error("ADC Busy, already streaming on Connection: " + std::to_string(AdcStreamingConnection));
-            throw std::logic_error("ADC Busy already on Connection: " + std::to_string(AdcStreamingConnection));
-        }
-        Trace("AdcStreamingConnection: " + std::to_string(AdcStreamingConnection));
-    }
+    if (FromBytes.size() == sizeof(this->params.argConnectionID))
+        std::memcpy(&this->params.argConnectionID, FromBytes.data(),
+                    sizeof(this->params.argConnectionID));
 }
 
 TADC_StreamStart &TADC_StreamStart::Go()
 {
+    const int requestedConnection = static_cast<int>(this->params.argConnectionID);
+    if (AdcStreamingConnection != -1)
+    {
+        Error("ADC Busy, already streaming on Connection: " + std::to_string(AdcStreamingConnection));
+        throw std::logic_error("ADC Busy already on Connection: " + std::to_string(AdcStreamingConnection));
+    }
+
+    AdcStreamingConnection = requestedConnection;
+    Trace("AdcStreamingConnection: " + std::to_string(AdcStreamingConnection));
     Debug("ADC_StreamStart::Go(), ADC Streaming Data will be sent on ConnectionID: " + std::to_string(AdcStreamingConnection));
 
     // Example code from your snippet
@@ -78,6 +75,7 @@ TADC_StreamStart &TADC_StreamStart::Go()
     if (status)
     {
         Error("Error setting apciDmaTransferSize: " + std::to_string(status));
+        AdcStreamingConnection = -1;
         throw std::logic_error(err_msg[-status]);
     }
 
@@ -88,6 +86,7 @@ TADC_StreamStart &TADC_StreamStart::Go()
         if (rc != 0) {
             Error("ADC_StreamStart::Go(): pthread_create(worker) failed: " +
                 std::to_string(rc) + ", " + strerror(rc));
+            AdcStreamingConnection = -1;
             throw std::logic_error("failed to start ADC worker thread");
         }
         AdcWorkerThreadID = 0; // “running”

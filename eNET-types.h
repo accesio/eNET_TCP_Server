@@ -40,6 +40,7 @@ typedef __u16 TDataId;
 using TDataItemLength = __u16;
 using TDataId = __u16;
 using TDataItemLength=__u16;
+inline constexpr TDataItemLength MaxDataItemPayload = 0xFFFEu;
 
 
 template<typename> class TDataItem;
@@ -182,8 +183,12 @@ enum class DataItemIds : TDataId
 	PNP_,		   // distinct from BRD_?
 	CFG_ = 0x9000, // "Other" Configuration stuff; Linux, IIoT protocol selection, etc?
 	CFG_Hostname = 0x9001,
+	SYS_ = 0xEF00, // Query Only.
 	SYS_UploadFileName = 0xEF01,
 	SYS_UploadFileData = 0xEF02,
+	SYS_GetDaqStatus = 0xEF10,
+	SYS_GetLog = 0xEF11,
+	SYS_GetBuildInfo = 0xEF12,
 	SYS_Error = 0xEFF0,
 	SYS_ItemError = 0xEFF1,
 	DOC_Get = 0xFFFF,

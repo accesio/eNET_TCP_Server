@@ -36,7 +36,6 @@ TDataItemParent - virtual / interface
 #include <map>
 #include <memory>
 #include <iterator>
-#include <fmt/core.h>
 
 #include "TDataItemBase.h"
 #include "../logging.h"
@@ -74,6 +73,7 @@ public:
 	TBytes Data;
     DataItemIds DId;      // e.g., DAC_Output1, DAC_Range1
     TError resultCode = ERR_SUCCESS;
+    __u32 errorInfo = 0; // errno or other item-specific diagnostic detail
     bool bWrite = false;  // Used by many items to indicate write vs. read
     int conn = 0;         // Connection ID or similar
     // ========== Constructors ==========
@@ -114,6 +114,7 @@ public:
     TBytes AsBytes(bool bAsReply);
     std::string getDIdDesc() const;
     TError getResultCode();
+    __u32 getErrorInfo() const noexcept;
     std::shared_ptr<void> getResultValue();
     // These might be used for name lookups, etc.
     static std::string getDIdDesc(DataItemIds DId);
@@ -144,6 +145,7 @@ typedef struct __DIdDictEntry_inner
 	DIdConstructor *Construct;
 	std::string desc;
 	std::function<void(const TBytes&)> go;
+	bool requiresDaq = false;
 } TDIdDictEntry;
 
 //  __DIdDictEntry_inner ;
@@ -254,3 +256,5 @@ public:
 };
 
 #pragma endregion
+
+#pragma pack(pop)

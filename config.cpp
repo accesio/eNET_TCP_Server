@@ -15,6 +15,8 @@
 namespace fs = std::filesystem;
 
 #include "utilities.h"
+#include "build_info.h"
+#include "daq_state.h"
 #include "logging.h"
 #include "apci.h"
 #include "config.h"
@@ -152,7 +154,7 @@ static bool IsFirstBoot()
 static bool WriteInitStamp()
 {
 	std::string stampPath = std::string(CONFIG_PATH) + CONFIG_INIT_STAMP;
-	return AtomicWriteTextFile(stampPath, AIOENETD_VERSION, 0644) == 0;
+	return AtomicWriteTextFile(stampPath, BuildInfo::ProductVersion, 0644) == 0;
 }
 
 // write a key to a subtree iff missing (factory/current/user)
@@ -288,7 +290,7 @@ void InitializeConfigFiles(TConfig &config)
 	}
 	else
 	{
-		Log("InitializeConfigFiles: initial config written; stamp recorded: " AIOENETD_VERSION);
+		Log(std::string("InitializeConfigFiles: initial config written; stamp recorded: ") + BuildInfo::ProductVersion);
 	}
 }
 
@@ -784,5 +786,10 @@ bool SaveConfig(std::string which)
 
 void ApplyConfig()
 {
+	if (!DaqReady())
+	{
+		Warn("ApplyConfig skipped because DAQ hardware is unavailable");
+		return;
+	}
 	ApplyAdcCalConfig();
 }

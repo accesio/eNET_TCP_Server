@@ -1,8 +1,8 @@
-test
-.vscode/
-check.c
-aioenetd
-test
-.bash_history
-*.o
-*.d
+/obj/
+/aioenetd
+/test
+/build_number.txt.lock
+*.new.*
+/build_number.txt
+__pycache__/
+*.pyc

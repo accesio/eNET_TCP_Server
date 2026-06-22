@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <stdio.h> // for renameat2, perror
 #include <sys/stat.h>
@@ -14,21 +15,24 @@
 
 #include "SYS_.h"
 #include "../TError.h"
+#include "../build_info.h"
+#include "../daq_state.h"
+#include "../journal_log.h"
 #include "../utilities.h"
 
 #define PATH_ROOT "/home/acces/eNET_TCP_Server/"
 
 std::string generateBackupFilenameWithBuildTime(std::string base) {
-	std::string build_date = __DATE__; // Format: Mmm dd yyyy
-	std::string build_time = __TIME__; // Format: hh:mm:ss
-	std::tm build_tm = {};
-	std::istringstream iss(build_date + " " + build_time);
-	iss >> std::get_time(&build_tm, "%b %d %Y %H:%M:%S"); // Parse the date and time
+	const auto now = std::chrono::system_clock::now();
+	const std::time_t seconds = std::chrono::system_clock::to_time_t(now);
+	std::tm utc{};
+	gmtime_r(&seconds, &utc);
+	const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
+		now.time_since_epoch()).count() % 1000000;
 	std::ostringstream oss;
-	oss << std::put_time(&build_tm, "%Y-%m-%d_%H-%M-%S");
-	std::string timestamp = oss.str();
-	std::string filename = base + timestamp + ".backup";
-	return filename;
+	oss << base << std::put_time(&utc, "%Y-%m-%d_%H-%M-%S")
+		<< '-' << std::setfill('0') << std::setw(6) << micros << ".backup";
+	return oss.str();
 }
 
 std::error_code update_symlink_atomic(const char* target, const char* linkpath) {
@@ -281,16 +285,16 @@ TSYS_UploadFileData & TSYS_UploadFileData::Go()
 
 // ---------------- TSYS_Error and TSYS_ItemError Utilities ----------------
 
-static inline __u16 ReadU16LE(const TBytes &b, size_t ofs)
+static inline __u16 ReadU16LE(const TBytes &b, size_t offset)
 {
-	if (ofs + 2 > b.size()) return 0;
-	return static_cast<__u16>(static_cast<__u16>(b[ofs]) | (static_cast<__u16>(b[ofs + 1]) << 8));
+	if (offset + 2 > b.size()) return 0;
+	return static_cast<__u16>(static_cast<__u16>(b[offset]) | (static_cast<__u16>(b[offset + 1]) << 8));
 }
 
-static inline __u32 ReadU32LE(const TBytes &b, size_t ofs)
+static inline __u32 ReadU32LE(const TBytes &b, size_t offset)
 {
-	if (ofs + 4 > b.size()) return 0;
-	return static_cast<__u32>(static_cast<__u32>(b[ofs]) | (static_cast<__u32>(b[ofs + 1]) << 8) | (static_cast<__u32>(b[ofs + 2]) << 16) | (static_cast<__u32>(b[ofs + 3]) << 24));
+	if (offset + 4 > b.size()) return 0;
+	return static_cast<__u32>(b[offset]) | (static_cast<__u32>(b[offset + 1]) << 8) | (static_cast<__u32>(b[offset + 2]) << 16) | (static_cast<__u32>(b[offset + 3]) << 24);
 }
 
 static inline void WriteU16LE(TBytes &out, __u16 v)
@@ -307,14 +311,259 @@ static inline void WriteU32LE(TBytes &out, __u32 v)
 	out.push_back(static_cast<__u8>((v >> 24) & 0xFF));
 }
 
+static inline void WriteU64LE(TBytes &out, std::uint64_t v)
+{
+	for (unsigned shift = 0; shift < 64; shift += 8)
+		out.push_back(static_cast<__u8>((v >> shift) & 0xFFU));
+}
+
+static inline __u32 ErrorIndexFromWire(__u32 code)
+{
+	__u32 errorCount = 0;
+	while (err_msg[errorCount]) ++errorCount;
+
+	// SYS_Error and SYS_ItemError carry positive indexes on the wire.  Accept
+	// wrapped negative TError values too so local diagnostic construction remains
+	// readable while the legacy unsigned TError typedef is still in use.
+	return code < errorCount ? code : -code;
+}
+
 static inline const char *SafeErrMsgFromCode(__u32 code)
 {
-	const __u32 idx = static_cast<__u32>(-code);
+	const __u32 idx = ErrorIndexFromWire(code);
 	for (__u32 i = 0; err_msg[i]; i++)
 	{
 		if (i == idx) return err_msg[i];
 	}
 	return "Unknown error";
+}
+
+// ---------------- SYS_GetDaqStatus ----------------
+
+TSYS_GetDaqStatus::TSYS_GetDaqStatus(DataItemIds id, const TBytes &fromBytes)
+    : TDataItemBase(id)
+{
+    if (!fromBytes.empty())
+    {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        this->errorInfo = static_cast<__u32>(fromBytes.size());
+    }
+}
+
+TSYS_GetDaqStatus::TSYS_GetDaqStatus(DataItemIds id)
+    : TDataItemBase(id)
+{
+}
+
+TSYS_GetDaqStatus &TSYS_GetDaqStatus::Go()
+{
+    if (this->resultCode != ERR_SUCCESS)
+        return *this;
+
+    const DaqStateSnapshot state = GetDaqStateSnapshot();
+    const std::string path = state.devicePath.substr(0, 4096);
+    const std::string reason = state.reason.substr(0, 4096);
+
+    TBytes out;
+    out.reserve(12 + path.size() + reason.size());
+    out.push_back(1);
+    out.push_back(static_cast<__u8>(state.status));
+    WriteU16LE(out, DaqReady() ? 1U : 0U);
+    WriteU32LE(out, static_cast<__u32>(state.lastErrno));
+    WriteU16LE(out, static_cast<__u16>(path.size()));
+    WriteU16LE(out, static_cast<__u16>(reason.size()));
+    out.insert(out.end(), path.begin(), path.end());
+    out.insert(out.end(), reason.begin(), reason.end());
+    this->Data = std::move(out);
+    this->resultCode = ERR_SUCCESS;
+    return *this;
+}
+
+TBytes TSYS_GetDaqStatus::calcPayload(bool /*bAsReply*/)
+{
+    return this->Data;
+}
+
+std::string TSYS_GetDaqStatus::AsString(bool /*bAsReply*/)
+{
+    const DaqStateSnapshot state = GetDaqStateSnapshot();
+    return "SYS_GetDaqStatus(status=" + std::string(DaqStatusName(state.status)) +
+           ", errno=" + std::to_string(state.lastErrno) + ")";
+}
+
+// ---------------- SYS_GetLog ----------------
+
+TSYS_GetLog::TSYS_GetLog(DataItemIds id, const TBytes &fromBytes)
+    : TDataItemBase(id)
+{
+    if (fromBytes.empty())
+        return;
+
+    if (fromBytes.size() < 10)
+    {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        this->errorInfo = static_cast<__u32>(fromBytes.size());
+        return;
+    }
+
+    this->protocolVersion = fromBytes[0];
+    this->source = static_cast<SysLogSource>(fromBytes[1]);
+    this->requestFlags = ReadU16LE(fromBytes, 2);
+    this->maxEntries = ReadU16LE(fromBytes, 4);
+    this->maxTextBytes = ReadU16LE(fromBytes, 6);
+    const __u16 cursorBytes = ReadU16LE(fromBytes, 8);
+
+    const bool validSource = this->source == SysLogSource::AioEnetdService ||
+                             this->source == SysLogSource::Kernel ||
+                             this->source == SysLogSource::System;
+    const bool validFlags = (this->requestFlags & ~SYS_LOG_INCLUDE_PREVIOUS_BOOTS) == 0;
+    const bool validLength = cursorBytes <= 1024 &&
+                             fromBytes.size() == 10U + cursorBytes;
+    if (this->protocolVersion != 1 || !validSource || !validFlags || !validLength)
+    {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        this->errorInfo = EINVAL;
+        return;
+    }
+
+    this->cursor.assign(fromBytes.begin() + 10, fromBytes.end());
+    if (this->cursor.find('\0') != std::string::npos)
+    {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        this->errorInfo = EINVAL;
+    }
+}
+
+TSYS_GetLog &TSYS_GetLog::Go()
+{
+    if (this->resultCode != ERR_SUCCESS)
+        return *this;
+
+    JournalLog::Source journalSource = JournalLog::Source::AioEnetdService;
+    if (this->source == SysLogSource::Kernel)
+        journalSource = JournalLog::Source::Kernel;
+    else if (this->source == SysLogSource::System)
+        journalSource = JournalLog::Source::System;
+    const bool includePreviousBoots =
+        (this->requestFlags & SYS_LOG_INCLUDE_PREVIOUS_BOOTS) != 0;
+    JournalLog::Page page = JournalLog::ReadPage(
+        journalSource, includePreviousBoots, this->cursor,
+        this->maxEntries, this->maxTextBytes);
+
+    if (page.errorNumber != 0)
+    {
+        this->resultCode = ERR_LOG_UNAVAILABLE;
+        this->errorInfo = static_cast<__u32>(page.errorNumber);
+        this->Data.clear();
+        return *this;
+    }
+    if (page.nextCursor.size() > 1024U ||
+        page.text.size() > static_cast<std::size_t>(MaxDataItemPayload - 28U - 1024U))
+    {
+        this->resultCode = ERR_DATAITEM_TOO_LARGE;
+        this->errorInfo = static_cast<__u32>(page.nextCursor.size() + page.text.size());
+        this->Data.clear();
+        return *this;
+    }
+
+    __u16 responseFlags = 0;
+    if (page.more) responseFlags |= SYS_LOG_MORE;
+    if (page.eof) responseFlags |= SYS_LOG_EOF;
+    if (page.truncatedEntry) responseFlags |= SYS_LOG_TRUNCATED_ENTRY;
+    if (page.cursorGap) responseFlags |= SYS_LOG_CURSOR_GAP;
+
+    TBytes out;
+    out.reserve(28 + page.nextCursor.size() + page.text.size());
+    out.push_back(1);
+    out.push_back(static_cast<__u8>(this->source));
+    WriteU16LE(out, responseFlags);
+    WriteU16LE(out, page.entryCount);
+    WriteU16LE(out, static_cast<__u16>(page.nextCursor.size()));
+    WriteU32LE(out, static_cast<__u32>(page.text.size()));
+    WriteU64LE(out, page.firstRealtimeUsec);
+    WriteU64LE(out, page.lastRealtimeUsec);
+    out.insert(out.end(), page.nextCursor.begin(), page.nextCursor.end());
+    out.insert(out.end(), page.text.begin(), page.text.end());
+    this->Data = std::move(out);
+    this->resultCode = ERR_SUCCESS;
+    return *this;
+}
+
+TBytes TSYS_GetLog::calcPayload(bool /*bAsReply*/)
+{
+    return this->Data;
+}
+
+std::string TSYS_GetLog::AsString(bool /*bAsReply*/)
+{
+    return "SYS_GetLog(source=" +
+           std::to_string(static_cast<unsigned>(this->source)) +
+           ", cursorBytes=" + std::to_string(this->cursor.size()) + ")";
+}
+
+// ---------------- SYS_GetBuildInfo ----------------
+
+TSYS_GetBuildInfo::TSYS_GetBuildInfo(DataItemIds id, const TBytes &fromBytes)
+    : TDataItemBase(id)
+{
+    if (!fromBytes.empty())
+    {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        this->errorInfo = static_cast<__u32>(fromBytes.size());
+    }
+}
+
+TSYS_GetBuildInfo::TSYS_GetBuildInfo(DataItemIds id)
+    : TDataItemBase(id)
+{
+}
+
+TSYS_GetBuildInfo &TSYS_GetBuildInfo::Go()
+{
+    if (this->resultCode != ERR_SUCCESS)
+        return *this;
+
+    const std::string version = BuildInfo::Version;
+    const std::string hash = BuildInfo::GitHash;
+    const std::string describe = BuildInfo::GitDescribe;
+    const std::string utc = BuildInfo::BuildUtc;
+    if (version.size() > 0xFFFFU || hash.size() > 0xFFFFU ||
+        describe.size() > 0xFFFFU || utc.size() > 0xFFFFU)
+    {
+        this->resultCode = ERR_DATAITEM_TOO_LARGE;
+        return *this;
+    }
+
+    TBytes out;
+    out.reserve(28U + version.size() + hash.size() + describe.size() + utc.size());
+    out.push_back(1U);
+    out.insert(out.end(), 3U, 0U);
+    WriteU32LE(out, BuildInfo::Major);
+    WriteU32LE(out, BuildInfo::Minor);
+    WriteU32LE(out, BuildInfo::Patch);
+    WriteU32LE(out, BuildInfo::Build);
+    WriteU16LE(out, static_cast<__u16>(version.size()));
+    WriteU16LE(out, static_cast<__u16>(hash.size()));
+    WriteU16LE(out, static_cast<__u16>(describe.size()));
+    WriteU16LE(out, static_cast<__u16>(utc.size()));
+    out.insert(out.end(), version.begin(), version.end());
+    out.insert(out.end(), hash.begin(), hash.end());
+    out.insert(out.end(), describe.begin(), describe.end());
+    out.insert(out.end(), utc.begin(), utc.end());
+    this->Data = std::move(out);
+    this->resultCode = ERR_SUCCESS;
+    this->errorInfo = 0;
+    return *this;
+}
+
+TBytes TSYS_GetBuildInfo::calcPayload(bool /*bAsReply*/)
+{
+    return this->Data;
+}
+
+std::string TSYS_GetBuildInfo::AsString(bool /*bAsReply*/)
+{
+    return std::string("SYS_GetBuildInfo() -> ") + BuildInfo::Version;
 }
 
 // ---------------- TSYS_Error ----------------
@@ -353,7 +602,7 @@ TBytes TSYS_Error::calcPayload(bool /*bAsReply*/)
 
 std::string TSYS_Error::AsString(bool /*bAsReply*/)
 {
-	const __u32 idx = static_cast<__u32>(-this->params.ErrorCode);
+	const __u32 idx = ErrorIndexFromWire(this->params.ErrorCode);
 	return "SYS_Error(Stage=" + to_hex<__u32>(this->params.Stage) + ", ErrorCode=" + to_hex<__u32>(this->params.ErrorCode) + " (idx=" + std::to_string(idx) + " " + SafeErrMsgFromCode(this->params.ErrorCode) + "), Info=" + to_hex<__u32>(this->params.Info) + ")";
 }
 
@@ -396,6 +645,6 @@ TBytes TSYS_ItemError::calcPayload(bool /*bAsReply*/)
 
 std::string TSYS_ItemError::AsString(bool /*bAsReply*/)
 {
-	const __u32 idx = static_cast<__u32>(-this->params.ErrorCode);
+	const __u32 idx = ErrorIndexFromWire(this->params.ErrorCode);
 	return "SYS_ItemError(ItemIndex=" + std::to_string(this->params.ItemIndex) + ", DId=0x" + to_hex<__u16>(this->params.DId) + ", ErrorCode=" + to_hex<__u32>(this->params.ErrorCode) + " (idx=" + std::to_string(idx) + " " + SafeErrMsgFromCode(this->params.ErrorCode) + "), Info=" + to_hex<__u32>(this->params.Info) + ")";
 }

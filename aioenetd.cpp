@@ -191,6 +191,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <cctype>
 #include <cerrno>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -202,6 +203,9 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include <unistd.h>
 
 #include "apci.h"
+#include "build_info.h"
+#include "daq_state.h"
+#include "socket_util.h"
 #include "logging.h"
 #include "TMessage.h"
 #include "adc.h"
@@ -211,6 +215,7 @@ from discord code-review conversation with Daria; these do not belong in this so
 #include "DataItems/CFG_.h"
 #include "DataItems/DAC_.h"
 #include "DataItems/REG_.h"
+#include "DataItems/SYS_.h"
 #include "DataItems/TDataItem.h"
 #include "aioenetd.h"
 #include "WebControl/webctl_aioenetd.h"
@@ -219,7 +224,6 @@ from discord code-review conversation with Daria; these do not belong in this so
 // #include "mongoose.h"
 // }
 
-#define VersionString "0.9.2"
 
 // Cross-module daemon reset request interface.
 // Implemented in aioenetd.cpp; called by DataItems/BRD_.cpp.
@@ -248,7 +252,7 @@ static bool webListenerStarted = false;
 
 enum class SysErrStage : __u32 { Parse = 1, Execute = 2 };
 
-static inline __u32 ErrIndex(TError rc) { return static_cast<__u32>(-rc); }
+static inline __u32 ErrIndex(TError rc) { return -rc; }
 
 
 // // Function to serve static files
@@ -563,7 +567,8 @@ void exit_handler(int s)
 {
 	Log("exit process starting");
 	done = 1;
-	apci_cancel_irq(apci, 1); // unblocks apci_wait_for_irq in worker
+	if (DaqReady() && apci >= 0)
+		apci_cancel_irq(apci, 1); // unblocks apci_wait_for_irq in worker
 
 	// if (controlSocket >= 0)
 	// {
@@ -588,18 +593,26 @@ void exit_handler(int s)
 	pthread_join(controlListener_thread, NULL);
 	pthread_join(action_thread, NULL);
 
-	/* put the card back in the power-up state */
-	out(ofsReset, bmResetEverything);
-	close(apci);
+	/* put an opened card back in the power-up state */
+	if (DaqReady() && apci >= 0)
+	{
+		out(ofsReset, bmResetEverything);
+		close(apci);
+		apci = -1;
+	}
 	SaveConfig();
 
 	// note __attribute__((unused)) is to silence an incorrect compiler warning
 	std::time_t end_time __attribute__((unused)) = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	Log(std::string("AIOeNET Daemon " VersionString " CLOSING, it is now: ") + std::string(std::ctime(&end_time)));
+	Log(std::string("AIOeNET Daemon ") + BuildInfo::Version + " CLOSING, it is now: " + std::string(std::ctime(&end_time)));
 }
 
 void Intro(int argc, char **argv)
 {
+	// stdout is captured by systemd.  Line buffering makes each completed log
+	// record promptly available to journal readers even when stdout is not a TTY.
+	std::setvbuf(stdout, nullptr, _IOLBF, 0);
+
 	// note __attribute__((unused)) is to silence an incorrect compiler warning
 	const char *env = std::getenv("AIOENET_LOG_LEVEL");
 	if (env)
@@ -625,7 +638,7 @@ void Intro(int argc, char **argv)
 	}
 
 	std::time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	Log("AIOeNET Daemon " VersionString " STARTING, it is now: " + std::string(std::ctime(&start_time)));
+	Log(std::string("AIOeNET Daemon ") + BuildInfo::Version + " STARTING, git=" + BuildInfo::GitDescribe + ", built=" + BuildInfo::BuildUtc + ", it is now: " + std::string(std::ctime(&start_time)));
 
 	struct sigaction sigIntHandler;
 	sigIntHandler.sa_handler = abort_handler;
@@ -644,23 +657,63 @@ void Intro(int argc, char **argv)
 	else
 		sscanf(argv[1], "%d", &ControlListenPort);
 
+	AdcListenPort = ControlListenPort + 1;
 	Trace("Control port: " + std::to_string(ControlListenPort));
+	Trace("ADC stream port: " + std::to_string(AdcListenPort));
 }
 
 void OpenDevFile()
 {
-	std::string devicefile = "";
-	std::string devicepath = "/dev/apci";
-	for (const auto &devfile : std::filesystem::directory_iterator(devicepath))
+	constexpr const char *deviceDirectory = "/dev/apci";
+	apci = -1;
+	std::error_code ec;
+	const bool exists = std::filesystem::exists(deviceDirectory, ec);
+	if (ec)
 	{
-		apci = open(devfile.path().c_str(), O_RDONLY);
-		if (apci >= 0)
-		{
-			devicefile = devfile.path().c_str();
-			break;
-		}
+		SetDaqUnavailable(DaqStatus::OpenFailed, ec.value(), deviceDirectory,
+			"Cannot inspect /dev/apci: " + ec.message());
+		Warn("DAQ unavailable: cannot inspect /dev/apci: " + ec.message());
+		return;
 	}
-	Log("Opening device @ " + devicefile);
+	if (!exists)
+	{
+		SetDaqUnavailable(DaqStatus::DeviceDirectoryMissing, ENOENT,
+			deviceDirectory, "/dev/apci is not present");
+		Warn("DAQ unavailable: /dev/apci is not present; continuing in diagnostics-only mode");
+		return;
+	}
+
+	std::filesystem::directory_iterator it(deviceDirectory, ec);
+	const std::filesystem::directory_iterator end;
+	if (ec)
+	{
+		SetDaqUnavailable(DaqStatus::OpenFailed, ec.value(), deviceDirectory,
+			"Cannot enumerate /dev/apci: " + ec.message());
+		Warn("DAQ unavailable: cannot enumerate /dev/apci: " + ec.message());
+		return;
+	}
+	if (it == end)
+	{
+		SetDaqUnavailable(DaqStatus::NoDeviceFound, ENODEV, deviceDirectory,
+			"/dev/apci contains no device file");
+		Warn("DAQ unavailable: /dev/apci contains no device file; continuing in diagnostics-only mode");
+		return;
+	}
+
+	const std::string deviceFile = it->path().string();
+	apci = open(deviceFile.c_str(), O_RDONLY | O_CLOEXEC);
+	if (apci < 0)
+	{
+		const int savedErrno = errno;
+		SetDaqUnavailable(DaqStatus::OpenFailed, savedErrno, deviceFile,
+			std::string("open failed: ") + std::strerror(savedErrno));
+		Warn("DAQ unavailable: open(" + deviceFile + ") failed: " +
+			std::strerror(savedErrno) + "; continuing in diagnostics-only mode");
+		return;
+	}
+
+	SetDaqReady(deviceFile);
+	Log("Opened DAQ device @ " + deviceFile);
 }
 
 void Bind(int &Socket, int &Port, void *structaddr, int iNET)
@@ -808,11 +861,11 @@ void *ControlListenerThread(void *arg)
 void SendAdcHello(int Socket)
 {
 	__u32 HelloAdc = Socket | 0x80000000; // "invalid ADC bit, and connection ID"
-	ssize_t bytesSent = send(Socket, &HelloAdc, 4, MSG_NOSIGNAL);
-	if (bytesSent == -1)
+	const ssize_t bytesSent = SendAll(Socket, &HelloAdc, sizeof(HelloAdc));
+	if (bytesSent != static_cast<ssize_t>(sizeof(HelloAdc)))
 	{
-		Error("! TCP Send of ADC Hello appears to have failed, bytesSent != Message Length (" + std::to_string(bytesSent) + " != " + std::to_string(sizeof(HelloAdc)) + ")");
-		// handle xmit error
+		Error("TCP Send of ADC Hello failed (" + std::to_string(bytesSent) +
+		      " != " + std::to_string(sizeof(HelloAdc)) + ")");
 	}
 	else
 	{
@@ -932,42 +985,60 @@ void SendControlHello(int Socket)
 		Payload.push_back(d2);
 	}
 
-	PTDataItem features = std::unique_ptr<TBRD_Features>(new TBRD_Features());
-	PTDataItem deviceID = std::unique_ptr<TBRD_DeviceID>(new TBRD_DeviceID());
-	PTDataItem adcBaseClock = std::unique_ptr<TADC_BaseClock>(new TADC_BaseClock());
-	PTDataItem fpgaId = std::unique_ptr<TBRD_FpgaId>(new TBRD_FpgaId());
-	PTDataItem adcChans = std::unique_ptr<TBRD_GetNumberOfAdcChannels>(new TBRD_GetNumberOfAdcChannels());
 	try
 	{
-		features->Go();
-		Payload.push_back(features);
-		deviceID->Go();
-		Payload.push_back(deviceID);
-		adcBaseClock->Go();
-		Payload.push_back(adcBaseClock);
-		fpgaId->Go();
-		Payload.push_back(fpgaId);
+		auto daqStatus = std::make_shared<TSYS_GetDaqStatus>();
+		daqStatus->Go();
+		Payload.push_back(daqStatus);
+
+		auto buildInfo = std::make_shared<TSYS_GetBuildInfo>();
+		buildInfo->Go();
+		Payload.push_back(buildInfo);
+
+		auto adcChans = std::make_shared<TBRD_GetNumberOfAdcChannels>();
 		adcChans->Go();
 		Payload.push_back(adcChans);
+
+		if (DaqReady())
+		{
+			auto features = std::make_shared<TBRD_Features>();
+			auto deviceID = std::make_shared<TBRD_DeviceID>();
+			auto adcBaseClock = std::make_shared<TADC_BaseClock>();
+			auto fpgaId = std::make_shared<TBRD_FpgaId>();
+			features->Go();
+			deviceID->Go();
+			adcBaseClock->Go();
+			fpgaId->Go();
+			Payload.push_back(features);
+			Payload.push_back(deviceID);
+			Payload.push_back(adcBaseClock);
+			Payload.push_back(fpgaId);
+		}
 	}
-	catch (const std::logic_error &e)
+	catch (const std::exception &e)
 	{
-		Error(e.what());
-		perror(e.what());
+		Error(std::string("Building Control Hello failed: ") + e.what());
 	}
 
 	TMessage HelloControl = TMessage(MId_Hello, Payload);
-
-	TBytes rbuf = HelloControl.AsBytes(true);
-	ssize_t bytesSent = send(Socket, rbuf.data(), rbuf.size(), MSG_NOSIGNAL);
-	if (bytesSent == -1)
+	try
 	{
-		Error("! TCP Send of Control Hello appears to have failed, bytesSent != Message Length (" + std::to_string(bytesSent) + " != " + std::to_string(rbuf.size()) + ")");
-		// handle xmit error
+		TBytes rbuf = HelloControl.AsBytes(true);
+		const ssize_t bytesSent = SendAll(Socket, rbuf.data(), rbuf.size());
+		if (bytesSent != static_cast<ssize_t>(rbuf.size()))
+		{
+			Error("TCP Send of Control Hello failed (" + std::to_string(bytesSent) +
+			      " != " + std::to_string(rbuf.size()) + ")");
+		}
+		else
+		{
+			Log("Sent 'Hello' to Control Client# " + to_hex<__u32>(Socket) +
+			    ":\n          " + HelloControl.AsString() + ", bytes=", rbuf);
+		}
 	}
-	else
+	catch (const std::exception &e)
 	{
-		Log("Sent 'Hello' to Control Client# " + to_hex<__u32>(Socket) + ":\n		  " + HelloControl.AsString() + ", bytes=", rbuf);
+		Error(std::string("Could not serialize Control Hello: ") + e.what());
 	}
 }
 
@@ -1045,6 +1116,11 @@ static bool TryParseGuardWhat(const char *what, __u32 &errIndex, __u32 &info)
 
 static PTDataItemBase BuildDataItem(DataItemIds did, const TBytes &payload)
 {
+	if (payload.size() > MaxDataItemPayload)
+	{
+		Error("BuildDataItem rejected payload larger than 0xFFFE bytes");
+		return nullptr;
+	}
 	TBytes di;
 	stuff<__u16>(di, static_cast<__u16>(did));
 	stuff<__u16>(di, static_cast<__u16>(payload.size()));
@@ -1069,7 +1145,7 @@ static PTDataItemBase BuildSysError(SysErrStage stage, __u32 errIndex, __u32 inf
 	stuff<__u32>(payload, static_cast<__u32>(stage));
 	stuff<__u32>(payload, errIndex);
 	stuff<__u32>(payload, info);
-	if (!text.empty()) payload.insert(payload.end(), text.begin(), text.end());
+	if (!text.empty()) Debug("SYS_Error detail (not placed on fixed-size wire item): " + text);
 	return BuildDataItem(DataItemIds::SYS_Error, payload);
 }
 
@@ -1080,7 +1156,7 @@ static PTDataItemBase BuildSysItemError(__u16 itemIndex, DataItemIds originalDid
 	stuff<__u16>(payload, static_cast<__u16>(originalDid));
 	stuff<__u32>(payload, errIndex);
 	stuff<__u32>(payload, info);
-	if (!text.empty()) payload.insert(payload.end(), text.begin(), text.end());
+	if (!text.empty()) Debug("SYS_ItemError detail (not placed on fixed-size wire item): " + text);
 	return BuildDataItem(DataItemIds::SYS_ItemError, payload);
 }
 
@@ -1109,10 +1185,18 @@ static PTDataItemBase BuildSysItemError(__u16 itemIndex, DataItemIds originalDid
 // }
 
 
+void SendResponse(int Client, TMessage &aMessage);
+
 ssize_t ReceiveFromSocket(int aSocket, std::vector<char> &buffer)
 {
 	char tempBuffer[65536];
-	ssize_t bytesRead = recv(aSocket, tempBuffer, sizeof(tempBuffer), MSG_NOSIGNAL);
+	ssize_t bytesRead;
+	do
+	{
+		bytesRead = recv(aSocket, tempBuffer, sizeof(tempBuffer), 0);
+	}
+	while (bytesRead < 0 && errno == EINTR && done == 0);
+
 	if (bytesRead > 0)
 	{
 		buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);
@@ -1135,6 +1219,13 @@ bool GotMessage(const char *theBuffer, int bytesRead, TMessage &outMessage)
 	try
 	{
 		outMessage = TMessage::FromBytes(buf, result);
+		if (result != ERR_SUCCESS)
+		{
+			TMessage x('X');
+			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, ErrIndex(result), 0, err_msg[-result]))
+				x.addDataItem(di);
+			outMessage = x;
+		}
 	}
 	catch (const std::logic_error &e)
 	{
@@ -1161,14 +1252,18 @@ void ProcessMessages(std::vector<char> &buffer, int aSocket)
 
 		if (payloadLen > maxPayloadLength)
 		{
-			auto x = std::make_shared<TMessage>('X');
-			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse, ErrIndex(ERR_MSG_LEN_MISMATCH), payloadLen, "Payload length exceeds maxPayloadLength")) x->addDataItem(di);
-			auto action = new TActionQueueItem;
-			action->Socket = aSocket;
-			action->Message = x;
-			ActionQueue.enqueue(action);
+			TMessage x('X');
+			if (PTDataItemBase di = BuildSysError(SysErrStage::Parse,
+				ErrIndex(ERR_MSG_LEN_MISMATCH), payloadLen,
+				"Payload length exceeds maxPayloadLength"))
+				x.addDataItem(di);
+
+			// This connection cannot be safely resynchronized without accepting the
+			// claimed payload.  Send the bounded error reply before shutting down
+			// the socket; the receiver thread performs the single close().
+			SendResponse(aSocket, x);
 			buffer.clear();
-			Disconnect(aSocket);
+			(void)shutdown(aSocket, SHUT_RDWR);
 			return;
 		}
 
@@ -1255,14 +1350,12 @@ void *threadReceiver(void *arg)
 		ssize_t bytesRead = ReceiveFromSocket(controlSocket, buffer);
 		if (bytesRead < 0)
 		{
-			Error("error on Control recv(): " + std::to_string(errno));
-			break; // error handling? frex "connection closed" or EAGAIN or EINTR?
-		}
-		if (CheckDisconnect(bytesRead, controlSocket))
-		{
-			Disconnect(controlSocket);
+			Error("error on Control recv(): " + std::to_string(errno) +
+			      ", " + std::strerror(errno));
 			break;
 		}
+		if (CheckDisconnect(bytesRead, controlSocket))
+			break;
 
 		try
 		{
@@ -1398,67 +1491,107 @@ void HandleNewControlClients(int ControlListenSocket, socklen_t addrSize, sockad
 
 bool RunMessage(TMessage &aMessage)
 {
-    bool anyError = false;
+	bool anyError = false;
 
-    for (size_t i = 0; i < aMessage.DataItems.size(); ++i)
-    {
-        auto item = aMessage.DataItems[i];
-        DataItemIds originalDid = DataItemIds::INVALID;
+	for (size_t i = 0; i < aMessage.DataItems.size(); ++i)
+	{
+		auto item = aMessage.DataItems[i];
+		DataItemIds originalDid = item ? item->getDId() : DataItemIds::INVALID;
 
-        if (item) originalDid = item->getDId();
+		try
+		{
+			if (item && item->getResultCode() == ERR_SUCCESS)
+			{
+				auto dictEntry = DIdDict.find(originalDid);
+				if (dictEntry != DIdDict.end() && dictEntry->second.requiresDaq && !DaqReady())
+				{
+					const DaqStateSnapshot state = GetDaqStateSnapshot();
+					item->resultCode = ERR_DAQ_UNAVAILABLE;
+					item->errorInfo = static_cast<__u32>(state.lastErrno != 0 ? state.lastErrno : ENODEV);
+				}
+				else
+				{
+					item->Go();
+				}
+			}
 
-        try
-        {
-            if (item) item->Go();
-
-            TError rc = item ? item->getResultCode() : ERR_MSG_PARSE;
-            if (rc != ERR_SUCCESS)
-            {
-                anyError = true;
-                __u32 errIndex = ErrIndex(rc);
-                if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, 0, ""))
-                    aMessage.DataItems[i] = errItem; // write back by index
-            }
-        }
-        catch (const std::logic_error &e)
-        {
-            anyError = true;
-            __u32 errIndex = ErrIndex(ERR_MSG_PARSE);
-            __u32 info = 0;
-            TryParseGuardWhat(e.what(), errIndex, info);
-            if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, errIndex, info, e.what()))
-                aMessage.DataItems[i] = errItem;
-        }
-        catch (const std::exception &e)
-        {
-            anyError = true;
-            if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, e.what()))
-                aMessage.DataItems[i] = errItem;
-        }
-        catch (...)
-        {
-            anyError = true;
-            if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid, ErrIndex(ERR_MSG_PARSE), 0, "unknown exception"))
-                aMessage.DataItems[i] = errItem;
-        }
-    }
-    aMessage.setMId(anyError ? 'E' : 'R');
-    return !anyError;
+			const TError rc = item ? item->getResultCode() : ERR_MSG_PARSE;
+			if (rc != ERR_SUCCESS)
+			{
+				anyError = true;
+				const __u32 info = item ? item->getErrorInfo() : 0;
+				if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid,
+					ErrIndex(rc), info, ""))
+					aMessage.DataItems[i] = errItem;
+			}
+		}
+		catch (const std::logic_error &e)
+		{
+			anyError = true;
+			__u32 errIndex = ErrIndex(ERR_MSG_PARSE);
+			__u32 info = 0;
+			TryParseGuardWhat(e.what(), errIndex, info);
+			if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid,
+				errIndex, info, e.what()))
+				aMessage.DataItems[i] = errItem;
+			Error(std::string("DataItem logic error: ") + e.what());
+		}
+		catch (const std::exception &e)
+		{
+			anyError = true;
+			if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid,
+				ErrIndex(ERR_MSG_PARSE), 0, e.what()))
+				aMessage.DataItems[i] = errItem;
+			Error(std::string("DataItem exception: ") + e.what());
+		}
+		catch (...)
+		{
+			anyError = true;
+			if (auto errItem = BuildSysItemError(static_cast<__u16>(i), originalDid,
+				ErrIndex(ERR_MSG_PARSE), 0, "unknown exception"))
+				aMessage.DataItems[i] = errItem;
+			Error("Unknown DataItem exception");
+		}
+	}
+	aMessage.setMId(anyError ? 'E' : 'R');
+	return !anyError;
 }
 
 
 void SendResponse(int Client, TMessage &aMessage)
 {
-	TBytes rbuf = aMessage.AsBytes(true);
-	ssize_t bytesSent = send(Client, rbuf.data(), rbuf.size(), MSG_NOSIGNAL);
-	if (bytesSent == -1)
+	TBytes rbuf;
+	try
 	{
-		Error("! TCP Send of Reply to Control failed, bytesSent != Message Length (" + std::to_string(bytesSent) + " != " + std::to_string(rbuf.size()) + ")");
-		// handle xmit error
+		rbuf = aMessage.AsBytes(true);
+	}
+	catch (const std::length_error &e)
+	{
+		Error(std::string("Reply serialization exceeded protocol limits: ") + e.what());
+		TMessage fallback('X');
+		if (auto item = BuildSysError(SysErrStage::Execute, ErrIndex(ERR_DATAITEM_TOO_LARGE), 0, e.what()))
+			fallback.addDataItem(item);
+		rbuf = fallback.AsBytes(true);
+	}
+	catch (const std::exception &e)
+	{
+		Error(std::string("Reply serialization failed: ") + e.what());
+		TMessage fallback('X');
+		if (auto item = BuildSysError(SysErrStage::Execute, ErrIndex(ERR_MSG_PARSE), 0, e.what()))
+			fallback.addDataItem(item);
+		rbuf = fallback.AsBytes(true);
+	}
+
+	const ssize_t bytesSent = SendAll(Client, rbuf.data(), rbuf.size());
+	if (bytesSent != static_cast<ssize_t>(rbuf.size()))
+	{
+		Error("TCP Send of Control reply failed (" + std::to_string(bytesSent) +
+		      " != " + std::to_string(rbuf.size()) + ")");
 	}
 	else
 	{
-		Trace("sent Reply to Control Client# " + std::to_string(Client) + " " + std::to_string(bytesSent) + " bytes: ", rbuf);
+		Trace("sent Reply to Control Client# " + std::to_string(Client) + " " +
+		      std::to_string(bytesSent) + " bytes: ", rbuf);
 	}
 }
 

@@ -32,7 +32,6 @@ eNET-AIO configuration structure and support API.
 #define CONFIG_FACTORY "config.factory/"
 #define CONFIG_USER    "config.user/"
 #define CONFIG_INIT_STAMP ".initialized"
-#define AIOENETD_VERSION "aioenetd " __DATE__ " " __TIME__
 
 
 /*

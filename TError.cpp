@@ -17,5 +17,8 @@ const char *err_msg[] = {
 	/* -13 */ "Not Yet Implemented",
 	/* -14 */ "ADC Busy",
 	/* -15 */ "ADC FATAL",
+	/* -16 */ "DAQ hardware unavailable",
+	/* -17 */ "Linux journal unavailable",
+	/* -18 */ "DataItem payload too large",
 	0
 };

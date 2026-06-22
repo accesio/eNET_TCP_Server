@@ -42,6 +42,14 @@ static inline std::shared_ptr<T> SafeMakeShared(Args&&... args) {
 #define DATA_ITEM_GET_MACRO(_1, _2, _3, _4, _5, _6, _7, NAME, ...) NAME
 #define DATA_ITEM(...) DATA_ITEM_GET_MACRO(__VA_ARGS__, DATA_ITEM_IMPL_2, DATA_ITEM_IMPL_1)(__VA_ARGS__)
 
+#define HW_DATA_ITEM_IMPL_2(x, aclass, a, b, c, y, z)                                              \
+    { DataItemIds::x, { a, b, c, [](DataItemIds q, TBytes bytes) {                                 \
+        return construct<aclass>(DataItemIds::x, bytes); }, y, z, true } }
+#define HW_DATA_ITEM_IMPL_1(x, aclass, a, b, c, y)                                                  \
+    { DataItemIds::x, { a, b, c, [](DataItemIds q, TBytes bytes) {                                 \
+        return construct<aclass>(DataItemIds::x, bytes); }, y, {}, true } }
+#define HW_DATA_ITEM(...) DATA_ITEM_GET_MACRO(__VA_ARGS__, HW_DATA_ITEM_IMPL_2, HW_DATA_ITEM_IMPL_1)(__VA_ARGS__)
+
 #pragma region TDataItemRaw
 
 // stores raw bytes as parameters instead of struct-style
@@ -91,9 +99,9 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(BRD_, TDataItemDoc, 0, 0, 0, "Documentation: list of BRD_ DataItems", nullptr),
 		//DATA_ITEM(BRD_Reset, TDataItemRaw, 0, 0, 0, "BRD_Reset()", nullptr),
 		DATA_ITEM(BRD_Reset, TBRD_Reset, 0, 1, 16, "BRD_Reset([0|1|gentle|FORCE]) → u8 mode", nullptr),
-		DATA_ITEM(BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32", nullptr),
-		DATA_ITEM(BRD_Features, TBRD_Features, 0, 4, 4, "BRD_Features() → u8"),
-		DATA_ITEM(BRD_FpgaID, TBRD_FpgaId, 0, 4, 4, "BRD_FpgaID() → u32"),
+		HW_DATA_ITEM(BRD_DeviceID, TBRD_DeviceID, 0, 0, 0, "BRD_DeviceID() → u32", nullptr),
+		HW_DATA_ITEM(BRD_Features, TBRD_Features, 0, 4, 4, "BRD_Features() → u8"),
+		HW_DATA_ITEM(BRD_FpgaID, TBRD_FpgaId, 0, 4, 4, "BRD_FpgaID() → u32"),
 		DATA_ITEM(BRD_Model, TBRD_Model, 12, 40, 40, "BRD_Model(ASCII)", nullptr),
 		DATA_ITEM(BRD_GetModel, TBRD_GetModel, 0, 0, 0, "BRD_GetModel() → ASCII", nullptr),
 		DATA_ITEM(BRD_SerialNumber, TBRD_SerialNumber, 12, 12, 14, "BRD_SetSerialNumber(ASCII SN)", nullptr),
@@ -121,12 +129,12 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		// the registers on the eNET are only accessible as 8- or 32-bits, depending on the specific register.
 		// the "in()" and "out()" functions deal with this
 		DATA_ITEM(REG_, TDataItemDoc, 0, 0, 0, "Documentation: list of REG_ DataItems", nullptr),
-		DATA_ITEM(REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]", nullptr),
+		HW_DATA_ITEM(REG_Read1, TREG_Read1, 1, 1, 1, "REG_Read1(u8 offset) → [u8|u32]", nullptr),
 		DIdNYI(REG_ReadBuf),
-		DATA_ITEM(REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)", nullptr),
+		HW_DATA_ITEM(REG_Write1, TREG_Write1, 2, 5, 5, "REG_Write1(u8 ofs, [u8|u32] data)", nullptr),
 		DIdNYI(REG_WriteBuf),
 
-		DATA_ITEM(REG_ClearBits, TDataItemRaw, 2, 5, 5, "REG_ClearBits(u8 ofs, u8|u32 bitsToClear)",
+		HW_DATA_ITEM(REG_ClearBits, TDataItemRaw, 2, 5, 5, "REG_ClearBits(u8 ofs, u8|u32 bitsToClear)",
 				  [](const TBytes &buf)
 				  {
 						__u8 * pargs = (__u8 *)buf.data();
@@ -137,7 +145,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 						regValue &= ~ bitsToClear;
 						out(ofs, regValue);
 					}),
-		DATA_ITEM(REG_ToggleBits, TDataItemRaw, 2, 5, 5,
+		HW_DATA_ITEM(REG_ToggleBits, TDataItemRaw, 2, 5, 5,
 				  "REG_ToggleBits(u8 ofs, u8|u32 bitsToToggle)",
 				  [](const TBytes &buf)
 				  {
@@ -149,7 +157,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 						regValue ^= bitsToToggle;
 						out(ofs,regValue);
 					}),
-		DATA_ITEM(REG_SetBits, TDataItemRaw, 2, 5, 5, "REG_SetBits(u8 ofs, u8|u32 bitsToSet)",
+		HW_DATA_ITEM(REG_SetBits, TDataItemRaw, 2, 5, 5, "REG_SetBits(u8 ofs, u8|u32 bitsToSet)",
 				  [](const TBytes &buf)
 				  {
 						__u8 * pargs = (__u8 *)buf.data();
@@ -160,11 +168,11 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 						regValue |= bitsToSet;
 						out(ofs,regValue);
 					}),
-		DATA_ITEM(REG_ReadBit, TREG_ReadBit, 2, 2, 2, "TREG_ReadBit(u8 offset, u8 bitIndex) → [u8]", nullptr),
-		DATA_ITEM(REG_WriteBit, TREG_WriteBit, 3, 3, 3, "TREG_WriteBit(u8 offset, u8 bitIndex, u8 one_or_zero)", nullptr),
-		DATA_ITEM(REG_ClearBit, TREG_ClearBit, 2, 2, 2, "TREG_ClearBit(u8 offset, u8 bitIndex)", nullptr),
-		DATA_ITEM(REG_SetBit, TREG_SetBit, 2, 2, 2, "TREG_SetBit(u8 offset, u8 bitIndex)", nullptr),
-		DATA_ITEM(REG_ToggleBit, TREG_ToggleBit, 2, 2, 2, "TREG_ToggleBit(u8 offset, u8 bitIndex)", nullptr),
+		HW_DATA_ITEM(REG_ReadBit, TREG_ReadBit, 2, 2, 2, "TREG_ReadBit(u8 offset, u8 bitIndex) → [u8]", nullptr),
+		HW_DATA_ITEM(REG_WriteBit, TREG_WriteBit, 3, 3, 3, "TREG_WriteBit(u8 offset, u8 bitIndex, u8 one_or_zero)", nullptr),
+		HW_DATA_ITEM(REG_ClearBit, TREG_ClearBit, 2, 2, 2, "TREG_ClearBit(u8 offset, u8 bitIndex)", nullptr),
+		HW_DATA_ITEM(REG_SetBit, TREG_SetBit, 2, 2, 2, "TREG_SetBit(u8 offset, u8 bitIndex)", nullptr),
+		HW_DATA_ITEM(REG_ToggleBit, TREG_ToggleBit, 2, 2, 2, "TREG_ToggleBit(u8 offset, u8 bitIndex)", nullptr),
 
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)
@@ -174,8 +182,8 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		// The range of each DAC is factory-set, per-dac, with ±10, ±5, 0-10, and 0-5 "standard"
 		// aioenetd is configured at the factory for the DAC range, so customers can output in Voltage
 		DATA_ITEM(DAC_, TDataItemDoc, 0, 0, 0, "Documentation: list of DAC_ DataItems", nullptr),
-		DATA_ITEM(DAC_Output1, TDAC_Output, 3, 5, 5, "DAC_Output1(u8 iDAC, u16 counts)", nullptr),
-		DATA_ITEM(DAC_Output1V, TDAC_OutputV, 3, 5, 5, "DAC_Output1(u8 iDAC, single Volts)", nullptr),
+		HW_DATA_ITEM(DAC_Output1, TDAC_Output, 3, 5, 5, "DAC_Output1(u8 iDAC, u16 counts)", nullptr),
+		HW_DATA_ITEM(DAC_Output1V, TDAC_OutputV, 3, 5, 5, "DAC_Output1(u8 iDAC, single Volts)", nullptr),
 		DATA_ITEM(DAC_Range1, TDAC_Range1, 5, 5, 5, "DAC_Range1(u8 iDAC, u32 RangeCode)", nullptr),
 		DIdNYI(DAC_Configure1),
 		DIdNYI(DAC_ConfigAndOutput1),
@@ -297,15 +305,15 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		// @ this bit is available for use as PWM output or input
 		// * 3 bits are consumed when a submux is attached. They are forced to output and are under FPGA control; writes are ignored
 		// + these 8 bits are SPI-driven thus slower
-		DATA_ITEM(DIO_Configure, TDIO_Configure, 2, 2, 2, "TDIO_Configure(u16 value) - each bit: 1=input, 0=output", nullptr),
-		DATA_ITEM(DIO_Input, TDIO_Input, 0, 0, 0, "TDIO_Input() → returns u16 value", nullptr),
-		DATA_ITEM(DIO_Output, TDIO_Output, 2, 2, 2, "TDIO_Output(u16 value) - sets digital outputs", nullptr),
-		DATA_ITEM(DIO_ConfigureBit, TDIO_ConfigureBit, 2, 2, 2, "DIO_ConfigureBit(u8 bitNumber, u8 direction)", nullptr),
-		DATA_ITEM(DIO_InputBit, TDIO_InputBit, 1, 1, 1, "DIO_InputBit(u8 bitNumber) → [u8]", nullptr),
-		DATA_ITEM(DIO_OutputBit, TDIO_OutputBit, 2, 2, 2, "DIO_OutputBit(u8 bitNumber, u8 value)", nullptr),
-		DATA_ITEM(DIO_ClearBit, TDIO_ClearBit, 1, 1, 1, "DIO_ClearBit(u8 bitNumber)", nullptr),
-		DATA_ITEM(DIO_SetBit, TDIO_SetBit, 1, 1, 1, "DIO_SetBit(u8 bitNumber)", nullptr),
-		DATA_ITEM(DIO_ToggleBit, TDIO_ToggleBit, 1, 1, 1, "DIO_ToggleBit(u8 bitNumber)", nullptr),
+		HW_DATA_ITEM(DIO_Configure, TDIO_Configure, 2, 2, 2, "TDIO_Configure(u16 value) - each bit: 1=input, 0=output", nullptr),
+		HW_DATA_ITEM(DIO_Input, TDIO_Input, 0, 0, 0, "TDIO_Input() → returns u16 value", nullptr),
+		HW_DATA_ITEM(DIO_Output, TDIO_Output, 2, 2, 2, "TDIO_Output(u16 value) - sets digital outputs", nullptr),
+		HW_DATA_ITEM(DIO_ConfigureBit, TDIO_ConfigureBit, 2, 2, 2, "DIO_ConfigureBit(u8 bitNumber, u8 direction)", nullptr),
+		HW_DATA_ITEM(DIO_InputBit, TDIO_InputBit, 1, 1, 1, "DIO_InputBit(u8 bitNumber) → [u8]", nullptr),
+		HW_DATA_ITEM(DIO_OutputBit, TDIO_OutputBit, 2, 2, 2, "DIO_OutputBit(u8 bitNumber, u8 value)", nullptr),
+		HW_DATA_ITEM(DIO_ClearBit, TDIO_ClearBit, 1, 1, 1, "DIO_ClearBit(u8 bitNumber)", nullptr),
+		HW_DATA_ITEM(DIO_SetBit, TDIO_SetBit, 1, 1, 1, "DIO_SetBit(u8 bitNumber)", nullptr),
+		HW_DATA_ITEM(DIO_ToggleBit, TDIO_ToggleBit, 1, 1, 1, "DIO_ToggleBit(u8 bitNumber)", nullptr),
 
 		DIdNYI(DIO_PulseBit),
 		DIdNYI(DIO_ConfigureReadWriteReadSome),
@@ -317,34 +325,34 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 
 		DIdNYI(ADC_Claim),
 		DIdNYI(ADC_Release),
-		DATA_ITEM(ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32", nullptr),
-		DATA_ITEM(ADC_StartHz, TDataItemRaw, 4, 4, 4, "ADC_StartHz(f32)", nullptr),
-		DATA_ITEM(ADC_StartDivisor, TDataItemRaw, 4, 4, 4, "ADC_StartDivisor(u32)", nullptr),
+		HW_DATA_ITEM(ADC_BaseClock, TADC_BaseClock, 0, 0, 4, "ADC_BaseClock() → u32", nullptr),
+		HW_DATA_ITEM(ADC_StartHz, TDataItemRaw, 4, 4, 4, "ADC_StartHz(f32)", nullptr),
+		HW_DATA_ITEM(ADC_StartDivisor, TDataItemRaw, 4, 4, 4, "ADC_StartDivisor(u32)", nullptr),
 		DIdNYI(ADC_ConfigurationOfEverything),
 
-		DATA_ITEM(ADC_Differential1, TADC_Differential1, 2, 2, 2, "ADC_Differential1(u8 channelGroup, u8 singleEnded)", nullptr),
-		DATA_ITEM(ADC_DifferentialAll, TADC_DifferentialAll, 8, 8, 8, "ADC_DifferentialAll(8 bytes: one per channelGroup)", nullptr),
+		HW_DATA_ITEM(ADC_Differential1, TADC_Differential1, 2, 2, 2, "ADC_Differential1(u8 channelGroup, u8 singleEnded)", nullptr),
+		HW_DATA_ITEM(ADC_DifferentialAll, TADC_DifferentialAll, 8, 8, 8, "ADC_DifferentialAll(8 bytes: one per channelGroup)", nullptr),
 
-		DATA_ITEM(ADC_Range1, TADC_Range1, 2, 2, 2, "ADC_Range1(u8 channelGroup, u8 range)", nullptr),
-		DATA_ITEM(ADC_RangeAll, TADC_RangeAll, 8, 8, 8, "ADC_RangeAll(8 bytes: range for each channelGroup)", nullptr),
+		HW_DATA_ITEM(ADC_Range1, TADC_Range1, 2, 2, 2, "ADC_Range1(u8 channelGroup, u8 range)", nullptr),
+		HW_DATA_ITEM(ADC_RangeAll, TADC_RangeAll, 8, 8, 8, "ADC_RangeAll(8 bytes: range for each channelGroup)", nullptr),
 
-		DATA_ITEM(ADC_Scale1, TADC_Scale1, 5, 5, 5, "ADC_Scale1(u8 rangeIndex, float scale)", nullptr),
-		DATA_ITEM(ADC_ScaleAll, TADC_ScaleAll, 8 * sizeof(float), 8 * sizeof(float), 8 * sizeof(float), "ADC_ScaleAll(8 floats for scale calibration)", nullptr),
+		HW_DATA_ITEM(ADC_Scale1, TADC_Scale1, 5, 5, 5, "ADC_Scale1(u8 rangeIndex, float scale)", nullptr),
+		HW_DATA_ITEM(ADC_ScaleAll, TADC_ScaleAll, 8 * sizeof(float), 8 * sizeof(float), 8 * sizeof(float), "ADC_ScaleAll(8 floats for scale calibration)", nullptr),
 
-		DATA_ITEM(ADC_Offset1, TADC_Offset1, 5, 5, 5, "ADC_Offset1(u8 rangeIndex, float offset)", nullptr),
-		DATA_ITEM(ADC_OffsetAll, TADC_OffsetAll, 8 * sizeof(float), 8 * sizeof(float), 8 * sizeof(float), "ADC_OffsetAll(8 floats for offset calibration)", nullptr),
+		HW_DATA_ITEM(ADC_Offset1, TADC_Offset1, 5, 5, 5, "ADC_Offset1(u8 rangeIndex, float offset)", nullptr),
+		HW_DATA_ITEM(ADC_OffsetAll, TADC_OffsetAll, 8 * sizeof(float), 8 * sizeof(float), 8 * sizeof(float), "ADC_OffsetAll(8 floats for offset calibration)", nullptr),
 
-		DATA_ITEM(ADC_Calibration1, TADC_Calibration1, 9, 9, 9, "ADC_Calibration1(u8 rangeIndex, float scale, float offset)", nullptr),
-		DATA_ITEM(ADC_CalibrationAll, TADC_CalibrationAll, 16 * sizeof(float), 16 * sizeof(float), 16 * sizeof(float), "ADC_CalibrationAll(8 scales followed by 8 offsets)", nullptr),
+		HW_DATA_ITEM(ADC_Calibration1, TADC_Calibration1, 9, 9, 9, "ADC_Calibration1(u8 rangeIndex, float scale, float offset)", nullptr),
+		HW_DATA_ITEM(ADC_CalibrationAll, TADC_CalibrationAll, 16 * sizeof(float), 16 * sizeof(float), 16 * sizeof(float), "ADC_CalibrationAll(8 scales followed by 8 offsets)", nullptr),
 
 		DIdNYI(ADC_Raw1),
 		DIdNYI(ADC_Counts1),
 		DIdNYI(ADC_Volts1),
-		DATA_ITEM(ADC_RawAll,    TADC_RawAll,    0, 0, 0, "ADC_RawAll() -> nChannels * u32", nullptr),
-		DATA_ITEM(ADC_CountsAll, TADC_CountsAll, 0, 0, 0, "ADC_CountsAll() -> nChannels * u16", nullptr),
-		DATA_ITEM(ADC_VoltsAll, TADC_VoltsAll, 0, 0, 0, "ADC_VoltsAll() → float[nChannels]", nullptr),
-		DATA_ITEM(ADC_StreamStart, TADC_StreamStart, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
-		DATA_ITEM(ADC_StreamStop, TADC_StreamStop, 0, 0, 0, "ADC_StreamStop()", nullptr),
+		HW_DATA_ITEM(ADC_RawAll,    TADC_RawAll,    0, 0, 0, "ADC_RawAll() -> nChannels * u32", nullptr),
+		HW_DATA_ITEM(ADC_CountsAll, TADC_CountsAll, 0, 0, 0, "ADC_CountsAll() -> nChannels * u16", nullptr),
+		HW_DATA_ITEM(ADC_VoltsAll, TADC_VoltsAll, 0, 0, 0, "ADC_VoltsAll() → float[nChannels]", nullptr),
+		HW_DATA_ITEM(ADC_StreamStart, TADC_StreamStart, 4, 4, 4, "ADC_StreamStart((u32)AdcConnectionId)", nullptr),
+		HW_DATA_ITEM(ADC_StreamStop, TADC_StreamStop, 0, 0, 0, "ADC_StreamStop()", nullptr),
 		// DIdNYI(ADC_Streaming_stuff_including_Hz_config),
 //---------------------------------------------------------------------------------------------------------------------------------
 #if defined(_MSC_VER) || defined(__clang__)
@@ -383,8 +391,12 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 #if defined(_MSC_VER) || defined(__clang__)
 	#pragma region SYS_
 #endif
+		DATA_ITEM(SYS_, TDataItemDoc, 0, 0, 0, "Documentation: list of SYS_ DataItems", nullptr),
 		DATA_ITEM(SYS_UploadFileName, TSYS_UploadFileName, 1, 255, 255, "SYS_UploadFileName({valid filepath})", nullptr),
-		DATA_ITEM(SYS_UploadFileData, TSYS_UploadFileData, 1, 65534, 65534, "SYS_UploadFileData({valid file data})", nullptr),
+		DATA_ITEM(SYS_UploadFileData, TSYS_UploadFileData, 1, MaxDataItemPayload, MaxDataItemPayload, "SYS_UploadFileData({valid file data})", nullptr),
+		DATA_ITEM(SYS_GetDaqStatus, TSYS_GetDaqStatus, 0, 0, 0, "SYS_GetDaqStatus() → DAQ state, errno, device path, reason", nullptr),
+		DATA_ITEM(SYS_GetLog, TSYS_GetLog, 0, 10, 1034, "SYS_GetLog([v1 request]) → cursor-paged Linux journal text", nullptr),
+		DATA_ITEM(SYS_GetBuildInfo, TSYS_GetBuildInfo, 0, 0, 0, "SYS_GetBuildInfo() → version, Git identity, build UTC", nullptr),
 		DATA_ITEM(SYS_Error, TSYS_Error, 0, 12, 12, "SYS_Error() → u32 Stage, u32 error code, u32 info", nullptr),
 		DATA_ITEM(SYS_ItemError, TSYS_ItemError, 0, 12, 12, "SYS_ItemError() → u16 itemIndex, u16 DId, u32 error code, u32 info", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------
@@ -592,6 +604,8 @@ DataItemIds TDataItemBase::getDId() const
 
 bool TDataItemBase::isValidDataLength() const
 {
+	if (this->Data.size() > MaxDataItemPayload)
+		return false;
 	bool result = false;
 	DataItemIds Id = this->getDId();
 	TDataItemLength len = static_cast<TDataItemLength>(this->Data.size());
@@ -605,10 +619,15 @@ bool TDataItemBase::isValidDataLength() const
 TBytes TDataItemBase::AsBytes(bool bAsReply)
 {
 	TBytes bytes;
-	stuff<TDataId>(bytes, static_cast<__u16>(this->DId));
 	this->Data = this->calcPayload(bAsReply);
+	if (this->Data.size() > MaxDataItemPayload)
+	{
+		this->resultCode = ERR_DATAITEM_TOO_LARGE;
+		this->errorInfo = static_cast<__u32>(this->Data.size());
+		throw std::length_error("DataItem payload exceeds 0xFFFE bytes");
+	}
+	stuff<TDataId>(bytes, static_cast<__u16>(this->DId));
 	stuff<TDataItemLength>(bytes, static_cast<TDataItemLength>(this->Data.size()));
-
 	bytes.insert(end(bytes), begin(Data), end(Data));
 	return bytes;
 }
@@ -657,6 +676,11 @@ TError TDataItemBase::getResultCode()
 
 	Trace("resultCode: " + std::to_string(this->resultCode));
 	return this->resultCode;
+}
+
+__u32 TDataItemBase::getErrorInfo() const noexcept
+{
+	return this->errorInfo;
 }
 
 std::shared_ptr<void> TDataItemBase::getResultValue()

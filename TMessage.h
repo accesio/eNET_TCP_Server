@@ -144,7 +144,7 @@ using TCheckSum = __u8;
 
 #define __valid_checksum__ (TCheckSum)(0)
 #define minimumMessageLength ((__u32)(sizeof(TMessageHeader) + sizeof(TCheckSum)))
-#define maxDataLength (std::numeric_limits<TDataItemLength>::max())
+#define maxDataLength (MaxDataItemPayload)
 #define maxPayloadLength ((TMessagePayloadSize)(sizeof(TDataItemHeader) + maxDataLength) * 16)
 
 // using TMessageHeader =  struct
