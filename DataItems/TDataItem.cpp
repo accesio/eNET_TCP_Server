@@ -397,6 +397,7 @@ const std::map<DataItemIds, TDIdDictEntry> DIdDict =
 		DATA_ITEM(SYS_GetDaqStatus, TSYS_GetDaqStatus, 0, 0, 0, "SYS_GetDaqStatus() → DAQ state, errno, device path, reason", nullptr),
 		DATA_ITEM(SYS_GetLog, TSYS_GetLog, 0, 10, 1034, "SYS_GetLog([v1 request]) → cursor-paged Linux journal text", nullptr),
 		DATA_ITEM(SYS_GetBuildInfo, TSYS_GetBuildInfo, 0, 0, 0, "SYS_GetBuildInfo() → version, Git identity, build UTC", nullptr),
+		DATA_ITEM(SYS_ReadTemperatures, TSYS_ReadTemperatures, 0, 0, 0, "SYS_ReadTemperatures() → s32 tempMillic[2]", nullptr),
 		DATA_ITEM(SYS_Error, TSYS_Error, 0, 12, 12, "SYS_Error() → u32 Stage, u32 error code, u32 info", nullptr),
 		DATA_ITEM(SYS_ItemError, TSYS_ItemError, 0, 12, 12, "SYS_ItemError() → u16 itemIndex, u16 DId, u32 error code, u32 info", nullptr),
 //---------------------------------------------------------------------------------------------------------------------------------

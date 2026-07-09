@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdio.h> // for renameat2, perror
 #include <sys/stat.h>
@@ -311,6 +312,16 @@ static inline void WriteU32LE(TBytes &out, __u32 v)
 	out.push_back(static_cast<__u8>((v >> 24) & 0xFF));
 }
 
+static inline std::int32_t ReadS32LE(const TBytes &b, size_t offset)
+{
+	return static_cast<std::int32_t>(ReadU32LE(b, offset));
+}
+
+static inline void WriteS32LE(TBytes &out, std::int32_t v)
+{
+	WriteU32LE(out, static_cast<__u32>(v));
+}
+
 static inline void WriteU64LE(TBytes &out, std::uint64_t v)
 {
 	for (unsigned shift = 0; shift < 64; shift += 8)
@@ -564,6 +575,89 @@ TBytes TSYS_GetBuildInfo::calcPayload(bool /*bAsReply*/)
 std::string TSYS_GetBuildInfo::AsString(bool /*bAsReply*/)
 {
     return std::string("SYS_GetBuildInfo() -> ") + BuildInfo::Version;
+}
+
+// ---------------- SYS_ReadTemperatures ----------------
+
+static constexpr const char *SYS_TEMPERATURE_PATHS[SYS_TEMPERATURE_COUNT] = {
+    "/sys/class/thermal/thermal_zone0/temp",
+    "/sys/class/thermal/thermal_zone1/temp"
+};
+
+static std::int32_t ReadTemperatureMillicelsius(const char *path)
+{
+    std::ifstream file(path);
+    if (!file)
+    {
+        Debug(std::string("SYS_ReadTemperatures: cannot open ") + path);
+        return SYS_TEMPERATURE_UNAVAILABLE;
+    }
+
+    long long value = 0;
+    file >> value;
+    if (!file || value < std::numeric_limits<std::int32_t>::min() || value > std::numeric_limits<std::int32_t>::max())
+    {
+        Debug(std::string("SYS_ReadTemperatures: cannot read valid millicelsius value from ") + path);
+        return SYS_TEMPERATURE_UNAVAILABLE;
+    }
+
+    return static_cast<std::int32_t>(value);
+}
+
+TSYS_ReadTemperatures::TSYS_ReadTemperatures(DataItemIds id, const TBytes &fromBytes)
+    : TDataItemBase(id)
+{
+    if (!fromBytes.empty())
+    {
+        this->resultCode = ERR_DId_BAD_PARAM;
+        this->errorInfo = static_cast<__u32>(fromBytes.size());
+    }
+}
+
+TSYS_ReadTemperatures::TSYS_ReadTemperatures(DataItemIds id)
+    : TDataItemBase(id)
+{
+}
+
+TSYS_ReadTemperatures &TSYS_ReadTemperatures::Go()
+{
+    if (this->resultCode != ERR_SUCCESS)
+        return *this;
+
+    TBytes out;
+    out.reserve(SYS_TEMPERATURE_COUNT * sizeof(std::int32_t));
+    for (unsigned i = 0; i < SYS_TEMPERATURE_COUNT; ++i)
+        WriteS32LE(out, ReadTemperatureMillicelsius(SYS_TEMPERATURE_PATHS[i]));
+
+    this->Data = std::move(out);
+    this->resultCode = ERR_SUCCESS;
+    this->errorInfo = 0;
+    return *this;
+}
+
+TBytes TSYS_ReadTemperatures::calcPayload(bool /*bAsReply*/)
+{
+    return this->Data;
+}
+
+std::string TSYS_ReadTemperatures::AsString(bool /*bAsReply*/)
+{
+    std::ostringstream ss;
+    ss << "SYS_ReadTemperatures()";
+    if (this->Data.size() >= SYS_TEMPERATURE_COUNT * sizeof(std::int32_t))
+    {
+        ss << " ->";
+        for (unsigned i = 0; i < SYS_TEMPERATURE_COUNT; ++i)
+        {
+            const std::int32_t tempMillic = ReadS32LE(this->Data, i * sizeof(std::int32_t));
+            ss << " temp[" << i << "]=";
+            if (tempMillic == SYS_TEMPERATURE_UNAVAILABLE)
+                ss << "unavailable";
+            else
+                ss << tempMillic << "mC";
+        }
+    }
+    return ss.str();
 }
 
 // ---------------- TSYS_Error ----------------

@@ -189,6 +189,7 @@ enum class DataItemIds : TDataId
 	SYS_GetDaqStatus = 0xEF10,
 	SYS_GetLog = 0xEF11,
 	SYS_GetBuildInfo = 0xEF12,
+	SYS_ReadTemperatures = 0xEF13,
 	SYS_Error = 0xEFF0,
 	SYS_ItemError = 0xEFF1,
 	DOC_Get = 0xFFFF,

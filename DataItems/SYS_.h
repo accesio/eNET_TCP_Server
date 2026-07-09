@@ -2,6 +2,7 @@
 
 #include "TDataItem.h"
 
+#include <cstdint>
 #include <string>
 #include <system_error>
 
@@ -106,6 +107,26 @@ public:
     explicit TSYS_GetBuildInfo(DataItemIds id = DataItemIds::SYS_GetBuildInfo);
 
     TSYS_GetBuildInfo &Go() override;
+    TBytes calcPayload(bool bAsReply = false) override;
+    std::string AsString(bool bAsReply = false) override;
+};
+
+inline constexpr unsigned SYS_TEMPERATURE_COUNT = 2;
+inline constexpr std::int32_t SYS_TEMPERATURE_UNAVAILABLE = INT32_MIN;
+
+// SYS_ReadTemperatures reply (little endian):
+//   s32 tempMillic[SYS_TEMPERATURE_COUNT]
+// Static order for this eNET image:
+//   [0] /sys/class/thermal/thermal_zone0/temp, documented as main0-thermal
+//   [1] /sys/class/thermal/thermal_zone1/temp, documented as main1-thermal
+// Unavailable/read-error value: SYS_TEMPERATURE_UNAVAILABLE.
+class TSYS_ReadTemperatures : public TDataItemBase
+{
+public:
+    TSYS_ReadTemperatures(DataItemIds id, const TBytes &fromBytes);
+    explicit TSYS_ReadTemperatures(DataItemIds id = DataItemIds::SYS_ReadTemperatures);
+
+    TSYS_ReadTemperatures &Go() override;
     TBytes calcPayload(bool bAsReply = false) override;
     std::string AsString(bool bAsReply = false) override;
 };
