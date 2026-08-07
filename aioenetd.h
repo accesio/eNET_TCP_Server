@@ -1,4 +1,6 @@
 #pragma once
+
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <memory>
@@ -12,10 +14,11 @@
 
 using TActionQueueItem = struct TActionQueueItemClass
 {
-	int Socket = -1; // which client is all this from/for; -1 means internal serialized work
-	std::shared_ptr<TMessage> Message;
-	std::function<int(void)> Work;
-	std::shared_ptr<std::promise<int>> Done;
+    int Socket = -1;
+    std::uint32_t ConnectionId = 0;
+    std::shared_ptr<TMessage> Message;
+    std::function<int(void)> Work;
+    std::shared_ptr<std::promise<int>> Done;
 };
 
 using TActionQueue = SafeQueue<TActionQueueItem *>;
@@ -26,9 +29,9 @@ void OpenDevFile();
 void exit_handler(int s);
 void abort_handler(int s);
 void Intro(int argc, char **argv);
-void HandleNewAdcClients(int Socket, int addrSize, std::vector<int> &ClientList, struct sockaddr_storage &addr);
-void HandleNewControlClients(int Socket, socklen_t addrSize, struct sockaddr_storage &addr );
-void *ActionThread(TActionQueue *Q);
+void HandleNewAdcClients(int listenSocket);
+void HandleNewControlClients(int listenSocket, socklen_t addrSize, struct sockaddr_storage &addr);
+void *ActionThread(TActionQueue *queue);
 void *ControlListenerThread(void *arg);
 void *AdcListenerThread(void *arg);
 

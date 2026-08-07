@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <cmath>
 
 #include "ADC_.h"
@@ -57,43 +58,47 @@ TADC_StreamStart::TADC_StreamStart(DataItemIds id, TBytes FromBytes)
                     sizeof(this->params.argConnectionID));
 }
 
+static void SetAdcStreamError(TDataItemBase &item, int status, TAdcConnectionId dataConnectionId = ADC_INVALID_CONNECTION_ID)
+{
+    item.errorInfo = static_cast<__u32>(status < 0 ? -status : status);
+
+    switch (status)
+    {
+        case -EBUSY:
+        case -EPERM:
+            item.resultCode = ERR_ADC_BUSY;
+            break;
+
+        case -ENODEV:
+            item.resultCode = ERR_DAQ_UNAVAILABLE;
+            break;
+
+        case -EINVAL:
+        case -ENOENT:
+        case -ENOTCONN:
+            item.resultCode = ERR_DId_BAD_PARAM;
+            if (dataConnectionId != ADC_INVALID_CONNECTION_ID)
+                item.errorInfo = dataConnectionId;
+            break;
+
+        default:
+            item.resultCode = ERR_ADC_FATAL;
+            break;
+    }
+}
+
 TADC_StreamStart &TADC_StreamStart::Go()
 {
-    const int requestedConnection = static_cast<int>(this->params.argConnectionID);
-    if (AdcStreamingConnection != -1)
+    const TAdcConnectionId controlConnectionId = static_cast<TAdcConnectionId>(this->conn);
+    const TAdcConnectionId dataConnectionId = static_cast<TAdcConnectionId>(this->params.argConnectionID);
+
+    const int status = AdcStartStream(controlConnectionId, dataConnectionId);
+    if (status != 0)
     {
-        Error("ADC Busy, already streaming on Connection: " + std::to_string(AdcStreamingConnection));
-        throw std::logic_error("ADC Busy already on Connection: " + std::to_string(AdcStreamingConnection));
+        SetAdcStreamError(*this, status, dataConnectionId);
+        Error("ADC_StreamStart failed: control=" + std::to_string(controlConnectionId) + ", data=" + std::to_string(dataConnectionId) + ", status=" + std::to_string(status));
     }
 
-    AdcStreamingConnection = requestedConnection;
-    Trace("AdcStreamingConnection: " + std::to_string(AdcStreamingConnection));
-    Debug("ADC_StreamStart::Go(), ADC Streaming Data will be sent on ConnectionID: " + std::to_string(AdcStreamingConnection));
-
-    // Example code from your snippet
-    auto status = apciDmaTransferSize(RING_BUFFER_SLOTS, BYTES_PER_TRANSFER);
-    if (status)
-    {
-        Error("Error setting apciDmaTransferSize: " + std::to_string(status));
-        AdcStreamingConnection = -1;
-        throw std::logic_error(err_msg[-status]);
-    }
-
-    AdcStreamTerminate = 0;
-    if (AdcWorkerThreadID == -1)
-    {
-        int rc = pthread_create(&worker_thread, NULL, &worker_main, &AdcStreamingConnection);
-        if (rc != 0) {
-            Error("ADC_StreamStart::Go(): pthread_create(worker) failed: " +
-                std::to_string(rc) + ", " + strerror(rc));
-            AdcStreamingConnection = -1;
-            throw std::logic_error("failed to start ADC worker thread");
-        }
-        AdcWorkerThreadID = 0; // “running”
-    }
-
-    apciDmaStart();
-    Debug("ADC_StreamStart::Go(): apciDmaStart() called");
     return *this;
 }
 
@@ -102,7 +107,7 @@ std::string TADC_StreamStart::AsString(bool bAsReply)
     std::string msg = this->getDIdDesc(this->DId);
     if (bAsReply)
     {
-        msg += ", ConnectionID = " + to_hex<int>(this->params.argConnectionID);
+        msg += ", ConnectionID = " + to_hex<__u32>(this->params.argConnectionID);
     }
     return msg;
 }
@@ -111,14 +116,19 @@ std::string TADC_StreamStart::AsString(bool bAsReply)
 TADC_StreamStop::TADC_StreamStop(DataItemIds id, TBytes bytes)
     : TDataItemBase(id)
 {
+    (void)bytes;
 }
 
 TADC_StreamStop &TADC_StreamStop::Go()
 {
-    Debug("ADC_StreamStop::Go(): requesting stop; conn=" + std::to_string(AdcStreamingConnection));
-    AdcStreamTerminate = 1;
-    apciCancelWaitForIRQ();
-    Debug("ADC_StreamStop::Go() exiting");
+    const TAdcConnectionId controlConnectionId = static_cast<TAdcConnectionId>(this->conn);
+    const int status = AdcStopStream(controlConnectionId);
+    if (status != 0)
+    {
+        SetAdcStreamError(*this, status);
+        Error("ADC_StreamStop failed: control=" + std::to_string(controlConnectionId) + ", status=" + std::to_string(status));
+    }
+
     return *this;
 }
 TBytes TADC_StreamStop::calcPayload(bool bAsReply)

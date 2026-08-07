@@ -1,11 +1,18 @@
 #pragma once
-#include <pthread.h>
-// ADC Streaming-related stuff for eNET-AIO Family hardware
 
+#include <cstdint>
 
-extern volatile bool AdcStreamTerminate;
-void *worker_main(void *arg);
-extern pthread_t worker_thread;
-extern pthread_t AdcLogger_thread;
-extern int AdcStreamingConnection;
-extern int AdcWorkerThreadID;
+using TAdcConnectionId = std::uint32_t;
+
+constexpr TAdcConnectionId ADC_INVALID_CONNECTION_ID = 0;
+
+TAdcConnectionId AdcRegisterControlConnection(int socket);
+bool AdcIsControlConnectionActive(TAdcConnectionId connectionId, int socket);
+void AdcControlConnectionClosed(TAdcConnectionId connectionId);
+
+TAdcConnectionId AdcRegisterDataConnection(int socket);
+void AdcDataConnectionClosed(TAdcConnectionId connectionId, int socket);
+
+int AdcStartStream(TAdcConnectionId controlConnectionId, TAdcConnectionId dataConnectionId);
+int AdcStopStream(TAdcConnectionId controlConnectionId);
+void AdcShutdown();
